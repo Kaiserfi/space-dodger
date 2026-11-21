@@ -1,14 +1,22 @@
-# 🚀 Space Dodger
+# 🚀 Space Dodger — Arcade Edition
 
-A fast little arcade game that runs right in your browser. Dodge the asteroids, grab power-ups, and beat your high score!
+A 90s-style arcade shooter that runs right in your browser. Blast asteroids, chain combos, and beat the HI-SCORE!
 
 ## How to play
-Open `index.html` in any browser.
+Open `index.html` in any browser (or play the GitHub Pages link).
 
-- **← / → or A / D** to fly (or drag your finger on a phone)
-- **S orb** = shield: smash through rocks for bonus points
-- **⚡ orb** = turbo: fly faster
-- **M** mutes the music and sound effects
-- The longer you survive, the faster and busier it gets!
+- **← / → or A / D** — fly (on a phone: drag your finger)
+- **SPACE** — fire (on a phone: just hold your finger down)
+- **M** — mute music and sound effects
 
-Built with plain HTML, CSS and JavaScript — no installs needed. Try changing the numbers in `index.html` to make your own version!
+## Power-ups
+| Orb | What it does |
+|---|---|
+| **S** | Shield — smash through rocks |
+| **T** | Turbo — fly faster |
+| **R** | Rapid fire — double shots |
+| **♥** | Extra life |
+
+Big asteroids take several hits and **split into smaller ones**. Destroy rocks back-to-back for **combo multipliers up to x5**. Survive to reach new **stages** — it gets faster!
+
+Built with plain HTML, CSS and JavaScript. All music and sounds are generated in code. Try changing the numbers in `index.html` to make your own version!
