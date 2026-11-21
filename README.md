@@ -8,6 +8,7 @@ Open `index.html` in any browser.
 - **← / → or A / D** to fly (or drag your finger on a phone)
 - **S orb** = shield: smash through rocks for bonus points
 - **⚡ orb** = turbo: fly faster
+- **M** mutes the music and sound effects
 - The longer you survive, the faster and busier it gets!
 
 Built with plain HTML, CSS and JavaScript — no installs needed. Try changing the numbers in `index.html` to make your own version!
