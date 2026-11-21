@@ -16,7 +16,8 @@
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
 let state = 'title', score = 0, best = +(localStorage.getItem('sdBest') || 0);
-let ship, rocks, stars, orbs, parts, t, spawnTimer, orbTimer, shake;
+let ship, stars, t = 0, spawnTimer, orbTimer, shake = 0;
+let rocks = [], orbs = [], parts = [];
 const keys = {};
 let touchX = null;
 
