@@ -39,6 +39,8 @@ const FONT = '"Courier New", Courier, monospace';
 let state = 'title', score = 0, best = 0;
 try { best = +(localStorage.getItem('sdBest') || 0); } catch(e) {}
 let ship, rocks = [], orbs = [], bullets = [], parts = [], floaters = [], rings = [], stars;
+const LIFE_EVERY = 3000;
+let nextLife = LIFE_EVERY, banner2 = 0;
 let t = 0, spawnTimer = 0, orbTimer = 0, shake = 0, stage = 1, banner = 0, combo = 0, comboTimer = 0, flash = 0;
 const keys = {};
 // ---------- LEADERBOARD CONFIG ----------
@@ -194,7 +196,7 @@ function showBoard() { state = 'board'; loadBoard(false); }
 
 function start() {
   startMusic();
-  state = 'play'; score = 0; t = 0; spawnTimer = 30; orbTimer = 300; shake = 0; stage = 1; banner = 120; combo = 0; comboTimer = 0;
+  state = 'play'; score = 0; t = 0; spawnTimer = 30; nextLife = LIFE_EVERY; banner2 = 0; shake = 0; stage = 1; banner = 120; combo = 0; comboTimer = 0;
   ship = {x:W/2, y:H-90, shield:0, boost:0, rapid:0, cd:0, lives:3, inv:90};
   rocks = []; orbs = []; bullets = []; parts = []; floaters = []; rings = [];
   sfx.stage();
@@ -212,8 +214,7 @@ function makeRock(x, y, r, vy, vx) {
 }
 
 function pickOrb() {
-  // lives are rarer so they feel special
-  const bag = ['shield','shield','turbo','rapid','rapid','rapid','life'];
+  const bag = ['shield','turbo','rapid','rapid'];
   return bag[Math.floor(Math.random()*bag.length)];
 }
 
@@ -223,8 +224,8 @@ function killRock(r) {
   addScore(Math.round(r.r) * 2 * combo, r.x, r.y);
   boom(r.x, r.y, '#fa6', 14 + Math.round(r.r / 2)); sfx.pop(); shake = Math.max(shake, 4);
   rings.push({x:r.x, y:r.y, r:r.r, life:22});
-  // bigger rocks have a better chance to drop a power-up (~8% small ... ~20% big)
-  if (Math.random() < 0.06 + r.r * 0.0035) { const typ = pickOrb(); orbs.push({x:r.x, y:r.y, type:typ, drop:true}); floater(r.x, r.y - 22, 'DROP!', ORB[typ].color); }
+  // bigger rocks have a better chance to drop a power-up (~4% small ... ~8% big)
+  if (Math.random() < 0.025 + r.r * 0.0015) { const typ = pickOrb(); orbs.push({x:r.x, y:r.y, type:typ, drop:true}); floater(r.x, r.y - 22, 'DROP!', ORB[typ].color); }
   for (let i = 0; i < 5 + Math.round(r.r / 8); i++) {       // tumbling rock chunks that fade away
     const a = Math.random()*6.28, sp = 1 + Math.random()*4;
     parts.push({x:r.x, y:r.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:35+Math.random()*30, color:'#a89684', chunk:true, rot:Math.random()*6, vr:(Math.random()-0.5)*0.5, size:3+Math.random()*r.r*0.25});
@@ -270,10 +271,6 @@ function update() {
     rocks.push(makeRock(Math.random()*(W-2*r)+r, -r, r, (1.6+Math.random()*1.8)*Math.min(level,2.8), (Math.random()-0.5)*1.5));
     spawnTimer = Math.max(16, 50 - level*7);
   }
-  if (--orbTimer <= 0) {
-    orbs.push({x:Math.random()*(W-40)+20, y:-20, type: pickOrb()});
-    orbTimer = 380 + Math.random()*300;
-  }
 
   rocks.forEach(r => { r.y += r.vy; r.x += r.vx; r.rot += r.vr; if (r.hitFlash>0) r.hitFlash--; if (r.x<r.r||r.x>W-r.r) r.vx*=-1; });
   orbs.forEach(o => o.y += 2.5);
@@ -301,13 +298,16 @@ function update() {
       if (o.type==='shield') { ship.shield = 420; sfx.power(); }
       else if (o.type==='turbo') { ship.boost = 420; sfx.power(); }
       else if (o.type==='rapid') { ship.rapid = 480; sfx.power(); }
-      else { ship.lives = Math.min(5, ship.lives + 1); sfx.life(); }
       addScore(50, o.x, o.y); floater(o.x, o.y - 18, ORB[o.type].label, c);
     }
   }
   rocks = rocks.filter(r => !r.dead && r.y < H+60);
   orbs = orbs.filter(o => !o.dead && o.y < H+30);
   if (t % 10 === 0) score++;
+  if (score >= nextLife) {   // extra life every LIFE_EVERY points
+    nextLife += LIFE_EVERY;
+    if (ship.lives < 5) { ship.lives++; sfx.life(); floater(ship.x, ship.y - 40, '1UP! EXTRA LIFE', '#6f6'); banner2 = 90; }
+  }
 }
 
 const ORB = { shield:{color:'#5ef', letter:'S', label:'SHIELD!'}, turbo:{color:'#fd3', letter:'T', label:'TURBO!'},
@@ -396,6 +396,7 @@ function drawHUD() {
   glowText('1UP', 16, 24, 16, '#ff3df0', 'left'); glowText(pad(score), 16, 46, 22, '#fff', 'left', 4);
   glowText('HI-SCORE', W-16, 24, 16, '#ff3df0', 'right'); glowText(pad(Math.max(best, score)), W-16, 46, 22, '#fff', 'right', 4);
   for (let i=0;i<ship.lives;i++) drawShip(26 + i*30, H-26, 0.45);
+  glowText('NEXT 1UP ' + pad(nextLife), W/2, H-14, 13, '#6f6', 'center', 0);
   glowText(muted ? 'MUTED (M)' : 'M = MUTE', W-14, H-14, 13, '#778', 'right', 0);
   let ly = 78; const list = [['shield','SHIELD'],['boost','TURBO'],['rapid','RAPID FIRE']];
   for (const [k, label] of list) if (ship[k] > 0) {
@@ -415,7 +416,8 @@ function drawTitle() {
   glowText('← → / A D  MOVE', W/2, 390, 18, '#fff', 'center', 0);
   glowText('AUTO-FIRE  JUST STEER!', W/2, 418, 18, '#fff', 'center', 0);
   glowText('S SHIELD  T TURBO', W/2, 462, 16, '#5ef', 'center', 0);
-  glowText('R RAPID FIRE  ♥ 1UP', W/2, 486, 16, '#f66', 'center', 0);
+  glowText('R RAPID FIRE  (drops from rocks)', W/2, 486, 16, '#f66', 'center', 0);
+  glowText('EXTRA LIFE EVERY 3000 PTS', W/2, 510, 16, '#6f6', 'center', 0);
   if (Math.floor(Date.now()/500)%2) glowText('INSERT COIN', W/2, 570, 30, '#fff', 'center', 14);
   glowText('PRESS SPACE OR TAP TO START', W/2, 600, 14, '#aaa', 'center', 0);
   glowText('PILOT: ' + (playerName || '???') + '  [N] CHANGE', W/2, 642, 16, '#5ef', 'center', 6);
