@@ -44,6 +44,22 @@ const LIFE_EVERY = 3000;
 let nextLife = LIFE_EVERY, banner2 = 0, lifeCount = 0;
 let t = 0, spawnTimer = 0, orbTimer = 0, shake = 0, stage = 1, banner = 0, combo = 0, comboTimer = 0, flash = 0;
 const keys = {};
+// ---------- NAME FILTER (keeps the leaderboard kid-friendly) ----------
+// word lists are base64-encoded so the repo doesn't hold offensive words in plain text
+const BAD_SUB = atob('RlVDSyxTSElULEJJVENILENVTlQsUFVTU1ksV0hPUkUsU0xVVCxOSUdHRVIsTklHR0EsTklCQkEsRkFHR09ULEZBR09ULFJFVEFSRCxQT1JOLFBFTklTLFZBR0lOQSxESUxETyxCTE9XSk9CLEhBTkRKT0IsSklaWixDVU1TSE9ULE9SR0FTTSxNQVNUVVJCLEJPT0IsTkFaSSxISVRMRVIsU1dBU1RJS0EsS0tLLFJBUElTVCxNT0xFU1QsUEVET1BISUxFLFBBRURPLFdFVEJBQ0ssQkVBTkVSLFRSQU5OWSxDSElOSyxLSUtFLFNFWFksUElTUyxCQVNUQVJELEFTU0hPTEUsRE9VQ0hFLFNQRVJNLE1PVEhFUkYsREFNTixUV0FULENPQ0tTVUNLLERJQ0tIRUFELFNVSUNJREUsS0lMTFlPVVJTRUxGLENPQ0FJTkUsSEVST0lOLENMSVRPUklTLFNDUk9UVU0sVEVTVElDTEUsR0VOSVRBTCxQUk9TVElUVVRFLE5VREUsU0hFTUFMRSxIT05LWSxHT0xMSVdPRyxUT1dFTEhFQUQsUkFHSEVBRCxHWVBTWSxNT05HT0xPSUQsU1BBU1RJQyxDUklQUExFLENISUxEUE9STixHRU5PQ0lERSxURVJST1JJU1QsSE9MT0NBVVNULEFVU0NIV0lUWixEVU1CQVNTLEpBQ0tBU1MsRkFUQVNTLFNNQVJUQVNTLEJBREFTUyxBU1NIQVQsQVNTV0lQRSxBU1NDTE9XTixBU1NGQUNFLEFTU0JBRyxESVBTSElU').split(',');    // blocked anywhere inside a name
+const BAD_WORD = new Set(atob('QVNTLEFSU0UsVElULFRJVFMsU0VYLENVTSxESUNLLENPQ0ssQU5BTCxHQVksSE9FLEZBRyxEWUtFLENPT04sU1BJQyxHT09LLEpBUCxORUdSTyxIRUxMLENSQVAsUFJJQ0ssV0FOSyxXQU5LRVIsSE9STlksQk9ORVIsTkFLRUQsWFhYLDY5LEtZUyxTVEZVLFdURixGQ0ssRkssRlVLLEZVS0ssU0hZVCxCSUNILFBPUk5PLFJBUEUsUkFQRUQsV0VFRCxNRVRILElTSVMsQ09DS1MsRElDS1MsQVNTRVMsU0xVVFMsQ1VNUyxOSUcsTklHUyxQQUtJLFBVU1NJRVMsVFdBVFMsQlVUVEhPTEUsUE9PUCxQRUUsQk9PQlMsQlVNLFNVQ0ssU1VDS1MsUElNUCxIT09LRVIsU1RSSVBQRVIsSE9NTyxDUkFDS0VSLEFOVVMsTE9MSSxUSUREWSxOVURFUyxQRURP').split(','));   // blocked only as a whole word (so CLASS, GRAPE, HELLO, TITAN stay OK)
+const LEET = {'@':'A','$':'S','!':'I','|':'I','0':'O','3':'E','4':'A','5':'S','7':'T','8':'B'};
+function badName(name) {
+  const raw = String(name).toUpperCase();
+  const leet = one => raw.replace(/[@$!|0134578]/g, c => c === '1' ? one : LEET[c]);   // catches $H1T, F4G, etc.
+  for (const v of [leet('I'), leet('L'), raw]) {
+    const compact = v.replace(/[^A-Z0-9]/g, '');                                 // catches F U C K, F.U.C.K
+    if (BAD_SUB.some(w => compact.includes(w)) || BAD_WORD.has(compact)) return true;
+    if (v.split(/[^A-Z0-9]+/).some(tok => tok && BAD_WORD.has(tok))) return true;
+  }
+  return false;
+}
+
 // ---------- LEADERBOARD CONFIG ----------
 // Paste your Firebase Realtime Database URL here to enable the ONLINE leaderboard (see README).
 // Leave it empty and the game keeps a leaderboard on this device only.
@@ -52,7 +68,7 @@ const LEADERBOARD_URL = 'https://space-dodger-1a558-default-rtdb.firebaseio.com'
 let touchX = null, overAt = 0, modalOpen = false;
 let playerName = '';
 try { playerName = localStorage.getItem('sdName') || ''; } catch(e) {}
-if (playerName === 'PLAYER') playerName = '';   // an old default name: ask again
+if (playerName === 'PLAYER' || badName(playerName)) playerName = '';   // old default or no-longer-allowed name: ask again
 let board = [], boardStatus = 'idle', boardIsGlobal = false, lastRank = 0;
 const nameKey = n => (n.toLowerCase().replace(/[^a-z0-9]/g, '') || 'anon');
 const canRestart = () => state === 'title' || (state === 'over' && Date.now() - overAt > 1200);
@@ -167,6 +183,7 @@ function openName(cb) {
 function submitName() {
   const n = nameInput.value.replace(/[^A-Za-z0-9 _-]/g, '').trim().toUpperCase().slice(0, 12);
   if (!n) { nameErr.textContent = 'Please type your name first!'; nameInput.focus(); return; }   // no silent default name
+  if (badName(n)) { nameErr.textContent = "That name isn't allowed. Please pick a different one!"; nameInput.focus(); return; }
   playerName = n; try { localStorage.setItem('sdName', n); } catch(e) {}
   nameModal.hidden = true; modalOpen = false; nameInput.blur();
   const cb = afterName; afterName = null; if (cb) setTimeout(cb, 0);
@@ -466,7 +483,7 @@ function drawRows(top, y0, rowH, size) {
   board.slice(0, top).forEach((r, i) => {
     const y = y0 + i * rowH, you = nameKey(r.name) === mine, c = you ? '#ff0' : (i === 0 ? '#fd3' : '#fff');
     glowText(String(i + 1).padStart(2, ' ') + '.', 90, y, size, c, 'left', you ? 8 : 0);
-    glowText(r.name.slice(0, 12), 135, y, size, c, 'left', you ? 8 : 0);
+    const nm = typeof r.name === 'string' ? r.name.slice(0, 12) : '?'; glowText(badName(nm) ? '*'.repeat(nm.length) : nm, 135, y, size, c, 'left', you ? 8 : 0);
     glowText(pad(r.score), W - 90, y, size, c, 'right', you ? 8 : 0);
   });
 }
