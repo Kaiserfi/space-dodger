@@ -16,7 +16,7 @@ Open `index.html` in any browser (or play the GitHub Pages link).
 | **T** | Turbo — fly faster |
 | **R** | Rapid fire — double shots |
 
-Power-ups only drop from **destroyed asteroids** (bigger rocks are more likely to drop one). You earn an **extra life every 3000 points**.
+Power-ups only drop from **destroyed asteroids** (bigger rocks are more likely to drop one).
 
 Big asteroids take several hits and **split into smaller ones**. Destroy rocks back-to-back for **combo multipliers up to x5**. Survive to reach new **stages** — it gets faster!
 
