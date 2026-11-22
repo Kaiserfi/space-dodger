@@ -11,9 +11,26 @@
   canvas { max-width:100%; max-height:100%; border:3px solid #ff3df0; border-radius:18px;
            box-shadow: 0 0 25px #ff3df0, 0 0 60px #4b3bff55, inset 0 0 40px #000;
            touch-action:none; image-rendering: pixelated; }
+  #nameModal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,10,0.85); z-index:10; }
+  #nameModal[hidden] { display:none; }
+  #nameModal .box { text-align:center; padding:28px 30px; border:3px solid #5ef; border-radius:16px; background:#07021a;
+                    box-shadow:0 0 30px #5ef, inset 0 0 30px #000; font-family:"Courier New", Courier, monospace; max-width:86vw; }
+  #nameModal h2 { margin:0 0 6px; color:#ff3df0; text-shadow:0 0 12px #ff3df0; font-size:26px; }
+  #nameModal p { margin:10px 0 0; color:#889; font-size:13px; }
+  #nameInput { width:240px; max-width:70vw; font:bold 26px "Courier New", monospace; text-align:center; text-transform:uppercase; letter-spacing:3px;
+               color:#fff; background:#000; border:2px solid #ff3df0; border-radius:8px; padding:10px; outline:none; margin:14px 0; }
+  #nameInput:focus { box-shadow:0 0 14px #ff3df0; }
+  #nameOk { font:bold 22px "Courier New", monospace; color:#000; background:#fd3; border:0; border-radius:8px; padding:10px 28px; cursor:pointer; box-shadow:0 0 14px #fd3; }
 </style>
 </head>
 <body>
+<div id="nameModal" hidden><div class="box">
+  <h2>ENTER YOUR NAME</h2>
+  <div style="color:#5ef;font-size:15px">pilot name for the leaderboard</div>
+  <input id="nameInput" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="PLAYER">
+  <br><button id="nameOk">START ▶</button>
+  <p>Letters, numbers and spaces. 12 max.</p>
+</div></div>
 <div id="wrap"><canvas id="c" width="480" height="720"></canvas></div>
 <script>
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -24,19 +41,38 @@ try { best = +(localStorage.getItem('sdBest') || 0); } catch(e) {}
 let ship, rocks = [], orbs = [], bullets = [], parts = [], floaters = [], rings = [], stars;
 let t = 0, spawnTimer = 0, orbTimer = 0, shake = 0, stage = 1, banner = 0, combo = 0, comboTimer = 0, flash = 0;
 const keys = {};
-let touchX = null, overAt = 0;
+// ---------- LEADERBOARD CONFIG ----------
+// Paste your Firebase Realtime Database URL here to enable the ONLINE leaderboard (see README).
+// Leave it empty and the game keeps a leaderboard on this device only.
+const LEADERBOARD_URL = '';
+
+let touchX = null, overAt = 0, modalOpen = false;
+let playerName = '';
+try { playerName = localStorage.getItem('sdName') || ''; } catch(e) {}
+let board = [], boardStatus = 'idle', boardIsGlobal = false, lastRank = 0;
+const nameKey = n => (n.toLowerCase().replace(/[^a-z0-9]/g, '') || 'anon');
 const canRestart = () => state === 'title' || (state === 'over' && Date.now() - overAt > 1200);
 
 // ---------- INPUT ----------
 addEventListener('keydown', e => {
+  if (modalOpen) return;   // typing a name: don't treat keys as game controls
   keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
-  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && state !== 'play' && canRestart()) start();
+  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && state !== 'play') activate();
+  if (state === 'title' && !e.repeat) { if (e.key === 'n' || e.key === 'N') openName(null); if (e.key === 'l' || e.key === 'L') showBoard(); }
   if (e.key === 'm' || e.key === 'M') toggleMute();
 });
 addEventListener('keyup', e => keys[e.key] = false);
 function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.left) * W / r.width; }
-cv.addEventListener('pointerdown', e => { if (state !== 'play') { if (canRestart()) start(); return; } touchX = pos(e); });
+function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.top) * H / r.height; }
+cv.addEventListener('pointerdown', e => {
+  if (modalOpen) return;
+  if (state === 'play') { touchX = pos(e); return; }
+  const y = posY(e);
+  if (state === 'title' && y > 622 && y < 655) { openName(null); return; }   // tap PLAYER line to change name
+  if (state === 'title' && y > 690) { showBoard(); return; }                  // tap LEADERBOARD
+  activate();
+});
 cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); });
 addEventListener('pointerup', () => touchX = null);
 addEventListener('pointercancel', () => touchX = null);
@@ -100,6 +136,61 @@ const scan = document.createElement('canvas'); scan.width = W; scan.height = H;
 (function(){ const s = scan.getContext('2d'); s.fillStyle = 'rgba(0,0,0,0.22)'; for (let y=0;y<H;y+=3) s.fillRect(0,y,W,1);
   const g = s.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.8); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
   s.fillStyle = g; s.fillRect(0,0,W,H); })();
+
+function activate() {
+  if (state === 'board') { state = 'title'; return; }
+  if (!canRestart()) return;
+  if (!playerName) openName(start); else start();
+}
+
+const nameModal = document.getElementById('nameModal'), nameInput = document.getElementById('nameInput');
+let afterName = null;
+function openName(cb) {
+  afterName = cb; modalOpen = true; touchX = null; for (const k in keys) keys[k] = false;
+  nameInput.value = playerName; nameModal.hidden = false; setTimeout(() => { nameInput.focus(); nameInput.select(); }, 30);
+}
+function submitName() {
+  let n = nameInput.value.replace(/[^A-Za-z0-9 _-]/g, '').trim().toUpperCase().slice(0, 12) || 'PLAYER';
+  playerName = n; try { localStorage.setItem('sdName', n); } catch(e) {}
+  nameModal.hidden = true; modalOpen = false; nameInput.blur();
+  const cb = afterName; afterName = null; if (cb) setTimeout(cb, 0);
+}
+document.getElementById('nameOk').addEventListener('click', submitName);
+nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitName(); }
+  if (e.key === 'Escape' && playerName) { nameModal.hidden = true; modalOpen = false; afterName = null; } });
+
+// --- leaderboard storage: local (always) + online (if LEADERBOARD_URL is set) ---
+function localBoard() { try { return JSON.parse(localStorage.getItem('sdBoard') || '[]'); } catch(e) { return []; } }
+function saveLocal(name, sc) {
+  const list = localBoard(), k = nameKey(name), me = list.find(r => nameKey(r.name) === k);
+  if (me) { if (sc > me.score) me.score = sc; } else list.push({name, score: sc});
+  list.sort((a, b) => b.score - a.score);
+  try { localStorage.setItem('sdBoard', JSON.stringify(list.slice(0, 10))); } catch(e) {}
+  return list.slice(0, 10);
+}
+async function fetchGlobal() {
+  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores.json?orderBy="score"&limitToLast=10', {cache: 'no-store'});
+  if (!res.ok) throw new Error('bad response');
+  const data = (await res.json()) || {};
+  return Object.values(data).filter(r => r && typeof r.score === 'number').sort((a, b) => b.score - a.score).slice(0, 10);
+}
+async function submitGlobal(name, sc) {
+  const key = nameKey(name), pbKey = 'sdPB_' + key; let pb = 0;
+  try { pb = +(localStorage.getItem(pbKey) || 0); } catch(e) {}
+  if (sc <= pb) return;     // only post a new personal best
+  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores/' + key + '.json', {method: 'PUT', body: JSON.stringify({name, score: sc, ts: Date.now()})});
+  if (res.ok) { try { localStorage.setItem(pbKey, sc); } catch(e) {} }
+}
+async function loadBoard(submit) {
+  boardStatus = 'loading'; const mine = nameKey(playerName);
+  const local = submit ? saveLocal(playerName, score) : localBoard();
+  if (!LEADERBOARD_URL) { board = local; boardIsGlobal = false; boardStatus = 'ok'; return; }
+  try {
+    if (submit) await submitGlobal(playerName, score);
+    board = await fetchGlobal(); boardIsGlobal = true; boardStatus = 'ok';
+  } catch(e) { board = local; boardIsGlobal = false; boardStatus = 'offline'; }
+}
+function showBoard() { state = 'board'; loadBoard(false); }
 
 function start() {
   startMusic();
@@ -224,7 +315,7 @@ const ORB = { shield:{color:'#5ef', letter:'S', label:'SHIELD!'}, turbo:{color:'
 
 function gameOver() {
   state = 'over'; overAt = Date.now(); touchX = null; boom(ship.x, ship.y, '#f66', 70); shake = 24;
-  stopMusic(); sfx.crash();
+  stopMusic(); sfx.crash(); loadBoard(true);
   if (score > best) { best = score; try { localStorage.setItem('sdBest', best); } catch(e){} }
 }
 
@@ -293,6 +384,7 @@ function draw() {
 
   if (state === 'play') drawHUD();
   else if (state === 'title') drawTitle();
+  else if (state === 'board') drawBoard();
   else drawOver();
 
   if (flash > 0) { ctx.fillStyle = `rgba(255,60,60,${flash/16})`; ctx.fillRect(-30,-30,W+60,H+60); }
@@ -326,19 +418,43 @@ function drawTitle() {
   glowText('R RAPID FIRE  ♥ 1UP', W/2, 486, 16, '#f66', 'center', 0);
   if (Math.floor(Date.now()/500)%2) glowText('INSERT COIN', W/2, 570, 30, '#fff', 'center', 14);
   glowText('PRESS SPACE OR TAP TO START', W/2, 600, 14, '#aaa', 'center', 0);
-  glowText('HI-SCORE ' + pad(best), W/2, 660, 18, '#fd3', 'center', 6);
+  glowText('PILOT: ' + (playerName || '???') + '  [N] CHANGE', W/2, 642, 16, '#5ef', 'center', 6);
+  glowText('HI-SCORE ' + pad(best), W/2, 672, 18, '#fd3', 'center', 6);
+  glowText('[L] LEADERBOARD', W/2, 704, 15, '#ff3df0', 'center', 6);
 }
 
+function drawRows(top, y0, rowH, size) {
+  const mine = nameKey(playerName);
+  if (boardStatus === 'loading') { glowText('LOADING...', W/2, y0 + 30, 18, '#889', 'center', 0); return; }
+  if (!board.length) { glowText('NO SCORES YET', W/2, y0 + 30, 18, '#889', 'center', 0); return; }
+  board.slice(0, top).forEach((r, i) => {
+    const y = y0 + i * rowH, you = nameKey(r.name) === mine, c = you ? '#ff0' : (i === 0 ? '#fd3' : '#fff');
+    glowText(String(i + 1).padStart(2, ' ') + '.', 90, y, size, c, 'left', you ? 8 : 0);
+    glowText(r.name.slice(0, 12), 135, y, size, c, 'left', you ? 8 : 0);
+    glowText(pad(r.score), W - 90, y, size, c, 'right', you ? 8 : 0);
+  });
+}
+function boardLabel() { return boardIsGlobal ? 'ONLINE - ALL PLAYERS' : (boardStatus === 'offline' ? 'OFFLINE - THIS DEVICE ONLY' : 'THIS DEVICE ONLY'); }
+
 function drawOver() {
-  ctx.fillStyle = 'rgba(0,0,10,0.55)'; ctx.fillRect(0, 200, W, 280);
-  glowText('GAME OVER', W/2, 290, 56, '#f44', 'center', 22);
-  glowText('SCORE ' + pad(score), W/2, 345, 26, '#fff', 'center', 6);
-  glowText(score >= best && score > 0 ? '★ NEW HIGH SCORE! ★' : 'HI-SCORE ' + pad(best), W/2, 385, 22, '#fd3', 'center', 10);
-  glowText('STAGE REACHED: ' + stage, W/2, 420, 16, '#5ef', 'center', 4);
+  ctx.fillStyle = 'rgba(0,0,10,0.72)'; ctx.fillRect(0, 130, W, 560);
+  glowText('GAME OVER', W/2, 200, 54, '#f44', 'center', 22);
+  glowText(playerName + '  ' + pad(score), W/2, 245, 24, '#fff', 'center', 6);
+  glowText(score >= best && score > 0 ? '★ NEW HIGH SCORE! ★' : 'STAGE ' + stage + '  BEST ' + pad(best), W/2, 276, 17, '#fd3', 'center', 8);
+  glowText('- TOP PILOTS -', W/2, 325, 18, '#ff3df0', 'center', 8);
+  drawRows(8, 358, 25, 18);
   if (Date.now() - overAt > 1200) {
-    glowText('TRY AGAIN?', W/2, 470, 34, '#fff', 'center', 14);
-    if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 505, 18, '#5ef', 'center', 8);
+    glowText('TRY AGAIN?', W/2, 610, 34, '#fff', 'center', 14);
+    if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 642, 17, '#5ef', 'center', 8);
   }
+}
+
+function drawBoard() {
+  ctx.fillStyle = 'rgba(0,0,10,0.72)'; ctx.fillRect(0, 70, W, 600);
+  glowText('LEADERBOARD', W/2, 140, 40, '#5ef', 'center', 18);
+  glowText(boardLabel(), W/2, 172, 14, boardIsGlobal ? '#6f6' : '#fd3', 'center', 4);
+  drawRows(10, 235, 32, 20);
+  if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 630, 18, '#fff', 'center', 8);
 }
 
 (function loop(){ update(); draw(); requestAnimationFrame(loop); })();
