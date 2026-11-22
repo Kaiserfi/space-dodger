@@ -2,6 +2,11 @@
 
 A 90s-style arcade shooter that runs right in your browser. Blast asteroids, chain combos, and beat the HI-SCORE!
 
+## Arcade menu
+The game opens on an **arcade menu** with a banner for each game. Choose one with ← / → (or tap the arrows) and press **SPACE** or tap the banner. From a game, **Esc** or the `< ARCADE` link goes back to the menu.
+
+To add a game, add an entry to `GAMES` in `index.html` with its banner theme, title and a `start()` function.
+
 ## How to play
 Open `index.html` in any browser (or play the GitHub Pages link).
 

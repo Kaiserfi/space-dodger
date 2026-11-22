@@ -37,7 +37,7 @@
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
 const FONT = '"Courier New", Courier, monospace';
-let state = 'title', score = 0, best = 0;
+let state = 'hub', score = 0, best = 0;
 try { best = +(localStorage.getItem('sdBest') || 0); } catch(e) {}
 let ship, rocks = [], orbs = [], bullets = [], parts = [], floaters = [], rings = [], stars;
 const LIFE_EVERY = 3000;
@@ -94,8 +94,10 @@ addEventListener('keydown', e => {
   if (modalOpen) return;   // typing a name: don't treat keys as game controls
   keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
+  if (state === 'hub') { hubKey(e); return; }
   if (!e.repeat) {
     const k = e.key.toLowerCase();
+    if (state === 'title' && k === 'escape') { state = 'hub'; return; }
     if (k === 'escape' || k === 'p') { if (state === 'play') { pauseGame(); return; } if (state === 'paused') { resumeGame(); return; } if (state === 'over' && k === 'escape') { goMenu(); return; } }
     if (k === 'q') { if (state === 'paused') { quitToMenu(); return; } if (state === 'over') { goMenu(); return; } }
   }
@@ -108,6 +110,7 @@ function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.lef
 function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.top - 3) * H / (r.height - 6); }
 cv.addEventListener('pointerdown', e => {
   if (modalOpen) return;
+  if (state === 'hub') { hubTap(pos(e), posY(e)); return; }
   if (state === 'play') {
     const px = pos(e), py = posY(e);
     if (py < 64 && Math.abs(px - W/2) < 36) { pauseGame(); return; }   // tap the pause button
@@ -115,6 +118,7 @@ cv.addEventListener('pointerdown', e => {
   }
   if (state === 'paused') { const py = posY(e); if (py > 375 && py < 445) quitToMenu(); else resumeGame(); return; }
   const y = posY(e);
+  if (state === 'title' && y < 60 && pos(e) < 130) { state = 'hub'; return; }   // < ARCADE
   if (state === 'over' && y > 668) { goMenu(); return; }                      // tap MAIN MENU
   if (state === 'title' && y > 622 && y < 655) { openName(null); return; }   // tap PLAYER line to change name
   if (state === 'title' && y > 690) { showBoard(); return; }                  // tap LEADERBOARD
@@ -195,9 +199,9 @@ function quitToMenu() {      // leave a run from the pause menu; the score so fa
   stopMusic(); if (AC) AC.resume();
   if (score > best) { best = score; try { localStorage.setItem('sdBest', best); } catch(e) {} }
   if (score > 0) loadBoard(true);
-  state = 'title';
+  state = 'hub';
 }
-function goMenu() { if (state === 'over' && Date.now() - overAt > 1200) state = 'title'; }
+function goMenu() { if (state === 'over' && Date.now() - overAt > 1200) state = 'hub'; }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });   // auto-pause when you switch apps/tabs
 addEventListener('blur', pauseGame);
 
@@ -473,6 +477,7 @@ function draw() {
   if (state === 'play') drawHUD();
   else if (state === 'paused') { drawHUD(); drawPaused(); }
   else if (state === 'title') drawTitle();
+  else if (state === 'hub') drawHub();
   else if (state === 'board') drawBoard();
   else drawOver();
 
@@ -486,7 +491,7 @@ function drawPaused() {
   glowText('PAUSED', W/2, 250, 56, '#5ef', 'center', 20);
   glowText('RESUME', W/2, 335, 32, '#fff', 'center', 12);
   glowText('tap anywhere, SPACE or P', W/2, 360, 14, '#889', 'center', 0);
-  glowText('QUIT TO MENU', W/2, 420, 26, '#f88', 'center', 10);
+  glowText('QUIT TO ARCADE', W/2, 420, 26, '#f88', 'center', 10);
   glowText('(Q)  your score is saved', W/2, 444, 13, '#889', 'center', 0);
 }
 function drawHUD() {
@@ -507,8 +512,77 @@ function drawHUD() {
     glowText(stage === 1 ? 'GET READY!' : 'GETTING FASTER!', W/2, 340, 20, '#fff', 'center', 8); ctx.globalAlpha = 1; }
 }
 
+// ---------- ARCADE MENU ----------
+// Each game is one entry in GAMES: its banner theme, its title, and how to start it.
+// To add a game: write a banner art function, add an entry here, and have start() open that game.
+let hubSel = 0;
+const GAMES = [
+  { id: 'dodger', title: ['SPACE', 'DODGER'], tag: 'DODGE. SHOOT. SURVIVE.',
+    top: '#2a0b4d', bottom: '#07020f', accent: '#ff3df0', glow: '#5ef',
+    art: drawDodgerArt, hi: () => best,
+    start: () => { state = 'title'; } },
+];
+
+function drawDodgerArt(x, y, w, h) {
+  const cx = x + w/2, hz = y + h*0.55;
+  ctx.strokeStyle = 'rgba(255,61,240,0.4)'; ctx.lineWidth = 1;
+  for (let i = -6; i <= 6; i++) { ctx.beginPath(); ctx.moveTo(cx + i*8, hz); ctx.lineTo(cx + i*30, y + h); ctx.stroke(); }
+  for (let j = 1; j <= 4; j++) { const yy = hz + (y + h - hz) * (j/4) * (j/4); ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); }
+  ctx.strokeStyle = '#ffb86b'; ctx.fillStyle = '#6a5d50'; ctx.lineWidth = 3; ctx.shadowColor = '#ff9a3d'; ctx.shadowBlur = 10;
+  for (const [ax, ay, r] of [[-95, 30, 26], [90, -20, 18], [-30, -70, 14], [60, 40, 12]]) {
+    ctx.beginPath(); ctx.arc(cx + ax, y + h*0.3 + ay, r, 0, 6.28); ctx.fill(); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  drawShip(cx, y + h*0.78, 1.5);
+}
+
+function drawHub() {
+  const g = GAMES[hubSel], cx = W/2, x = 70, y = 150, w = 340, h = 420;
+  ctx.fillStyle = 'rgba(0,0,10,0.55)'; ctx.fillRect(0, 60, W, 640);
+  glowText('ARCADE', cx, 96, 44, '#5ef', 'center', 22);
+  glowText('SELECT A GAME', cx, 124, 14, '#fd3', 'center', 4);
+  // banner: themed per game
+  const grd = ctx.createLinearGradient(0, y, 0, y + h); grd.addColorStop(0, g.top); grd.addColorStop(1, g.bottom);
+  ctx.save(); ctx.shadowColor = g.accent; ctx.shadowBlur = 24; ctx.fillStyle = grd; ctx.fillRect(x, y, w, h); ctx.restore();
+  ctx.strokeStyle = g.accent; ctx.lineWidth = 4; ctx.strokeRect(x, y, w, h);
+  glowText(`GAME ${hubSel + 1} OF ${GAMES.length}`, cx, y + 22, 12, '#889', 'center', 0);
+  glowText(g.title[0], cx, y + 80, 46, g.glow, 'center', 18);
+  glowText(g.title[1], cx, y + 126, 46, g.accent, 'center', 18);
+  g.art(x + 20, y + 150, w - 40, 190);
+  glowText(g.tag, cx, y + 372, 13, '#fff', 'center', 0);
+  glowText('HI-SCORE ' + pad(g.hi()), cx, y + 400, 16, '#fd3', 'center', 6);
+  // carousel arrows and dots (only when there is more than one game)
+  if (GAMES.length > 1) {
+    glowText('◀', 40, 360, 34, '#fff', 'center', 8);
+    glowText('▶', 440, 360, 34, '#fff', 'center', 8);
+    GAMES.forEach((_, i) => { ctx.fillStyle = i === hubSel ? g.accent : '#445'; ctx.beginPath(); ctx.arc(cx + (i - (GAMES.length - 1)/2) * 22, 596, 6, 0, 6.28); ctx.fill(); });
+  }
+  if (Math.floor(Date.now()/500) % 2) glowText('PRESS SPACE OR TAP TO PLAY', cx, 644, 17, '#fff', 'center', 8);
+  if (GAMES.length > 1) glowText('← → CHOOSE   SPACE PLAY', cx, 680, 13, '#889', 'center', 0);
+}
+
+function hubMove(d) {
+  if (GAMES.length < 2) return;
+  initAudio(); sfx.pew();
+  hubSel = (hubSel + d + GAMES.length) % GAMES.length;
+}
+function hubPick() { initAudio(); sfx.power(); GAMES[hubSel].start(); }
+function hubKey(e) {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'arrowleft' || k === 'a') hubMove(-1);
+  else if (k === 'arrowright' || k === 'd') hubMove(1);
+  else if (k === ' ' || k === 'enter') hubPick();
+}
+function hubTap(x, y) {
+  if (x < 70 && y > 290 && y < 430) hubMove(-1);
+  else if (x > 410 && y > 290 && y < 430) hubMove(1);
+  else if (x >= 70 && x <= 410 && y >= 150 && y <= 570) hubPick();
+}
+
 function drawTitle() {
   const wob = Math.sin(Date.now()/400) * 4;
+  glowText('< ARCADE', 16, 34, 14, '#5ef', 'left', 0);
   glowText('SPACE', W/2, 200 + wob, 66, '#5ef', 'center', 25);
   glowText('DODGER', W/2, 270 + wob, 66, '#ff3df0', 'center', 25);
   glowText('← → / A D  MOVE', W/2, 390, 18, '#fff', 'center', 0);
@@ -544,7 +618,7 @@ function drawOver() {
   if (Date.now() - overAt > 1200) {
     glowText('TRY AGAIN?', W/2, 610, 34, '#fff', 'center', 14);
     if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 642, 17, '#5ef', 'center', 8);
-    glowText('MAIN MENU  (ESC or tap here)', W/2, 698, 15, '#ff3df0', 'center', 6);
+    glowText('ARCADE MENU  (ESC or tap here)', W/2, 698, 15, '#ff3df0', 'center', 6);
   }
 }
 
