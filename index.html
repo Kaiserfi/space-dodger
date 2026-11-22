@@ -167,14 +167,14 @@ function saveLocal(name, sc) {
   const list = localBoard(), k = nameKey(name), me = list.find(r => nameKey(r.name) === k);
   if (me) { if (sc > me.score) me.score = sc; } else list.push({name, score: sc});
   list.sort((a, b) => b.score - a.score);
-  try { localStorage.setItem('sdBoard', JSON.stringify(list.slice(0, 10))); } catch(e) {}
-  return list.slice(0, 10);
+  try { localStorage.setItem('sdBoard', JSON.stringify(list.slice(0, 25))); } catch(e) {}
+  return list.slice(0, 25);
 }
 async function fetchGlobal() {
-  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores.json?orderBy="score"&limitToLast=10', {cache: 'no-store'});
+  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores.json?orderBy="score"&limitToLast=25', {cache: 'no-store'});
   if (!res.ok) throw new Error('bad response');
   const data = (await res.json()) || {};
-  return Object.values(data).filter(r => r && typeof r.score === 'number').sort((a, b) => b.score - a.score).slice(0, 10);
+  return Object.values(data).filter(r => r && typeof r.score === 'number').sort((a, b) => b.score - a.score).slice(0, 25);
 }
 async function submitGlobal(name, sc) {
   const key = nameKey(name), pbKey = 'sdPB_' + key; let pb = 0;
@@ -472,11 +472,11 @@ function drawOver() {
 }
 
 function drawBoard() {
-  ctx.fillStyle = 'rgba(0,0,10,0.72)'; ctx.fillRect(0, 70, W, 600);
-  glowText('LEADERBOARD', W/2, 140, 40, '#5ef', 'center', 18);
-  glowText(boardLabel(), W/2, 172, 14, boardIsGlobal ? '#6f6' : '#fd3', 'center', 4);
-  drawRows(10, 235, 32, 20);
-  if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 630, 18, '#fff', 'center', 8);
+  ctx.fillStyle = 'rgba(0,0,10,0.78)'; ctx.fillRect(0, 40, W, 650);
+  glowText('LEADERBOARD', W/2, 92, 36, '#5ef', 'center', 18);
+  glowText(boardLabel(), W/2, 120, 13, boardIsGlobal ? '#6f6' : '#fd3', 'center', 4);
+  drawRows(25, 165, 20, 15);
+  if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 676, 16, '#fff', 'center', 8);
 }
 
 (function loop(){ update(); draw(); requestAnimationFrame(loop); })();
