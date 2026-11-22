@@ -6,7 +6,7 @@ A 90s-style arcade shooter that runs right in your browser. Blast asteroids, cha
 Open `index.html` in any browser (or play the GitHub Pages link).
 
 - **← / → or A / D** — fly (on a phone: drag your finger)
-- **SPACE** — fire (on a phone: just hold your finger down)
+- **Auto-fire** — your ship shoots constantly, so you just steer!
 - **M** — mute music and sound effects
 
 ## Power-ups
