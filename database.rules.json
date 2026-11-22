@@ -6,7 +6,7 @@
         "score"
       ],
       "$player": {
-        ".write": ".newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 10000000 && (!data.exists() || newData.child('score').val() > data.child('score').val())",
+        ".write": "newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 10000000 && (!data.exists() || newData.child('score').val() > data.child('score').val())",
         ".validate": "newData.hasChildren(['name', 'score']) && newData.child('name').isString() && newData.child('name').val().length <= 12"
       }
     },
@@ -16,7 +16,7 @@
         "score"
       ],
       "$player": {
-        ".write": ".newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 10000000 && (!data.exists() || newData.child('score').val() > data.child('score').val())",
+        ".write": "newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 10000000 && (!data.exists() || newData.child('score').val() > data.child('score').val())",
         ".validate": "newData.hasChildren(['name', 'score']) && newData.child('name').isString() && newData.child('name').val().length <= 12"
       }
     }
