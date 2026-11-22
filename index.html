@@ -6,7 +6,8 @@
 <title>Space Dodger</title>
 <style>
   html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden; overscroll-behavior:none; }
-  #wrap { display:flex; align-items:center; justify-content:center; height:100%;
+  html, body { height:100dvh; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
           background: radial-gradient(ellipse at center, #14082e 0%, #000 75%); }
   canvas { border:3px solid #ff3df0; border-radius:18px;
            box-shadow: 0 0 25px #ff3df0, 0 0 60px #4b3bff55, inset 0 0 40px #000;
@@ -81,7 +82,8 @@ const canRestart = () => state === 'title' || (state === 'over' && Date.now() - 
 
 // ---------- FIT TO ANY SCREEN ----------
 function fit() {
-  const vw = window.innerWidth, vh = window.innerHeight, pad = 10, border = 6;
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : window.innerWidth, vh = vv ? vv.height : window.innerHeight, pad = 10, border = 6;
   const k = Math.max(0.2, Math.min((vw - pad - border) / W, (vh - pad - border) / H, 1.6));   // keep 2:3 shape, up to 1.6x on big screens
   cv.style.width = Math.floor(W * k + border) + 'px'; cv.style.height = Math.floor(H * k + border) + 'px';
 }
