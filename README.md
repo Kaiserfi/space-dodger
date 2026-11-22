@@ -1,4 +1,4 @@
-# 🚀 Space Dodger — Arcade Edition
+# 🚀 Space Dodger
 
 A 90s-style arcade shooter that runs right in your browser. Blast asteroids, chain combos, and beat the HI-SCORE!
 
