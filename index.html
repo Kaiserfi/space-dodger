@@ -95,6 +95,7 @@ addEventListener('keydown', e => {
   keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
   if (state === 'hub') { hubKey(e); return; }
+  if (state.startsWith('snake')) { snakeKey(e); return; }
   if (!e.repeat) {
     const k = e.key.toLowerCase();
     if (state === 'title' && k === 'escape') { state = 'hub'; return; }
@@ -111,6 +112,7 @@ function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.to
 cv.addEventListener('pointerdown', e => {
   if (modalOpen) return;
   if (state === 'hub') { hubTap(pos(e), posY(e)); return; }
+  if (state.startsWith('snake')) { snakeDown(e); return; }
   if (state === 'play') {
     const px = pos(e), py = posY(e);
     if (py < 64 && Math.abs(px - W/2) < 36) { pauseGame(); return; }   // tap the pause button
@@ -127,6 +129,7 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); });
 addEventListener('pointerup', () => touchX = null);
 addEventListener('pointercancel', () => touchX = null);
+addEventListener('pointerup', e => { if (state === 'snake') snakeUp(e); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------- AUDIO (all sounds are generated in code, no files!) ----------
@@ -202,8 +205,8 @@ function quitToMenu() {      // leave a run from the pause menu; the score so fa
   state = 'hub';
 }
 function goMenu() { if (state === 'over' && Date.now() - overAt > 1200) state = 'hub'; }
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });   // auto-pause when you switch apps/tabs
-addEventListener('blur', pauseGame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pauseGame(); snakePause(); } });   // auto-pause when you switch apps/tabs
+addEventListener('blur', () => { pauseGame(); snakePause(); });
 
 function activate() {
   if (state === 'paused') { resumeGame(); return; }
@@ -231,38 +234,39 @@ document.getElementById('nameOk').addEventListener('click', submitName);
 nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitName(); }
   if (e.key === 'Escape' && playerName) { nameModal.hidden = true; modalOpen = false; afterName = null; } });
 
-// --- leaderboard storage: local (always) + online (if LEADERBOARD_URL is set) ---
-function localBoard() { try { return JSON.parse(localStorage.getItem('sdBoard') || '[]'); } catch(e) { return []; } }
-function saveLocal(name, sc) {
-  const list = localBoard(), k = nameKey(name), me = list.find(r => nameKey(r.name) === k);
+// --- leaderboard storage: local (always) + online (if LEADERBOARD_URL is set); each game has its own board ---
+function localBoard(G) { try { return JSON.parse(localStorage.getItem(G.local) || '[]'); } catch(e) { return []; } }
+function saveLocal(name, sc, G) {
+  const list = localBoard(G), k = nameKey(name), me = list.find(r => nameKey(r.name) === k);
   if (me) { if (sc > me.score) me.score = sc; } else list.push({name, score: sc});
   list.sort((a, b) => b.score - a.score);
-  try { localStorage.setItem('sdBoard', JSON.stringify(list.slice(0, 25))); } catch(e) {}
+  try { localStorage.setItem(G.local, JSON.stringify(list.slice(0, 25))); } catch(e) {}
   return list.slice(0, 25);
 }
-async function fetchGlobal() {
-  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores.json?orderBy="score"&limitToLast=25', {cache: 'no-store'});
+async function fetchGlobal(G) {
+  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/' + G.path + '.json?orderBy="score"&limitToLast=25', {cache: 'no-store'});
   if (!res.ok) throw new Error('bad response');
   const data = (await res.json()) || {};
   return Object.values(data).filter(r => r && typeof r.score === 'number').sort((a, b) => b.score - a.score).slice(0, 25);
 }
-async function submitGlobal(name, sc) {
-  const key = nameKey(name), pbKey = 'sdPB_' + key; let pb = 0;
+async function submitGlobal(name, sc, G) {
+  const key = nameKey(name), pbKey = G.pb + key; let pb = 0;
   try { pb = +(localStorage.getItem(pbKey) || 0); } catch(e) {}
   if (sc <= pb) return;     // only post a new personal best
-  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/scores/' + key + '.json', {method: 'PUT', body: JSON.stringify({name, score: sc, ts: Date.now()})});
+  const res = await fetch(LEADERBOARD_URL.replace(/\/$/, '') + '/' + G.path + '/' + key + '.json', {method: 'PUT', body: JSON.stringify({name, score: sc, ts: Date.now()})});
   if (res.ok) { try { localStorage.setItem(pbKey, sc); } catch(e) {} }
 }
-async function loadBoard(submit) {
-  boardStatus = 'loading'; const mine = nameKey(playerName);
-  const local = submit ? saveLocal(playerName, score) : localBoard();
+async function loadBoard(submit, G = DG) {
+  boardStatus = 'loading';
+  const sc = G.score();
+  const local = submit ? saveLocal(playerName, sc, G) : localBoard(G);
   if (!LEADERBOARD_URL) { board = local; boardIsGlobal = false; boardStatus = 'ok'; return; }
   try {
-    if (submit) await submitGlobal(playerName, score);
-    board = await fetchGlobal(); boardIsGlobal = true; boardStatus = 'ok';
+    if (submit) await submitGlobal(playerName, sc, G);
+    board = await fetchGlobal(G); boardIsGlobal = true; boardStatus = 'ok';
   } catch(e) { board = local; boardIsGlobal = false; boardStatus = 'offline'; }
 }
-function showBoard() { state = 'board'; loadBoard(false); }
+function showBoard(G = DG) { state = 'board'; loadBoard(false, G); }
 
 function start() {
   startMusic();
@@ -425,7 +429,290 @@ function drawShip(x, y, s=1, accent='#ff3df0') {
   ctx.restore();
 }
 
+// ---------- SNAKE ----------
+const SN = { COLS: 20, ROWS: 24, CELL: 24, OX: 0, OY: 96 };   // grid and where it sits on the canvas
+const DG = { path: 'scores', local: 'sdBoard', pb: 'sdPB_', score: () => score };          // Space Dodger's board
+const SG = { path: 'snake', local: 'sdBoardSnake', pb: 'sdPBsnake_', score: () => (snake ? snake.score : 0) };  // Snake's own board
+let snake = null, snakeBest = 0, snakeOverAt = 0, snakeTouch = null;
+try { snakeBest = +(localStorage.getItem('sdSnakeBest') || 0); } catch(e) {}
+const DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
+const cellKey = (x, y) => x + ',' + y;
+
+// speed: a move every N frames. Gets faster as you grow and with each stage.
+function snakeStepFrames(s) { return Math.max(6, 12 - Math.floor(s.body.length / 3) - (s.stage - 1)); }
+
+function startSnake() {
+  startMusic();
+  const cx = Math.floor(SN.COLS / 2), cy = Math.floor(SN.ROWS / 2);
+  snake = { body: [{x: cx, y: cy}, {x: cx-1, y: cy}, {x: cx-2, y: cy}, {x: cx-3, y: cy}, {x: cx-4, y: cy}],
+            dir: {x: 1, y: 0}, queue: [], timer: 0, grow: 0, score: 0, stage: 1, eaten: 0,
+            walls: [], foods: [], countdown: 180, banner: 120, reason: '' };
+  snakeSpawnFood('orb');
+  state = 'snake'; touchX = null; snakeTouch = null;
+  sfx.stage();
+}
+
+// every cell the head can reach without crossing a wall or body (used so food and walls never trap you)
+function snakeOpen(s) {
+  const blocked = new Set();
+  s.body.forEach(p => blocked.add(cellKey(p.x, p.y)));
+  s.walls.forEach(p => blocked.add(cellKey(p.x, p.y)));
+  const h = s.body[0], seen = new Set([cellKey(h.x, h.y)]), q = [h];
+  while (q.length) {
+    const c = q.pop();
+    for (const [dx, dy] of DIRS4) {
+      const x = c.x + dx, y = c.y + dy, k = cellKey(x, y);
+      if (x < 0 || y < 0 || x >= SN.COLS || y >= SN.ROWS || seen.has(k) || blocked.has(k)) continue;
+      seen.add(k); q.push({x, y});
+    }
+  }
+  return seen;
+}
+const cellsOf = set => [...set].map(k => { const [x, y] = k.split(',').map(Number); return {x, y}; });
+
+function snakeSpawnFood(type) {
+  const s = snake, h = s.body[0], taken = new Set(s.foods.map(f => cellKey(f.x, f.y)));
+  let cells = cellsOf(snakeOpen(s)).filter(c => !taken.has(cellKey(c.x, c.y)) && !(c.x === h.x && c.y === h.y));
+  if (type !== 'orb') cells = cells.filter(c => Math.abs(c.x - h.x) + Math.abs(c.y - h.y) >= 4);   // no surprise food next to your head
+  if (!cells.length) return;
+  const c = cells[Math.floor(Math.random() * cells.length)];
+  const f = {x: c.x, y: c.y, type};
+  if (type === 'gold') f.ttl = 420;     // gold orbs vanish after 7 seconds
+  s.foods.push(f);
+}
+
+// new stage: add blocks, but never cut the board in two or trap food
+function snakeAddWalls(s, n) {
+  for (let i = 0; i < n; i++) {
+    const before = snakeOpen(s).size, h = s.body[0];
+    const cand = cellsOf(snakeOpen(s)).filter(c => Math.abs(c.x - h.x) + Math.abs(c.y - h.y) >= 5 && !s.foods.some(f => f.x === c.x && f.y === c.y));
+    if (!cand.length) return;
+    const c = cand[Math.floor(Math.random() * cand.length)];
+    s.walls.push({x: c.x, y: c.y});
+    const after = snakeOpen(s);
+    const foodOk = s.foods.every(f => after.has(cellKey(f.x, f.y)));
+    if (after.size < before - 1 || !foodOk) s.walls.pop();   // a new block removes exactly one open cell; anything more means a cut-off
+  }
+}
+
+function snakeTurn(dx, dy) {
+  const s = snake; if (!s) return;
+  const last = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
+  if (dx === last.x && dy === last.y) return;     // already going that way
+  if (dx === -last.x && dy === -last.y) return;   // no instant reverse into your own body
+  if (s.queue.length < 2) s.queue.push({x: dx, y: dy});
+}
+function snakeTurnSide(side) {                    // -1 = turn left, 1 = turn right, relative to where you're heading
+  const s = snake, d = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
+  if (side < 0) snakeTurn(d.y, -d.x); else snakeTurn(-d.y, d.x);
+}
+
+function snakeStep() {
+  const s = snake;
+  if (s.queue.length) s.dir = s.queue.shift();
+  const h = s.body[0], nx = h.x + s.dir.x, ny = h.y + s.dir.y;
+  if (nx < 0 || ny < 0 || nx >= SN.COLS || ny >= SN.ROWS) return snakeDie('HIT A WALL');
+  if (s.walls.some(w => w.x === nx && w.y === ny)) return snakeDie('HIT A BLOCK');
+  const hit = s.body.findIndex(p => p.x === nx && p.y === ny);
+  if (hit >= 0 && (hit < s.body.length - 1 || s.grow > 0)) return snakeDie('BIT YOUR TAIL');   // the tail moves away, so stepping into it is fine
+  s.body.unshift({x: nx, y: ny});
+  if (s.grow > 0) s.grow--; else s.body.pop();
+  const fi = s.foods.findIndex(f => f.x === nx && f.y === ny);
+  if (fi >= 0) snakeEat(s.foods[fi], fi);
+}
+
+function snakeEat(f, i) {
+  const s = snake, C = SN.CELL, px = SN.OX + f.x*C + C/2, py = SN.OY + f.y*C + C/2;
+  s.foods.splice(i, 1);
+  if (f.type === 'poison') {
+    s.body.splice(-2, 2);                                   // lose two tail segments
+    boom(px, py, '#c5f', 24); sfx.ouch(); floater(px, py - 14, '-2 SHORTER!', '#c5f');
+    if (s.body.length < 3) return snakeDie('TOO SHORT');
+  } else if (f.type === 'gold') {
+    s.grow += 2; s.score += 50; boom(px, py, '#fd3', 30); sfx.power(); floater(px, py - 14, '+50 GOLD!', '#fd3');
+  } else {
+    const pts = 10 + 5 * (s.stage - 1);
+    s.grow += 1; s.score += pts; s.eaten++;
+    boom(px, py, '#5f5', 12); sfx.pop(); floater(px, py - 14, '+' + pts, '#5f5');
+    if (s.eaten % 6 === 0) { s.stage++; s.banner = 120; snakeAddWalls(s, 2); sfx.stage(); }
+  }
+  if (!s.foods.some(q => q.type === 'orb')) snakeSpawnFood('orb');
+  if (f.type !== 'poison') {
+    if (s.body.length >= 6 && Math.random() < 0.35 && s.foods.filter(q => q.type === 'poison').length < Math.min(3, s.stage)) snakeSpawnFood('poison');
+    if (Math.random() < 0.12 && !s.foods.some(q => q.type === 'gold')) snakeSpawnFood('gold');
+  }
+}
+
+function snakeSaveBest() {
+  if (snake && snake.score > snakeBest) { snakeBest = snake.score; try { localStorage.setItem('sdSnakeBest', snakeBest); } catch(e) {} }
+}
+function snakeDie(reason) {
+  const s = snake, C = SN.CELL, h = s.body[0];
+  s.reason = reason; state = 'snakeOver'; snakeOverAt = Date.now();
+  boom(SN.OX + h.x*C + C/2, SN.OY + h.y*C + C/2, '#7f7', 50); shake = 20;
+  stopMusic(); sfx.crash(); snakeSaveBest(); loadBoard(true, SG);
+}
+
+function snakeUpdate() {
+  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; }); parts = parts.filter(p => p.life > 0);
+  floaters.forEach(f => { f.y -= 0.8; f.life--; }); floaters = floaters.filter(f => f.life > 0);
+  if (shake > 0) shake--;
+  const s = snake;
+  if (!s || state !== 'snake') return;               // paused or game over: nothing moves
+  if (s.countdown > 0) { s.countdown--; return; }
+  if (s.banner > 0) s.banner--;
+  s.timer++;
+  if (s.timer >= snakeStepFrames(s)) { s.timer = 0; snakeStep(); }
+  if (state === 'snake') {
+    for (const f of s.foods) if (f.type === 'gold') f.ttl--;
+    s.foods = s.foods.filter(f => f.type !== 'gold' || f.ttl > 0);
+    if (!s.foods.some(f => f.type === 'orb')) snakeSpawnFood('orb');
+  }
+}
+
+function snakeKey(e) {
+  const k = e.key.toLowerCase();
+  if (state === 'snake') {
+    if (k === 'arrowup' || k === 'w') snakeTurn(0, -1);
+    else if (k === 'arrowdown' || k === 's') snakeTurn(0, 1);
+    else if (k === 'arrowleft' || k === 'a') snakeTurn(-1, 0);
+    else if (k === 'arrowright' || k === 'd') snakeTurn(1, 0);
+    else if ((k === 'escape' || k === 'p') && !e.repeat) snakePause();
+    return;
+  }
+  if (e.repeat) return;
+  if (state === 'snakePaused') {
+    if (k === 'escape' || k === 'p' || k === ' ' || k === 'enter') snakeResume();
+    else if (k === 'q') snakeQuit();
+  } else if (state === 'snakeOver') {
+    if (k === 'escape' || k === 'q') snakeQuit();
+    else if ((k === ' ' || k === 'enter') && Date.now() - snakeOverAt > 1200) startSnake();
+  }
+}
+function snakeDown(e) {
+  const x = pos(e), y = posY(e);
+  if (state === 'snake') {
+    if (y < 64 && Math.abs(x - W/2) < 36) { snakePause(); return; }   // pause button
+    snakeTouch = {x, y}; return;
+  }
+  if (state === 'snakePaused') { if (y > 375 && y < 445) snakeQuit(); else snakeResume(); return; }
+  if (state === 'snakeOver') {
+    if (y > 668) snakeQuit();
+    else if (Date.now() - snakeOverAt > 1200) startSnake();
+  }
+}
+function snakeUp(e) {               // a swipe turns that way; a tap turns left on the left half, right on the right
+  const t0 = snakeTouch; snakeTouch = null;
+  if (!t0 || state !== 'snake') return;
+  const dx = pos(e) - t0.x, dy = posY(e) - t0.y;
+  if (Math.abs(dx) + Math.abs(dy) >= 24) { if (Math.abs(dx) > Math.abs(dy)) snakeTurn(Math.sign(dx), 0); else snakeTurn(0, Math.sign(dy)); }
+  else snakeTurnSide(t0.x < W/2 ? -1 : 1);
+}
+function snakePause() { if (state !== 'snake') return; state = 'snakePaused'; if (AC && AC.state === 'running') AC.suspend(); }
+function snakeResume() { if (state !== 'snakePaused') return; state = 'snake'; if (AC) AC.resume(); }
+function snakeQuit() {                // leave to the arcade menu; a run you quit from pause still posts its score
+  if (state === 'snakePaused' && snake && snake.score > 0) { snakeSaveBest(); loadBoard(true, SG); }
+  stopMusic(); if (AC) AC.resume();
+  state = 'hub';
+}
+
+function drawSnakeArt(x, y, w, h) {
+  const c = 22, ox = x + (w - 8*c)/2, oy = y + (h - 6*c)/2;
+  ctx.strokeStyle = 'rgba(80,255,120,0.18)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 8; i++) { ctx.beginPath(); ctx.moveTo(ox + i*c, oy); ctx.lineTo(ox + i*c, oy + 6*c); ctx.stroke(); }
+  for (let j = 0; j <= 6; j++) { ctx.beginPath(); ctx.moveTo(ox, oy + j*c); ctx.lineTo(ox + 8*c, oy + j*c); ctx.stroke(); }
+  const body = [[1,4],[2,4],[3,4],[3,3],[3,2],[4,2],[5,2],[5,3],[5,4]];
+  body.forEach(([cx, cy], i) => {
+    const t = i / (body.length - 1);
+    ctx.fillStyle = i === body.length - 1 ? '#dfffc0' : `rgb(${Math.round(60 - 30*t)}, ${Math.round(220 - 120*t)}, ${Math.round(110 - 60*t)})`;
+    ctx.fillRect(ox + cx*c + 2, oy + cy*c + 2, c - 4, c - 4);
+  });
+  ctx.fillStyle = '#fd3'; ctx.shadowColor = '#fd3'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(ox + 7*c + c/2, oy + c + c/2, 7, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
+}
+
+function drawSnakeFrame() {
+  const s = snake;
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  ctx.fillStyle = '#031209'; ctx.fillRect(-30, -30, W + 60, H + 60);
+  if (s) drawSnakeBoard(s);
+  parts.forEach(p => { ctx.globalAlpha = Math.min(1, p.life/30); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
+  ctx.globalAlpha = 1;
+  floaters.forEach(f => { ctx.globalAlpha = Math.min(1, f.life/20); glowText(f.text, f.x, f.y, 16, f.color, 'center', 6); });
+  ctx.globalAlpha = 1;
+  if (s) drawSnakeHUD(s);
+  if (state === 'snakePaused') drawPaused();
+  else if (state === 'snakeOver') drawSnakeOver(s);
+  ctx.restore();
+  ctx.drawImage(scan, 0, 0);
+}
+
+function drawSnakeBoard(s) {
+  const C = SN.CELL, bx = SN.OX, by = SN.OY, bw = SN.COLS*C, bh = SN.ROWS*C;
+  ctx.fillStyle = 'rgba(0,30,15,0.85)'; ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = 'rgba(80,255,120,0.08)'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i <= SN.COLS; i++) { ctx.moveTo(bx + i*C + 0.5, by); ctx.lineTo(bx + i*C + 0.5, by + bh); }
+  for (let j = 0; j <= SN.ROWS; j++) { ctx.moveTo(bx, by + j*C + 0.5); ctx.lineTo(bx + bw, by + j*C + 0.5); }
+  ctx.stroke();
+  ctx.strokeStyle = '#5f5'; ctx.lineWidth = 4; ctx.shadowColor = '#5f5'; ctx.shadowBlur = 14; ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4); ctx.shadowBlur = 0;
+  // blocks
+  ctx.fillStyle = '#6b2a2a'; ctx.strokeStyle = '#f66'; ctx.lineWidth = 2;
+  for (const w of s.walls) { const px = bx + w.x*C, py = by + w.y*C; ctx.fillRect(px + 2, py + 2, C - 4, C - 4); ctx.strokeRect(px + 3, py + 3, C - 6, C - 6); }
+  // food
+  for (const f of s.foods) {
+    const cx = bx + f.x*C + C/2, cy = by + f.y*C + C/2;
+    if (f.type === 'orb') { ctx.fillStyle = '#5f5'; ctx.shadowColor = '#5f5'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(cx, cy, 7, 0, 6.28); ctx.fill(); }
+    else if (f.type === 'gold') {
+      const hidden = f.ttl < 120 && Math.floor(f.ttl / 6) % 2;   // flashes as it runs out
+      if (!hidden) { ctx.fillStyle = '#fd3'; ctx.shadowColor = '#fd3'; ctx.shadowBlur = 16; ctx.beginPath(); ctx.arc(cx, cy, 9, 0, 6.28); ctx.fill(); }
+    } else {
+      ctx.fillStyle = '#c5f'; ctx.shadowColor = '#c5f'; ctx.shadowBlur = 10; ctx.fillRect(cx - 7, cy - 7, 14, 14);
+      ctx.shadowBlur = 0; ctx.fillStyle = '#000'; ctx.font = `bold 12px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('X', cx, cy + 4);
+    }
+    ctx.shadowBlur = 0;
+  }
+  // snake: bright head, body fades toward the tail; flashes red when you die
+  const n = s.body.length, flash = state === 'snakeOver' && Math.floor(Date.now() / 100) % 2;
+  s.body.forEach((p, i) => {
+    const t = i / Math.max(1, n - 1);
+    let col = i === 0 ? '#dfffc0' : `rgb(${Math.round(60 - 30*t)}, ${Math.round(220 - 120*t)}, ${Math.round(110 - 60*t)})`;
+    if (flash) col = '#f66';
+    ctx.fillStyle = col; ctx.fillRect(bx + p.x*C + 2, by + p.y*C + 2, C - 4, C - 4);
+  });
+  const h = s.body[0], d = s.dir, hx = bx + h.x*C + C/2, hy = by + h.y*C + C/2;
+  ctx.fillStyle = '#012';
+  for (const sg of [-1, 1]) ctx.fillRect(hx + d.x*4 - d.y*5*sg - 2, hy + d.y*4 + d.x*5*sg - 2, 4, 4);
+  if (state === 'snake' && s.countdown > 0) glowText(String(Math.ceil(s.countdown / 60)), W/2, 400, 120, '#fd3', 'center', 30);
+}
+
+function drawSnakeHUD(s) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(W/2 - 18, 12, 36, 32);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(W/2 - 8, 19, 5, 18); ctx.fillRect(W/2 + 3, 19, 5, 18);
+  glowText(pad(s.score), 16, 46, 22, '#fff', 'left', 4);
+  glowText('HI-SCORE', W - 16, 24, 14, '#5f5', 'right');
+  glowText(pad(Math.max(snakeBest, s.score)), W - 16, 46, 22, '#fff', 'right', 4);
+  glowText('STAGE ' + s.stage + '   LEN ' + s.body.length, W/2, 84, 14, '#fd3', 'center', 0);
+  if (s.banner > 0 && state === 'snake') glowText('STAGE ' + s.stage, W/2, 330, 46, '#5f5', 'center', 18);
+}
+
+function drawSnakeOver(s) {
+  ctx.fillStyle = 'rgba(0,10,5,0.72)'; ctx.fillRect(0, 130, W, 560);
+  glowText('GAME OVER', W/2, 200, 54, '#f44', 'center', 22);
+  glowText(s.reason, W/2, 240, 16, '#f88', 'center', 4);
+  glowText(playerName + '  ' + pad(s.score), W/2, 280, 24, '#fff', 'center', 6);
+  glowText(s.score >= snakeBest && s.score > 0 ? '★ NEW HIGH SCORE! ★' : 'HI-SCORE ' + pad(snakeBest), W/2, 312, 17, '#fd3', 'center', 8);
+  glowText('- TOP PILOTS -', W/2, 355, 18, '#5f5', 'center', 8);
+  drawRows(8, 388, 25, 18);
+  if (Date.now() - snakeOverAt > 1200) {
+    glowText('TRY AGAIN?', W/2, 610, 34, '#fff', 'center', 14);
+    if (Math.floor(Date.now()/500) % 2) glowText('PRESS SPACE OR TAP', W/2, 642, 17, '#5f5', 'center', 8);
+  }
+  glowText('ARCADE MENU  (ESC or tap here)', W/2, 698, 15, '#5f5', 'center', 6);
+}
+
 function draw() {
+  if (state.startsWith('snake')) return drawSnakeFrame();
   ctx.save();
   if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
   ctx.fillStyle = '#07021a'; ctx.fillRect(-30,-30,W+60,H+60);
@@ -521,6 +808,10 @@ const GAMES = [
     top: '#2a0b4d', bottom: '#07020f', accent: '#ff3df0', glow: '#5ef',
     art: drawDodgerArt, hi: () => best,
     start: () => { state = 'title'; } },
+  { id: 'snake', title: ['SNAKE', ''], tag: "GROW. DON'T CRASH.",
+    top: '#0b3d1f', bottom: '#02100a', accent: '#5f5', glow: '#fd3',
+    art: drawSnakeArt, hi: () => snakeBest,
+    start: () => { if (!playerName) openName(startSnake); else startSnake(); } },
 ];
 
 function drawDodgerArt(x, y, w, h) {
@@ -546,8 +837,8 @@ function drawHub() {
   ctx.save(); ctx.shadowColor = g.accent; ctx.shadowBlur = 24; ctx.fillStyle = grd; ctx.fillRect(x, y, w, h); ctx.restore();
   ctx.strokeStyle = g.accent; ctx.lineWidth = 4; ctx.strokeRect(x, y, w, h);
   glowText(`GAME ${hubSel + 1} OF ${GAMES.length}`, cx, y + 22, 12, '#889', 'center', 0);
-  glowText(g.title[0], cx, y + 80, 46, g.glow, 'center', 18);
-  glowText(g.title[1], cx, y + 126, 46, g.accent, 'center', 18);
+  if (g.title[1]) { glowText(g.title[0], cx, y + 80, 46, g.glow, 'center', 18); glowText(g.title[1], cx, y + 126, 46, g.accent, 'center', 18); }
+  else glowText(g.title[0], cx, y + 104, 46, g.glow, 'center', 18);
   g.art(x + 20, y + 150, w - 40, 190);
   glowText(g.tag, cx, y + 372, 13, '#fff', 'center', 0);
   glowText('HI-SCORE ' + pad(g.hi()), cx, y + 400, 16, '#fd3', 'center', 6);
@@ -630,7 +921,7 @@ function drawBoard() {
   if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 676, 16, '#fff', 'center', 8);
 }
 
-(function loop(){ update(); draw(); requestAnimationFrame(loop); })();
+(function loop(){ if (state.startsWith('snake')) snakeUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
 </script>
 </body>
 </html>

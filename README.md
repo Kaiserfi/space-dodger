@@ -7,6 +7,17 @@ The game opens on an **arcade menu** with a banner for each game. Choose one wit
 
 To add a game, add an entry to `GAMES` in `index.html` with its banner theme, title and a `start()` function.
 
+## 🐍 Snake
+Grow your snake by eating green orbs. Walls, blocks and your own tail are all deadly.
+
+- **Steer:** arrow keys or WASD. On a phone, swipe in the direction you want, or tap the left or right half of the screen to turn.
+- **Gold orbs** (yellow): +50 points and grow by 2, but they vanish after 7 seconds.
+- **Poison orbs** (purple **X**): remove 2 segments. Shrinking below 3 segments ends the run.
+- **Stages:** every 6 green orbs adds blocks and speeds the snake up.
+- **Pause:** the pause button, **P** or **Esc**.
+
+Snake has its own leaderboard. Online scores need the `snake` section of `database.rules.json` published in Firebase.
+
 ## How to play
 Open `index.html` in any browser (or play the GitHub Pages link).
 
