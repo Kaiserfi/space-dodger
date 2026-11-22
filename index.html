@@ -96,6 +96,7 @@ addEventListener('keydown', e => {
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
   if (state === 'hub') { hubKey(e); return; }
   if (state.startsWith('snake')) { snakeKey(e); return; }
+  if (state.startsWith('crawler')) { crawlerKey(e); return; }
   if (!e.repeat) {
     const k = e.key.toLowerCase();
     if (state === 'title' && k === 'escape') { state = 'hub'; return; }
@@ -113,6 +114,7 @@ cv.addEventListener('pointerdown', e => {
   if (modalOpen) return;
   if (state === 'hub') { hubTap(pos(e), posY(e)); return; }
   if (state.startsWith('snake')) { snakeDown(e); return; }
+  if (state.startsWith('crawler')) { crawlerDown(e); return; }
   if (state === 'play') {
     const px = pos(e), py = posY(e);
     if (py < 64 && Math.abs(px - W/2) < 36) { pauseGame(); return; }   // tap the pause button
@@ -126,10 +128,10 @@ cv.addEventListener('pointerdown', e => {
   if (state === 'title' && y > 690) { showBoard(); return; }                  // tap LEADERBOARD
   activate();
 });
-cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); });
+cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); if (crawlerPtr) crawlerPtr = {x: pos(e), y: posY(e)}; });
 addEventListener('pointerup', () => touchX = null);
 addEventListener('pointercancel', () => touchX = null);
-addEventListener('pointerup', e => { if (state === 'snake') snakeUp(e); });
+addEventListener('pointerup', e => { if (state === 'snake') snakeUp(e); crawlerPtr = null; });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------- AUDIO (all sounds are generated in code, no files!) ----------
@@ -205,8 +207,8 @@ function quitToMenu() {      // leave a run from the pause menu; the score so fa
   state = 'hub';
 }
 function goMenu() { if (state === 'over' && Date.now() - overAt > 1200) state = 'hub'; }
-document.addEventListener('visibilitychange', () => { if (document.hidden) { pauseGame(); snakePause(); } });   // auto-pause when you switch apps/tabs
-addEventListener('blur', () => { pauseGame(); snakePause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pauseGame(); snakePause(); crawlerPause(); } });   // auto-pause when you switch apps/tabs
+addEventListener('blur', () => { pauseGame(); snakePause(); crawlerPause(); });
 
 function activate() {
   if (state === 'paused') { resumeGame(); return; }
@@ -711,8 +713,340 @@ function drawSnakeOver(s) {
   glowText('ARCADE MENU  (ESC or tap here)', W/2, 698, 15, '#5f5', 'center', 6);
 }
 
+// ---------- CRAWLER (original shooter: a centipede winds through a mushroom field) ----------
+const CR = { COLS: 20, ROWS: 25, CELL: 24, OX: 0, OY: 96, ZONE: 19 };   // ZONE: rows from here down are your zone
+const CG = { path: 'crawler', local: 'sdBoardCrawler', pb: 'sdPBcrawler_', score: () => (crawler ? crawler.score : 0) };
+let crawler = null, crawlerBest = 0, crawlerOverAt = 0, crawlerPtr = null;
+try { crawlerBest = +(localStorage.getItem('sdCrawlerBest') || 0); } catch(e) {}
+const crPX = x => CR.OX + x*CR.CELL + CR.CELL/2, crPY = y => CR.OY + y*CR.CELL + CR.CELL/2;
+const crZoneTop = () => CR.OY + CR.ZONE*CR.CELL, crZoneBottom = () => CR.OY + CR.ROWS*CR.CELL;
+
+const crSfx = {
+  fire()  { if (!AC) return; const n = AC.currentTime; tone(900, n, 0.05, 'square', 0.04, 500); },
+  step(i) { if (!AC) return; const n = AC.currentTime; tone(i % 2 ? 130 : 98, n, 0.05, 'triangle', 0.07); },
+  split() { if (!AC) return; const n = AC.currentTime; tone(600, n, 0.06, 'square', 0.08, 900); tone(900, n + 0.05, 0.06, 'square', 0.08, 1300); },
+  hit()   { if (!AC) return; const n = AC.currentTime; tone(300, n, 0.04, 'square', 0.05); },
+  flea()  { if (!AC) return; const n = AC.currentTime; tone(1400, n, 0.12, 'square', 0.05, 900); },
+  spider(){ if (!AC) return; const n = AC.currentTime; tone(160, n, 0.3, 'sawtooth', 0.06, 260); },
+  wave()  { if (!AC) return; const n = AC.currentTime; [262, 330, 392, 523, 659].forEach((f, i) => tone(f, n + i*0.08, 0.14, 'square', 0.08)); },
+  die()   { if (!AC) return; const n = AC.currentTime; noise(n, 0.7, 0.4); tone(300, n, 0.7, 'sawtooth', 0.15, 40); },
+};
+
+function crawlerAddMushroom(c) {
+  for (let t = 0; t < 40; t++) {
+    const x = Math.floor(Math.random() * CR.COLS), y = 1 + Math.floor(Math.random() * (CR.ZONE - 3));
+    if (!c.mush.has(crKey(x, y))) { c.mush.set(crKey(x, y), 4); return; }
+  }
+}
+function crawlerSpawnCentipede(c) {
+  const len = Math.min(16, 8 + 2 * (c.wave - 1));
+  const segs = [];
+  for (let i = 0; i < len; i++) segs.push({x: len - 1 - i, y: 0});   // head on the right, moving right
+  c.chains = [{segs, dir: 1}];
+  c.countdown = 120; c.banner = 120; c.timer = 0;
+  for (let i = 0; i < 5; i++) crawlerAddMushroom(c);
+}
+function crKey(x, y) { return x + ',' + y; }
+
+function startCrawler() {
+  stopMusic();
+  crawler = { mush: new Map(), chains: [], px: W/2, py: crZoneBottom() - 30, bullets: [], cd: 0,
+              fleas: [], spiders: [], lives: 3, inv: 0, score: 0, wave: 1, nextLife: 12000,
+              timer: 0, fleaT: 900, spiderT: 1500, countdown: 180, banner: 120, reason: '', tick: 0 };
+  for (let i = 0; i < 26; i++) crawlerAddMushroom(crawler);
+  crawlerSpawnCentipede(crawler);
+  crawler.countdown = 180;
+  state = 'crawler'; crawlerPtr = null;
+}
+
+// frames per centipede move: faster each wave, and faster once only a few segments are left
+function crawlerStepFrames(c) {
+  const segs = c.chains.reduce((n, ch) => n + ch.segs.length, 0);
+  return Math.max(3, 8 - (c.wave - 1) - (segs < 6 ? 2 : 0));
+}
+
+function crawlerStepChains(c) {
+  const occ = new Set();
+  c.chains.forEach(ch => ch.segs.forEach(p => occ.add(crKey(p.x, p.y))));
+  const blocked = (x, y) => x < 0 || x >= CR.COLS || y < 0 || y >= CR.ROWS || c.mush.has(crKey(x, y)) || occ.has(crKey(x, y));
+  for (const ch of c.chains) {
+    const h = ch.segs[0], nx = h.x + ch.dir;
+    let np = null;
+    if (!blocked(nx, h.y)) np = {x: nx, y: h.y};
+    else {                                         // hit a wall or mushroom: drop a row (or climb if you can't) and reverse
+      ch.dir = -ch.dir;
+      if (!blocked(h.x, h.y + 1)) np = {x: h.x, y: h.y + 1};
+      else if (!blocked(h.x, h.y - 1)) np = {x: h.x, y: h.y - 1};
+    }
+    if (np) { ch.segs.unshift(np); ch.segs.pop(); }   // the body follows the head
+  }
+}
+
+function crawlerSplit(c, ci, si) {
+  const ch = c.chains[ci], p = ch.segs[si], px = crPX(p.x), py = crPY(p.y);
+  c.mush.set(crKey(p.x, p.y), 4);                     // the shot segment leaves a mushroom behind
+  c.score += si === 0 ? 100 : 10;
+  boom(px, py, si === 0 ? '#f44' : '#9f3', 14); crSfx.split();
+  const head = ch.segs.slice(0, si), tail = ch.segs.slice(si + 1);
+  c.chains.splice(ci, 1);
+  if (head.length) c.chains.push({segs: head, dir: ch.dir});
+  if (tail.length) c.chains.push({segs: tail, dir: -ch.dir});   // the back half now crawls the other way
+}
+
+function crawlerBullets(c) {
+  for (const b of c.bullets) {
+    b.y -= 9;
+    if (b.y < CR.OY) { b.dead = true; continue; }
+    const k = crKey(Math.floor((b.x - CR.OX) / CR.CELL), Math.floor((b.y - CR.OY) / CR.CELL));
+    if (c.mush.has(k)) {
+      const hp = c.mush.get(k) - 1;
+      if (hp <= 0) { c.mush.delete(k); c.score += 1; boom(b.x, b.y, '#2ef2c8', 8); } else c.mush.set(k, hp);
+      crSfx.hit(); b.dead = true; continue;
+    }
+    let done = false;
+    for (let ci = 0; ci < c.chains.length && !done; ci++) {
+      const segs = c.chains[ci].segs;
+      for (let si = 0; si < segs.length; si++) {
+        if (Math.hypot(crPX(segs[si].x) - b.x, crPY(segs[si].y) - b.y) < 11) { crawlerSplit(c, ci, si); b.dead = true; done = true; break; }
+      }
+    }
+    if (done) continue;
+    for (const f of c.fleas) if (!f.dead && Math.hypot(f.x - b.x, f.y - b.y) < 14) { f.dead = true; b.dead = true; c.score += 200; boom(f.x, f.y, '#f6f', 16); floater(f.x, f.y - 14, '+200', '#f6f'); crSfx.hit(); done = true; break; }
+    if (done) continue;
+    for (const sp of c.spiders) if (!sp.dead && Math.hypot(sp.x - b.x, sp.y - b.y) < 18) { sp.dead = true; b.dead = true; c.score += 300; boom(sp.x, sp.y, '#a6f', 26); floater(sp.x, sp.y - 16, '+300', '#a6f'); sfx.pop(); break; }
+  }
+  c.bullets = c.bullets.filter(b => !b.dead);
+  c.fleas = c.fleas.filter(f => !f.dead);
+  c.spiders = c.spiders.filter(sp => !sp.dead);
+}
+
+function crawlerFleas(c) {
+  c.fleaT--;
+  if (c.fleaT <= 0) {
+    c.fleas.push({x: 20 + Math.random() * (W - 40), y: CR.OY - 10, row: -1});
+    c.fleaT = Math.max(260, 620 - c.wave * 40) + Math.random() * 200;
+  }
+  for (const f of c.fleas) {
+    f.y += 2.4 + Math.min(1.6, c.wave * 0.1);
+    const row = Math.floor((f.y - CR.OY) / CR.CELL);
+    if (row !== f.row) {                              // a flea leaves mushrooms as it falls
+      f.row = row;
+      if (row >= 0 && row < CR.ZONE && Math.random() < 0.5) {
+        const k = crKey(Math.floor((f.x - CR.OX) / CR.CELL), row);
+        if (!c.mush.has(k)) { c.mush.set(k, 4); }
+      }
+    }
+  }
+  c.fleas = c.fleas.filter(f => f.y < H + 20);
+}
+
+function crawlerSpiders(c) {
+  c.spiderT--;
+  if (c.wave >= 2 && c.spiderT <= 0 && c.spiders.length < 1) {
+    const left = Math.random() < 0.5;
+    c.spiders.push({x: left ? -20 : W + 20, dir: left ? 1 : -1, t: Math.random() * 6, y: 0});
+    c.spiderT = 900 + Math.random() * 600;
+  }
+  for (const sp of c.spiders) { sp.x += sp.dir * 1.6; sp.t += 0.05; sp.y = crPY(CR.ZONE - 3 + Math.sin(sp.t) * 1.6); }
+  c.spiders = c.spiders.filter(sp => sp.x > -40 && sp.x < W + 40);
+}
+
+function crawlerCollide(c) {
+  if (c.inv > 0) return;
+  for (const ch of c.chains) for (const p of ch.segs) if (Math.hypot(crPX(p.x) - c.px, crPY(p.y) - c.py) < 16) return crawlerHit(c, 'CAUGHT BY THE CENTIPEDE');
+  for (const f of c.fleas) if (Math.hypot(f.x - c.px, f.y - c.py) < 16) return crawlerHit(c, 'BITTEN BY A FLEA');
+  for (const sp of c.spiders) if (Math.hypot(sp.x - c.px, sp.y - c.py) < 20) return crawlerHit(c, 'CAUGHT BY A SPIDER');
+}
+function crawlerHit(c, reason) {
+  c.lives--; c.inv = 120; c.px = W/2; c.py = crZoneBottom() - 30; shake = 18;
+  boom(c.px, c.py, '#f66', 30); sfx.ouch();
+  if (c.lives <= 0) crawlerDie(reason);
+}
+
+function crawlerUpdate() {
+  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; }); parts = parts.filter(p => p.life > 0);
+  floaters.forEach(f => { f.y -= 0.8; f.life--; }); floaters = floaters.filter(f => f.life > 0);
+  if (shake > 0) shake--;
+  const c = crawler;
+  if (!c || state !== 'crawler') return;
+  c.tick++;
+  if (c.banner > 0) c.banner--;
+  if (c.inv > 0) c.inv--;
+  // steer with keys, or drag with a finger/mouse
+  const sp = 4.5;
+  let dx = 0, dy = 0;
+  if (keys.ArrowLeft || keys.a || keys.A) dx--;
+  if (keys.ArrowRight || keys.d || keys.D) dx++;
+  if (keys.ArrowUp || keys.w || keys.W) dy--;
+  if (keys.ArrowDown || keys.s || keys.S) dy++;
+  c.px += dx * sp; c.py += dy * sp;
+  if (crawlerPtr) { c.px += Math.max(-9, Math.min(9, crawlerPtr.x - c.px)); c.py += Math.max(-9, Math.min(9, crawlerPtr.y - c.py)); }
+  c.px = Math.max(16, Math.min(W - 16, c.px));
+  c.py = Math.max(crZoneTop() + 14, Math.min(crZoneBottom() - 16, c.py));
+  // auto-fire
+  if (c.cd > 0) c.cd--;
+  if (c.cd === 0) { c.bullets.push({x: c.px, y: c.py - 16}); c.cd = 9; crSfx.fire(); }
+  crawlerBullets(c);
+  if (c.countdown > 0) { c.countdown--; return; }
+  // the centipede moves on its own beat
+  c.timer++;
+  if (c.timer >= crawlerStepFrames(c)) { c.timer = 0; crawlerStepChains(c); crSfx.step(c.tick); }
+  crawlerFleas(c); crawlerSpiders(c);
+  if (state !== 'crawler') return;
+  crawlerCollide(c);
+  if (state !== 'crawler') return;
+  if (c.chains.length === 0) { c.wave++; c.score += 500; crawlerSpawnCentipede(c); crSfx.wave(); }
+  if (c.score >= c.nextLife) { c.nextLife += 12000; if (c.lives < 5) { c.lives++; sfx.life(); floater(c.px, c.py - 40, '1UP! EXTRA LIFE', '#6f6'); } }
+}
+
+function crawlerSaveBest() {
+  if (crawler && crawler.score > crawlerBest) { crawlerBest = crawler.score; try { localStorage.setItem('sdCrawlerBest', crawlerBest); } catch(e) {} }
+}
+function crawlerDie(reason) {
+  const c = crawler;
+  c.reason = reason; state = 'crawlerOver'; crawlerOverAt = Date.now();
+  boom(c.px, c.py, '#7ff', 60); shake = 22;
+  stopMusic(); crSfx.die(); crawlerSaveBest(); loadBoard(true, CG);
+}
+
+function crawlerKey(e) {
+  const k = e.key.toLowerCase();
+  if (state === 'crawler') { if ((k === 'escape' || k === 'p') && !e.repeat) crawlerPause(); return; }
+  if (e.repeat) return;
+  if (state === 'crawlerPaused') {
+    if (k === 'escape' || k === 'p' || k === ' ' || k === 'enter') crawlerResume();
+    else if (k === 'q') crawlerQuit();
+  } else if (state === 'crawlerOver') {
+    if (k === 'escape' || k === 'q') crawlerQuit();
+    else if ((k === ' ' || k === 'enter') && Date.now() - crawlerOverAt > 1200) startCrawler();
+  }
+}
+function crawlerDown(e) {
+  const x = pos(e), y = posY(e);
+  if (state === 'crawler') { if (y < 64 && Math.abs(x - W/2) < 36) { crawlerPause(); return; } crawlerPtr = {x, y}; return; }
+  if (state === 'crawlerPaused') { if (y > 375 && y < 445) crawlerQuit(); else crawlerResume(); return; }
+  if (state === 'crawlerOver') { if (y > 668) crawlerQuit(); else if (Date.now() - crawlerOverAt > 1200) startCrawler(); }
+}
+function crawlerPause() { if (state !== 'crawler') return; state = 'crawlerPaused'; crawlerPtr = null; if (AC && AC.state === 'running') AC.suspend(); }
+function crawlerResume() { if (state !== 'crawlerPaused') return; state = 'crawler'; if (AC) AC.resume(); }
+function crawlerQuit() {
+  if (state === 'crawlerPaused' && crawler && crawler.score > 0) { crawlerSaveBest(); loadBoard(true, CG); }
+  stopMusic(); if (AC) AC.resume();
+  state = 'hub';
+}
+
+// ---- drawing ----
+function drawCrawlerArt(x, y, w, h) {
+  const c = 22, ox = x + (w - 8*c)/2, oy = y + (h - 6*c)/2;
+  const caps = ['#2ef2c8', '#24b89c', '#1a7f6c'];
+  [[0,5,0],[2,0,1],[6,4,2],[7,1,1]].forEach(([mx, my, v]) => {
+    ctx.fillStyle = '#e8e8e8'; ctx.fillRect(ox + mx*c + c/2 - 2, oy + my*c + c/2, 4, 7);
+    ctx.fillStyle = caps[v]; ctx.beginPath(); ctx.arc(ox + mx*c + c/2, oy + my*c + c/2, 8, Math.PI, 0); ctx.fill();
+  });
+  [[1,0],[2,0],[3,0],[4,0],[4,1],[4,2],[3,2],[2,2]].forEach(([bx, by], i, arr) => {
+    ctx.fillStyle = i === arr.length - 1 ? '#ff4d4d' : (i % 2 ? '#9f3' : '#6c2');
+    ctx.beginPath(); ctx.arc(ox + bx*c + c/2, oy + by*c + c/2, 9, 0, 6.28); ctx.fill();
+  });
+  ctx.fillStyle = '#7ff'; ctx.beginPath(); ctx.moveTo(ox + 4*c + c/2, oy + 5*c); ctx.lineTo(ox + 4*c + c + c/2 - 2, oy + 6*c - 4); ctx.lineTo(ox + 4*c - c/2 + 2, oy + 6*c - 4); ctx.closePath(); ctx.fill();
+}
+
+function drawCrawlerWorld(c) {
+  const C = CR.CELL, zy = crZoneTop();
+  ctx.fillStyle = 'rgba(63,255,153,0.04)'; ctx.fillRect(0, zy, W, crZoneBottom() - zy);
+  ctx.strokeStyle = 'rgba(63,255,153,0.35)'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, zy + 0.5); ctx.lineTo(W, zy + 0.5); ctx.stroke(); ctx.setLineDash([]);
+  // mushrooms: colour fades as they're damaged
+  const caps = {4: '#2ef2c8', 3: '#24b89c', 2: '#1a7f6c', 1: '#125a4e'};
+  for (const [k, hp] of c.mush) {
+    const [x, y] = k.split(',').map(Number), cx = crPX(x), cy = crPY(y);
+    ctx.fillStyle = '#e8e8e8'; ctx.fillRect(cx - 3, cy - 1, 6, 9);
+    ctx.fillStyle = caps[hp]; ctx.beginPath(); ctx.arc(cx, cy - 1, 10, Math.PI, 0); ctx.fill();
+    if (hp === 4) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(cx - 4, cy - 6, 3, 3); }
+  }
+  // centipede: red head, green body, legs that wiggle
+  for (const ch of c.chains) ch.segs.forEach((p, i) => {
+    const cx = crPX(p.x), cy = crPY(p.y), wig = Math.sin(c.tick / 3 + i) * 3;
+    ctx.strokeStyle = i === 0 ? '#f88' : '#6c2'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 5, cy + 6); ctx.lineTo(cx - 7, cy + 12 + wig); ctx.moveTo(cx + 5, cy + 6); ctx.lineTo(cx + 7, cy + 12 - wig); ctx.stroke();
+    ctx.fillStyle = i === 0 ? '#ff4d4d' : (i % 2 ? '#9f3' : '#6c2');
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
+    if (i === 0) { ctx.fillStyle = '#000'; ctx.fillRect(cx + ch.dir * 4 - 1.5, cy - 4, 3, 3); }
+  });
+  // fleas: fast magenta drops
+  for (const f of c.fleas) {
+    ctx.fillStyle = '#f6f'; ctx.shadowColor = '#f6f'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.ellipse(f.x, f.y, 7, 10, 0, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#f6f'; ctx.lineWidth = 1.5; const wig = Math.sin(c.tick / 2) * 3;
+    ctx.beginPath(); ctx.moveTo(f.x - 6, f.y - 3); ctx.lineTo(f.x - 12, f.y + wig); ctx.moveTo(f.x + 6, f.y - 3); ctx.lineTo(f.x + 12, f.y - wig); ctx.stroke();
+  }
+  // spiders: zigzag above your zone, bouncing legs
+  for (const sp of c.spiders) {
+    ctx.fillStyle = '#a6f'; ctx.shadowColor = '#a6f'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 11, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#a6f'; ctx.lineWidth = 2; const wig = Math.sin(c.tick / 4) * 4;
+    for (const side of [-1, 1]) for (const [ly, lw] of [[-6, 1], [0, -1], [6, 1]]) {
+      ctx.beginPath(); ctx.moveTo(sp.x + side*8, sp.y + ly/2); ctx.lineTo(sp.x + side*18, sp.y + ly + wig*lw); ctx.stroke();
+    }
+  }
+  // your shots
+  ctx.fillStyle = '#fff'; ctx.shadowColor = '#7ff'; ctx.shadowBlur = 8;
+  for (const b of c.bullets) ctx.fillRect(b.x - 1.5, b.y - 6, 3, 12);
+  ctx.shadowBlur = 0;
+  // your ship (blinks while invulnerable)
+  if (!(c.inv > 0 && Math.floor(c.inv / 4) % 2)) {
+    ctx.fillStyle = '#7ff'; ctx.shadowColor = '#7ff'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.moveTo(c.px, c.py - 14); ctx.lineTo(c.px + 14, c.py + 10); ctx.lineTo(c.px - 14, c.py + 10); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.fillRect(c.px - 2, c.py - 18, 4, 6);
+  }
+}
+
+function drawCrawlerHUD(c) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(W/2 - 18, 12, 36, 32);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(W/2 - 8, 19, 5, 18); ctx.fillRect(W/2 + 3, 19, 5, 18);
+  glowText(pad(c.score), 16, 46, 22, '#fff', 'left', 4);
+  glowText('HI-SCORE', W - 16, 24, 14, '#3f9', 'right');
+  glowText(pad(Math.max(crawlerBest, c.score)), W - 16, 46, 22, '#fff', 'right', 4);
+  for (let i = 0; i < c.lives; i++) { ctx.fillStyle = '#7ff'; ctx.beginPath(); ctx.moveTo(22 + i*18, 58); ctx.lineTo(30 + i*18, 74); ctx.lineTo(14 + i*18, 74); ctx.closePath(); ctx.fill(); }
+  glowText('WAVE ' + c.wave, W/2, 84, 14, '#3f9', 'center', 0);
+  if (c.banner > 0 && state === 'crawler') glowText('WAVE ' + c.wave, W/2, 360, 46, '#3f9', 'center', 18);
+  if (state === 'crawler' && c.countdown > 0) glowText(String(Math.ceil(c.countdown / 60)), W/2, 420, 100, '#fd3', 'center', 30);
+}
+
+function drawCrawlerOver(c) {
+  ctx.fillStyle = 'rgba(0,10,8,0.72)'; ctx.fillRect(0, 130, W, 560);
+  glowText('GAME OVER', W/2, 200, 54, '#f44', 'center', 22);
+  glowText(c.reason, W/2, 240, 16, '#f88', 'center', 4);
+  glowText(playerName + '  ' + pad(c.score), W/2, 280, 24, '#fff', 'center', 6);
+  glowText(c.score >= crawlerBest && c.score > 0 ? '★ NEW HIGH SCORE! ★' : 'HI-SCORE ' + pad(crawlerBest), W/2, 312, 17, '#fd3', 'center', 8);
+  glowText('- TOP PILOTS -', W/2, 355, 18, '#3f9', 'center', 8);
+  drawRows(8, 388, 25, 18);
+  if (Date.now() - crawlerOverAt > 1200) {
+    glowText('TRY AGAIN?', W/2, 610, 34, '#fff', 'center', 14);
+    if (Math.floor(Date.now()/500) % 2) glowText('PRESS SPACE OR TAP', W/2, 642, 17, '#3f9', 'center', 8);
+  }
+  glowText('ARCADE MENU  (ESC or tap here)', W/2, 698, 15, '#3f9', 'center', 6);
+}
+
+function drawCrawlerFrame() {
+  const c = crawler;
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  ctx.fillStyle = '#020608'; ctx.fillRect(-30, -30, W + 60, H + 60);
+  if (c) drawCrawlerWorld(c);
+  parts.forEach(p => { ctx.globalAlpha = Math.min(1, p.life/30); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
+  ctx.globalAlpha = 1;
+  floaters.forEach(f => { ctx.globalAlpha = Math.min(1, f.life/20); glowText(f.text, f.x, f.y, 16, f.color, 'center', 6); });
+  ctx.globalAlpha = 1;
+  if (c) drawCrawlerHUD(c);
+  if (state === 'crawlerPaused') drawPaused();
+  else if (state === 'crawlerOver' && c) drawCrawlerOver(c);
+  ctx.restore();
+  ctx.drawImage(scan, 0, 0);
+}
+
 function draw() {
   if (state.startsWith('snake')) return drawSnakeFrame();
+  if (state.startsWith('crawler')) return drawCrawlerFrame();
   ctx.save();
   if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
   ctx.fillStyle = '#07021a'; ctx.fillRect(-30,-30,W+60,H+60);
@@ -812,6 +1146,10 @@ const GAMES = [
     top: '#0b3d1f', bottom: '#02100a', accent: '#5f5', glow: '#fd3',
     art: drawSnakeArt, hi: () => snakeBest,
     start: () => { if (!playerName) openName(startSnake); else startSnake(); } },
+  { id: 'crawler', title: ['CRAWLER', ''], tag: 'SHOOT THE CRAWLING LINE.',
+    top: '#06302c', bottom: '#020808', accent: '#3f9', glow: '#7ff',
+    art: drawCrawlerArt, hi: () => crawlerBest,
+    start: () => { if (!playerName) openName(startCrawler); else startCrawler(); } },
 ];
 
 function drawDodgerArt(x, y, w, h) {
@@ -921,7 +1259,7 @@ function drawBoard() {
   if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 676, 16, '#fff', 'center', 8);
 }
 
-(function loop(){ if (state.startsWith('snake')) snakeUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
+(function loop(){ if (state.startsWith('snake')) snakeUpdate(); else if (state.startsWith('crawler')) crawlerUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
 </script>
 </body>
 </html>

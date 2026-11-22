@@ -18,6 +18,17 @@ Grow your snake by eating green orbs. Walls, blocks and your own tail are all de
 
 Snake has its own leaderboard. Online scores need the `snake` section of `database.rules.json` published in Firebase.
 
+## 🪱 Crawler
+A centipede crawls down through a mushroom field. Shoot it from your zone at the bottom.
+
+- **Move:** arrow keys or WASD, or drag your finger or mouse. Shots fire automatically.
+- **Splitting:** each hit splits the centipede. Shooting its head is worth 100 points, and each body segment is worth 10.
+- **Mushrooms:** they block the centipede and take 4 hits to clear. Each shot segment leaves one behind.
+- **Fleas** (pink) drop mushrooms as they fall, and **spiders** (purple) zigzag above your zone from wave 2.
+- **Waves:** clearing the whole centipede gives 500 points and starts the next wave, which is faster.
+
+Crawler has its own leaderboard. Its online scores need the `crawler` section of `database.rules.json` published in Firebase.
+
 ## How to play
 Open `index.html` in any browser (or play the GitHub Pages link).
 
