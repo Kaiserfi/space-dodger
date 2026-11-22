@@ -27,7 +27,8 @@
 <div id="nameModal" hidden><div class="box">
   <h2>ENTER YOUR NAME</h2>
   <div style="color:#5ef;font-size:15px">pilot name for the leaderboard</div>
-  <input id="nameInput" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="PLAYER">
+  <input id="nameInput" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="YOUR NAME">
+  <div id="nameErr" style="color:#f66;min-height:20px;font-size:15px;margin-top:-6px"></div>
   <br><button id="nameOk">START ▶</button>
   <p>Letters, numbers and spaces. 12 max.</p>
 </div></div>
@@ -51,6 +52,7 @@ const LEADERBOARD_URL = 'https://space-dodger-1a558-default-rtdb.firebaseio.com'
 let touchX = null, overAt = 0, modalOpen = false;
 let playerName = '';
 try { playerName = localStorage.getItem('sdName') || ''; } catch(e) {}
+if (playerName === 'PLAYER') playerName = '';   // an old default name: ask again
 let board = [], boardStatus = 'idle', boardIsGlobal = false, lastRank = 0;
 const nameKey = n => (n.toLowerCase().replace(/[^a-z0-9]/g, '') || 'anon');
 const canRestart = () => state === 'title' || (state === 'over' && Date.now() - overAt > 1200);
@@ -155,14 +157,16 @@ function activate() {
   if (!playerName) openName(start); else start();
 }
 
-const nameModal = document.getElementById('nameModal'), nameInput = document.getElementById('nameInput');
+const nameModal = document.getElementById('nameModal'), nameInput = document.getElementById('nameInput'), nameErr = document.getElementById('nameErr');
+nameInput.addEventListener('input', () => nameErr.textContent = '');
 let afterName = null;
 function openName(cb) {
   afterName = cb; modalOpen = true; touchX = null; for (const k in keys) keys[k] = false;
-  nameInput.value = playerName; nameModal.hidden = false; setTimeout(() => { nameInput.focus(); nameInput.select(); }, 30);
+  nameErr.textContent = ''; nameInput.value = playerName; nameModal.hidden = false; setTimeout(() => { nameInput.focus(); nameInput.select(); }, 30);
 }
 function submitName() {
-  let n = nameInput.value.replace(/[^A-Za-z0-9 _-]/g, '').trim().toUpperCase().slice(0, 12) || 'PLAYER';
+  const n = nameInput.value.replace(/[^A-Za-z0-9 _-]/g, '').trim().toUpperCase().slice(0, 12);
+  if (!n) { nameErr.textContent = 'Please type your name first!'; nameInput.focus(); return; }   // no silent default name
   playerName = n; try { localStorage.setItem('sdName', n); } catch(e) {}
   nameModal.hidden = true; modalOpen = false; nameInput.blur();
   const cb = afterName; afterName = null; if (cb) setTimeout(cb, 0);
