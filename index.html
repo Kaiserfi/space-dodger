@@ -885,7 +885,7 @@ function crawlerUpdate() {
   c.py = Math.max(crZoneTop() + 14, Math.min(crZoneBottom() - 16, c.py));
   // auto-fire
   if (c.cd > 0) c.cd--;
-  if (c.cd === 0) { c.bullets.push({x: c.px, y: c.py - 16}); c.cd = 9; crSfx.fire(); }
+  if (c.cd === 0 && c.countdown === 0) { c.bullets.push({x: c.px, y: c.py - 16}); c.cd = 9; crSfx.fire(); }   // no shooting during the countdown
   crawlerBullets(c);
   if (c.countdown > 0) { c.countdown--; return; }
   // the centipede moves on its own beat
