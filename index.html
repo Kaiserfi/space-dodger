@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Space Dodger</title>
 <style>
-  html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden; }
+  html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden; overscroll-behavior:none; }
   #wrap { display:flex; align-items:center; justify-content:center; height:100%;
           background: radial-gradient(ellipse at center, #14082e 0%, #000 75%); }
-  canvas { max-width:100%; max-height:100%; border:3px solid #ff3df0; border-radius:18px;
+  canvas { border:3px solid #ff3df0; border-radius:18px;
            box-shadow: 0 0 25px #ff3df0, 0 0 60px #4b3bff55, inset 0 0 40px #000;
            touch-action:none; image-rendering: pixelated; }
   #nameModal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,10,0.85); z-index:10; }
@@ -55,6 +55,16 @@ let board = [], boardStatus = 'idle', boardIsGlobal = false, lastRank = 0;
 const nameKey = n => (n.toLowerCase().replace(/[^a-z0-9]/g, '') || 'anon');
 const canRestart = () => state === 'title' || (state === 'over' && Date.now() - overAt > 1200);
 
+// ---------- FIT TO ANY SCREEN ----------
+function fit() {
+  const vw = window.innerWidth, vh = window.innerHeight, pad = 10, border = 6;
+  const k = Math.max(0.2, Math.min((vw - pad - border) / W, (vh - pad - border) / H, 1.6));   // keep 2:3 shape, up to 1.6x on big screens
+  cv.style.width = Math.floor(W * k + border) + 'px'; cv.style.height = Math.floor(H * k + border) + 'px';
+}
+addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 200));
+if (window.visualViewport) visualViewport.addEventListener('resize', fit);
+fit();
+
 // ---------- INPUT ----------
 addEventListener('keydown', e => {
   if (modalOpen) return;   // typing a name: don't treat keys as game controls
@@ -65,8 +75,8 @@ addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') toggleMute();
 });
 addEventListener('keyup', e => keys[e.key] = false);
-function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.left) * W / r.width; }
-function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.top) * H / r.height; }
+function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.left - 3) * W / (r.width - 6); }
+function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.top - 3) * H / (r.height - 6); }
 cv.addEventListener('pointerdown', e => {
   if (modalOpen) return;
   if (state === 'play') { touchX = pos(e); return; }
