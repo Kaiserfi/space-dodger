@@ -35,3 +35,6 @@ By default scores are saved **on that device only**. To make a shared **online**
 5. Paste it into `LEADERBOARD_URL` near the top of the script in `index.html`, commit, and push.
 
 Each name keeps only its best score, and only higher scores can replace it. Note: this is a friends-and-family leaderboard. Anyone technical could still post a fake score, and two people using the same name share one entry.
+
+## 🛡️ Name filter
+Pilot names are checked against a block list so the leaderboard stays kid-friendly. Names that match are refused when entered and shown as `*****` if one ever reaches the board. The list (stored encoded in `index.html`) combines a hand-made list with entries from [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) (CC BY 4.0) and [zacanger/profane-words](https://github.com/zacanger/profane-words) (MIT).
