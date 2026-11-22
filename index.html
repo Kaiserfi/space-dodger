@@ -24,18 +24,19 @@ try { best = +(localStorage.getItem('sdBest') || 0); } catch(e) {}
 let ship, rocks = [], orbs = [], bullets = [], parts = [], floaters = [], rings = [], stars;
 let t = 0, spawnTimer = 0, orbTimer = 0, shake = 0, stage = 1, banner = 0, combo = 0, comboTimer = 0, flash = 0;
 const keys = {};
-let touchX = null;
+let touchX = null, overAt = 0;
+const canRestart = () => state === 'title' || (state === 'over' && Date.now() - overAt > 1200);
 
 // ---------- INPUT ----------
 addEventListener('keydown', e => {
   keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
-  if ((e.key === ' ' || e.key === 'Enter') && state !== 'play') start();
+  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && state !== 'play' && canRestart()) start();
   if (e.key === 'm' || e.key === 'M') toggleMute();
 });
 addEventListener('keyup', e => keys[e.key] = false);
 function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.left) * W / r.width; }
-cv.addEventListener('pointerdown', e => { if (state !== 'play') start(); touchX = pos(e); });
+cv.addEventListener('pointerdown', e => { if (state !== 'play') { if (canRestart()) start(); return; } touchX = pos(e); });
 cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); });
 addEventListener('pointerup', () => touchX = null);
 addEventListener('pointercancel', () => touchX = null);
@@ -215,7 +216,7 @@ const ORB = { shield:{color:'#5ef', letter:'S', label:'SHIELD!'}, turbo:{color:'
               rapid:{color:'#f55', letter:'R', label:'RAPID FIRE!'}, life:{color:'#6f6', letter:'♥', label:'1UP!'} };
 
 function gameOver() {
-  state = 'over'; boom(ship.x, ship.y, '#f66', 70); shake = 24;
+  state = 'over'; overAt = Date.now(); touchX = null; boom(ship.x, ship.y, '#f66', 70); shake = 24;
   stopMusic(); sfx.crash();
   if (score > best) { best = score; try { localStorage.setItem('sdBest', best); } catch(e){} }
 }
@@ -327,7 +328,10 @@ function drawOver() {
   glowText('SCORE ' + pad(score), W/2, 345, 26, '#fff', 'center', 6);
   glowText(score >= best && score > 0 ? '★ NEW HIGH SCORE! ★' : 'HI-SCORE ' + pad(best), W/2, 385, 22, '#fd3', 'center', 10);
   glowText('STAGE REACHED: ' + stage, W/2, 420, 16, '#5ef', 'center', 4);
-  if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE TO CONTINUE', W/2, 460, 20, '#fff', 'center', 8);
+  if (Date.now() - overAt > 1200) {
+    glowText('TRY AGAIN?', W/2, 470, 34, '#fff', 'center', 14);
+    if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 505, 18, '#5ef', 'center', 8);
+  }
 }
 
 (function loop(){ update(); draw(); requestAnimationFrame(loop); })();
