@@ -40,7 +40,7 @@ let state = 'title', score = 0, best = 0;
 try { best = +(localStorage.getItem('sdBest') || 0); } catch(e) {}
 let ship, rocks = [], orbs = [], bullets = [], parts = [], floaters = [], rings = [], stars;
 const LIFE_EVERY = 3000;
-let nextLife = LIFE_EVERY, banner2 = 0;
+let nextLife = LIFE_EVERY, banner2 = 0, lifeCount = 0;
 let t = 0, spawnTimer = 0, orbTimer = 0, shake = 0, stage = 1, banner = 0, combo = 0, comboTimer = 0, flash = 0;
 const keys = {};
 // ---------- LEADERBOARD CONFIG ----------
@@ -196,7 +196,7 @@ function showBoard() { state = 'board'; loadBoard(false); }
 
 function start() {
   startMusic();
-  state = 'play'; score = 0; t = 0; spawnTimer = 30; nextLife = LIFE_EVERY; banner2 = 0; shake = 0; stage = 1; banner = 120; combo = 0; comboTimer = 0;
+  state = 'play'; score = 0; t = 0; spawnTimer = 30; nextLife = LIFE_EVERY; lifeCount = 0; banner2 = 0; shake = 0; stage = 1; banner = 120; combo = 0; comboTimer = 0;
   ship = {x:W/2, y:H-90, shield:0, boost:0, rapid:0, cd:0, lives:3, inv:90, twin:false, wing:0};
   rocks = []; orbs = []; bullets = []; parts = []; floaters = []; rings = [];
   sfx.stage();
@@ -268,11 +268,15 @@ function update() {
   // stage / difficulty
   const newStage = 1 + Math.floor(t / 1200);
   if (newStage !== stage) { stage = newStage; banner = 120; sfx.stage(); score += 100; }
-  const level = 1 + t / 800;
+  const level = 1 + t / 650;
   if (--spawnTimer <= 0) {
     const r = 14 + Math.random()*26;
-    rocks.push(makeRock(Math.random()*(W-2*r)+r, -r, r, (1.6+Math.random()*1.8)*Math.min(level,2.8), (Math.random()-0.5)*1.5));
-    spawnTimer = Math.max(16, 50 - level*7);
+    const rx = Math.random()*(W-2*r)+r, rvy = (1.6+Math.random()*1.8)*Math.min(level,3.6);
+    let rvx = (Math.random()-0.5)*1.5;
+    // from stage 2, some rocks are aimed at where you are right now
+    if (stage >= 2 && Math.random() < Math.min(0.4, 0.12 + stage*0.06)) rvx = Math.max(-4, Math.min(4, (ship.x - rx) / ((ship.y + r) / rvy)));
+    rocks.push(makeRock(rx, -r, r, rvy, rvx));
+    spawnTimer = Math.max(10, 46 - level*6);
   }
 
   rocks.forEach(r => { r.y += r.vy; r.x += r.vx; r.rot += r.vr; if (r.hitFlash>0) r.hitFlash--; if (r.x<r.r||r.x>W-r.r) r.vx*=-1; });
@@ -302,7 +306,7 @@ function update() {
     r.dead = true; boom(r.x, r.y, '#f66', 20); boom(ship.x, ship.y, '#f66', 40);
     ship.lives--; combo = 0; comboTimer = 0; shake = 18; flash = 8;
     if (ship.lives <= 0) { gameOver(); return; }
-    ship.inv = 130; sfx.ouch();
+    ship.inv = 100; sfx.ouch();
   }
   // orbs
   for (const o of orbs) {
@@ -319,7 +323,7 @@ function update() {
   orbs = orbs.filter(o => !o.dead && o.y < H+30);
   if (t % 10 === 0) score++;
   if (score >= nextLife) {   // extra life every LIFE_EVERY points
-    nextLife += LIFE_EVERY;
+    lifeCount++; nextLife += LIFE_EVERY * (1 + lifeCount);   // 3000, then 6000 more, then 9000 more...
     if (ship.lives < 5) { ship.lives++; sfx.life(); floater(ship.x, ship.y - 40, '1UP! EXTRA LIFE', '#6f6'); banner2 = 90; }
   }
 }
