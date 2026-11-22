@@ -120,12 +120,20 @@ function makeRock(x, y, r, vy, vx) {
   return {x, y, r, vy, vx, rot:0, vr:(Math.random()-0.5)*0.1, hp: r > 34 ? 3 : r > 22 ? 2 : 1, hitFlash:0, seed:Math.random()*10};
 }
 
+function pickOrb() {
+  // lives are rarer so they feel special
+  const bag = ['shield','shield','turbo','rapid','rapid','rapid','life'];
+  return bag[Math.floor(Math.random()*bag.length)];
+}
+
 function killRock(r) {
   r.dead = true;
   combo = comboTimer > 0 ? Math.min(5, combo + 1) : 1; comboTimer = 150;
   addScore(Math.round(r.r) * 2 * combo, r.x, r.y);
   boom(r.x, r.y, '#fa6', 14 + Math.round(r.r / 2)); sfx.pop(); shake = Math.max(shake, 4);
   rings.push({x:r.x, y:r.y, r:r.r, life:22});
+  // bigger rocks have a better chance to drop a power-up (~8% small ... ~20% big)
+  if (Math.random() < 0.06 + r.r * 0.0035) { const typ = pickOrb(); orbs.push({x:r.x, y:r.y, type:typ, drop:true}); floater(r.x, r.y - 22, 'DROP!', ORB[typ].color); }
   for (let i = 0; i < 5 + Math.round(r.r / 8); i++) {       // tumbling rock chunks that fade away
     const a = Math.random()*6.28, sp = 1 + Math.random()*4;
     parts.push({x:r.x, y:r.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:35+Math.random()*30, color:'#a89684', chunk:true, rot:Math.random()*6, vr:(Math.random()-0.5)*0.5, size:3+Math.random()*r.r*0.25});
@@ -172,8 +180,7 @@ function update() {
     spawnTimer = Math.max(16, 50 - level*7);
   }
   if (--orbTimer <= 0) {
-    const types = ['shield','turbo','rapid','rapid','life'];
-    orbs.push({x:Math.random()*(W-40)+20, y:-20, type: types[Math.floor(Math.random()*types.length)]});
+    orbs.push({x:Math.random()*(W-40)+20, y:-20, type: pickOrb()});
     orbTimer = 380 + Math.random()*300;
   }
 
@@ -261,7 +268,7 @@ function draw() {
   orbs.forEach(o => {
     const c = ORB[o.type].color;
     ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 18;
-    ctx.beginPath(); ctx.arc(o.x, o.y, 12, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.drop ? 12 + Math.sin(t/3)*2 : 12, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
     ctx.fillStyle = '#000'; ctx.font = `bold 15px ${FONT}`; ctx.textAlign='center'; ctx.fillText(ORB[o.type].letter, o.x, o.y+5);
   });
   // bullets
