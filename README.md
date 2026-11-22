@@ -15,6 +15,7 @@ Open `index.html` in any browser (or play the GitHub Pages link).
 | **S** | Shield — smash through rocks |
 | **T** | Turbo — fly faster |
 | **R** | Rapid fire — double shots |
+| **D** | Dual fighter — a second ship joins you and fires too. If it gets hit it's destroyed (no life lost) and you go back to one ship |
 
 Power-ups only drop from **destroyed asteroids** (bigger rocks are more likely to drop one).
 

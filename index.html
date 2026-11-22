@@ -197,7 +197,7 @@ function showBoard() { state = 'board'; loadBoard(false); }
 function start() {
   startMusic();
   state = 'play'; score = 0; t = 0; spawnTimer = 30; nextLife = LIFE_EVERY; banner2 = 0; shake = 0; stage = 1; banner = 120; combo = 0; comboTimer = 0;
-  ship = {x:W/2, y:H-90, shield:0, boost:0, rapid:0, cd:0, lives:3, inv:90};
+  ship = {x:W/2, y:H-90, shield:0, boost:0, rapid:0, cd:0, lives:3, inv:90, twin:false, wing:0};
   rocks = []; orbs = []; bullets = []; parts = []; floaters = []; rings = [];
   sfx.stage();
 }
@@ -214,7 +214,7 @@ function makeRock(x, y, r, vy, vx) {
 }
 
 function pickOrb() {
-  const bag = ['shield','turbo','rapid','rapid'];
+  const bag = ['shield','turbo','rapid','rapid','twin'];
   return bag[Math.floor(Math.random()*bag.length)];
 }
 
@@ -247,7 +247,8 @@ function update() {
   if (keys.ArrowLeft || keys.a || keys.A) ship.x -= speed;
   if (keys.ArrowRight || keys.d || keys.D) ship.x += speed;
   if (touchX !== null) ship.x += Math.max(-speed*1.5, Math.min(speed*1.5, touchX - ship.x));
-  ship.x = Math.max(20, Math.min(W-20, ship.x));
+  if (ship.twin && ship.wing < 34) ship.wing += 2;   // second ship slides out beside you
+  ship.x = Math.max(20, Math.min(W-20-ship.wing, ship.x));
   ['shield','boost','rapid','inv'].forEach(k => { if (ship[k] > 0) ship[k]--; });
   if (comboTimer > 0 && --comboTimer === 0) combo = 0;
   if (banner > 0) banner--;
@@ -256,8 +257,10 @@ function update() {
   if (ship.cd > 0) ship.cd--;
   if (ship.cd === 0) {   // auto-fire: the ship shoots constantly, you just steer!
     ship.cd = ship.rapid > 0 ? 6 : 14; sfx.pew();
-    if (ship.rapid > 0) { bullets.push({x:ship.x-9,y:ship.y-14},{x:ship.x+9,y:ship.y-14}); }
-    else bullets.push({x:ship.x, y:ship.y-22});
+    for (const gx of ship.twin ? [ship.x, ship.x + ship.wing] : [ship.x]) {   // both ships fire
+      if (ship.rapid > 0) bullets.push({x:gx-9,y:ship.y-14},{x:gx+9,y:ship.y-14});
+      else bullets.push({x:gx, y:ship.y-22});
+    }
   }
   bullets.forEach(b => b.y -= 11);
   bullets = bullets.filter(b => b.y > -20 && !b.dead);
@@ -284,7 +287,17 @@ function update() {
   }
   // rocks vs ship
   for (const r of rocks) {
-    if (r.dead || ship.inv > 0 || Math.hypot(r.x-ship.x, r.y-ship.y) > r.r + 12) continue;
+    if (r.dead || ship.inv > 0) continue;
+    const wx = ship.x + ship.wing;
+    if (ship.twin && ship.wing > 14 && Math.hypot(r.x-wx, r.y-ship.y) < r.r + 12) {
+      if (ship.shield > 0) { killRock(r); continue; }
+      // the second ship takes the hit: it is destroyed, but NO life is lost
+      r.dead = true; boom(wx, ship.y, '#c8f', 45); boom(r.x, r.y, '#f66', 14);
+      rings.push({x:wx, y:ship.y, r:20, life:22}); ship.twin = false; ship.wing = 0; ship.inv = Math.max(ship.inv, 45);
+      shake = Math.max(shake, 10); sfx.ouch(); floater(wx, ship.y - 30, 'WINGMAN LOST!', '#c8f');
+      continue;
+    }
+    if (Math.hypot(r.x-ship.x, r.y-ship.y) > r.r + 12) continue;
     if (ship.shield > 0) { killRock(r); continue; }
     r.dead = true; boom(r.x, r.y, '#f66', 20); boom(ship.x, ship.y, '#f66', 40);
     ship.lives--; combo = 0; comboTimer = 0; shake = 18; flash = 8;
@@ -293,11 +306,12 @@ function update() {
   }
   // orbs
   for (const o of orbs) {
-    if (Math.hypot(o.x-ship.x, o.y-ship.y) < 26) {
+    if (Math.hypot(o.x-ship.x, o.y-ship.y) < 26 || (ship.twin && ship.wing > 14 && Math.hypot(o.x-(ship.x+ship.wing), o.y-ship.y) < 26)) {
       o.dead = true; const c = ORB[o.type].color; boom(o.x, o.y, c, 30);
       if (o.type==='shield') { ship.shield = 420; sfx.power(); }
       else if (o.type==='turbo') { ship.boost = 420; sfx.power(); }
       else if (o.type==='rapid') { ship.rapid = 480; sfx.power(); }
+      else if (o.type==='twin') { if (ship.twin) addScore(250, o.x, o.y); else { ship.twin = true; ship.wing = 0; } sfx.life(); }
       addScore(50, o.x, o.y); floater(o.x, o.y - 18, ORB[o.type].label, c);
     }
   }
@@ -311,7 +325,7 @@ function update() {
 }
 
 const ORB = { shield:{color:'#5ef', letter:'S', label:'SHIELD!'}, turbo:{color:'#fd3', letter:'T', label:'TURBO!'},
-              rapid:{color:'#f55', letter:'R', label:'RAPID FIRE!'}, life:{color:'#6f6', letter:'♥', label:'1UP!'} };
+              rapid:{color:'#f55', letter:'R', label:'RAPID FIRE!'}, twin:{color:'#c8f', letter:'D', label:'DUAL FIGHTER!'}, life:{color:'#6f6', letter:'♥', label:'1UP!'} };
 
 function gameOver() {
   state = 'over'; overAt = Date.now(); touchX = null; boom(ship.x, ship.y, '#f66', 70); shake = 24;
@@ -326,13 +340,13 @@ function glowText(text, x, y, size, color, align='center', glow=12) {
 }
 const pad = n => String(n).padStart(6, '0');
 
-function drawShip(x, y, s=1) {
+function drawShip(x, y, s=1, accent='#ff3df0') {
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
   ctx.fillStyle = ship && ship.boost>0 ? '#fd3' : '#f84';
   ctx.beginPath(); ctx.moveTo(-8,16); ctx.lineTo(0,28+Math.random()*10); ctx.lineTo(8,16); ctx.fill();
   ctx.shadowColor = '#5ef'; ctx.shadowBlur = 10;
   ctx.fillStyle = '#e8f0ff'; ctx.beginPath(); ctx.moveTo(0,-22); ctx.lineTo(16,18); ctx.lineTo(0,10); ctx.lineTo(-16,18); ctx.closePath(); ctx.fill();
-  ctx.shadowBlur = 0; ctx.fillStyle = '#ff3df0'; ctx.beginPath(); ctx.arc(0,-2,5,0,6.28); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(0,-2,5,0,6.28); ctx.fill();
   ctx.restore();
 }
 
@@ -368,8 +382,11 @@ function draw() {
 
   if (state === 'play') {
     if (!(ship.inv > 0 && Math.floor(t/4)%2)) {
-      drawShip(ship.x, ship.y);
-      if (ship.shield > 0) { ctx.strokeStyle = `rgba(90,238,255,${ship.shield<90 ? 0.3+0.4*Math.sin(t) : 0.7})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ship.x,ship.y,30,0,6.28); ctx.stroke(); }
+      const ships = ship.twin ? [[ship.x, '#ff3df0'], [ship.x + ship.wing, '#c8f']] : [[ship.x, '#ff3df0']];
+      for (const [sx, col] of ships) {
+        drawShip(sx, ship.y, 1, col);
+        if (ship.shield > 0) { ctx.strokeStyle = `rgba(90,238,255,${ship.shield<90 ? 0.3+0.4*Math.sin(t) : 0.7})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx,ship.y,30,0,6.28); ctx.stroke(); }
+      }
     }
   }
   rings.forEach(g => { const k = 1 - g.life/22; ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ffd89a'; ctx.lineWidth = 4*(1-k)+1; ctx.shadowColor = '#ff9a3d'; ctx.shadowBlur = 10;
@@ -416,6 +433,7 @@ function drawTitle() {
   glowText('AUTO-FIRE  JUST STEER!', W/2, 418, 18, '#fff', 'center', 0);
   glowText('S SHIELD  T TURBO', W/2, 462, 16, '#5ef', 'center', 0);
   glowText('R RAPID FIRE  (drops from rocks)', W/2, 486, 16, '#f66', 'center', 0);
+  glowText('D DUAL FIGHTER', W/2, 510, 16, '#c8f', 'center', 0);
   if (Math.floor(Date.now()/500)%2) glowText('INSERT COIN', W/2, 570, 30, '#fff', 'center', 14);
   glowText('PRESS SPACE OR TAP TO START', W/2, 600, 14, '#aaa', 'center', 0);
   glowText('PILOT: ' + (playerName || '???') + '  [N] CHANGE', W/2, 642, 16, '#5ef', 'center', 6);
