@@ -94,6 +94,11 @@ addEventListener('keydown', e => {
   if (modalOpen) return;   // typing a name: don't treat keys as game controls
   keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
+  if (!e.repeat) {
+    const k = e.key.toLowerCase();
+    if (k === 'escape' || k === 'p') { if (state === 'play') { pauseGame(); return; } if (state === 'paused') { resumeGame(); return; } if (state === 'over' && k === 'escape') { goMenu(); return; } }
+    if (k === 'q') { if (state === 'paused') { quitToMenu(); return; } if (state === 'over') { goMenu(); return; } }
+  }
   if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && state !== 'play') activate();
   if (state === 'title' && !e.repeat) { if (e.key === 'n' || e.key === 'N') openName(null); if (e.key === 'l' || e.key === 'L') showBoard(); }
   if (e.key === 'm' || e.key === 'M') toggleMute();
@@ -103,8 +108,14 @@ function pos(e){ const r = cv.getBoundingClientRect(); return (e.clientX - r.lef
 function posY(e){ const r = cv.getBoundingClientRect(); return (e.clientY - r.top - 3) * H / (r.height - 6); }
 cv.addEventListener('pointerdown', e => {
   if (modalOpen) return;
-  if (state === 'play') { touchX = pos(e); return; }
+  if (state === 'play') {
+    const px = pos(e), py = posY(e);
+    if (py < 64 && Math.abs(px - W/2) < 36) { pauseGame(); return; }   // tap the pause button
+    touchX = px; return;
+  }
+  if (state === 'paused') { const py = posY(e); if (py > 375 && py < 445) quitToMenu(); else resumeGame(); return; }
   const y = posY(e);
+  if (state === 'over' && y > 668) { goMenu(); return; }                      // tap MAIN MENU
   if (state === 'title' && y > 622 && y < 655) { openName(null); return; }   // tap PLAYER line to change name
   if (state === 'title' && y > 690) { showBoard(); return; }                  // tap LEADERBOARD
   activate();
@@ -173,7 +184,25 @@ const scan = document.createElement('canvas'); scan.width = W; scan.height = H;
   const g = s.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.8); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
   s.fillStyle = g; s.fillRect(0,0,W,H); })();
 
+function pauseGame() {
+  if (state !== 'play') return;
+  state = 'paused'; touchX = null; for (const k in keys) keys[k] = false;
+  if (AC && AC.state === 'running') AC.suspend();
+}
+function resumeGame() { if (state !== 'paused') return; state = 'play'; if (AC) AC.resume(); }
+function quitToMenu() {      // leave a run from the pause menu; the score so far is still saved
+  if (state !== 'paused') return;
+  stopMusic(); if (AC) AC.resume();
+  if (score > best) { best = score; try { localStorage.setItem('sdBest', best); } catch(e) {} }
+  if (score > 0) loadBoard(true);
+  state = 'title';
+}
+function goMenu() { if (state === 'over' && Date.now() - overAt > 1200) state = 'title'; }
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });   // auto-pause when you switch apps/tabs
+addEventListener('blur', pauseGame);
+
 function activate() {
+  if (state === 'paused') { resumeGame(); return; }
   if (state === 'board') { state = 'title'; return; }
   if (!canRestart()) return;
   if (!playerName) openName(start); else start();
@@ -271,6 +300,7 @@ function killRock(r) {
 }
 
 function update() {
+  if (state === 'paused') return;
   stars.forEach(s => { s.y += s.s * (state==='play' ? 1 + stage*0.3 : 0.6); if (s.y > H) { s.y = 0; s.x = Math.random()*W; } });
   parts.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.life--; if (p.chunk) { p.rot += p.vr; p.vx *= 0.98; p.vy *= 0.98; } });
   rings.forEach(g => g.life--); rings = rings.filter(g => g.life > 0);
@@ -421,7 +451,7 @@ function draw() {
   bullets.forEach(b => { ctx.fillStyle = '#7ff'; ctx.shadowColor = '#0ff'; ctx.shadowBlur = 10; ctx.fillRect(b.x-2, b.y-8, 4, 14); });
   ctx.shadowBlur = 0;
 
-  if (state === 'play') {
+  if (state === 'play' || state === 'paused') {
     if (!(ship.inv > 0 && Math.floor(t/4)%2)) {
       const ships = ship.twin ? [[ship.x, '#ff3df0'], [ship.x + ship.wing, '#c8f']] : [[ship.x, '#ff3df0']];
       for (const [sx, col] of ships) {
@@ -441,6 +471,7 @@ function draw() {
   ctx.globalAlpha = 1;
 
   if (state === 'play') drawHUD();
+  else if (state === 'paused') { drawHUD(); drawPaused(); }
   else if (state === 'title') drawTitle();
   else if (state === 'board') drawBoard();
   else drawOver();
@@ -450,7 +481,18 @@ function draw() {
   ctx.drawImage(scan, 0, 0);   // CRT scanlines + vignette
 }
 
+function drawPaused() {
+  ctx.fillStyle = 'rgba(0,0,10,0.72)'; ctx.fillRect(-30, -30, W + 60, H + 60);
+  glowText('PAUSED', W/2, 250, 56, '#5ef', 'center', 20);
+  glowText('RESUME', W/2, 335, 32, '#fff', 'center', 12);
+  glowText('tap anywhere, SPACE or P', W/2, 360, 14, '#889', 'center', 0);
+  glowText('QUIT TO MENU', W/2, 420, 26, '#f88', 'center', 10);
+  glowText('(Q)  your score is saved', W/2, 444, 13, '#889', 'center', 0);
+}
 function drawHUD() {
+  // pause button (top centre)
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(W/2 - 18, 12, 36, 32);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(W/2 - 8, 19, 5, 18); ctx.fillRect(W/2 + 3, 19, 5, 18);
   glowText('1UP', 16, 24, 16, '#ff3df0', 'left'); glowText(pad(score), 16, 46, 22, '#fff', 'left', 4);
   glowText('HI-SCORE', W-16, 24, 16, '#ff3df0', 'right'); glowText(pad(Math.max(best, score)), W-16, 46, 22, '#fff', 'right', 4);
   for (let i=0;i<ship.lives;i++) drawShip(26 + i*30, H-26, 0.45);
@@ -461,7 +503,7 @@ function drawHUD() {
     ctx.fillStyle = c; ctx.fillRect(16, ly+4, Math.min(90, ship[k]/5), 4); ly += 26;
   }
   if (combo > 1) glowText('COMBO x' + combo, W/2, 80, 22, '#ff0', 'center', 12);
-  if (banner > 0) { ctx.globalAlpha = Math.min(1, banner/30); glowText(`STAGE ${stage}`, W/2, 300, 52, '#5ef', 'center', 20);
+  if (banner > 0 && state === 'play') { ctx.globalAlpha = Math.min(1, banner/30); glowText(`STAGE ${stage}`, W/2, 300, 52, '#5ef', 'center', 20);
     glowText(stage === 1 ? 'GET READY!' : 'GETTING FASTER!', W/2, 340, 20, '#fff', 'center', 8); ctx.globalAlpha = 1; }
 }
 
@@ -505,6 +547,7 @@ function drawOver() {
   if (Date.now() - overAt > 1200) {
     glowText('TRY AGAIN?', W/2, 610, 34, '#fff', 'center', 14);
     if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 642, 17, '#5ef', 'center', 8);
+    glowText('MAIN MENU  (ESC or tap here)', W/2, 698, 15, '#ff3df0', 'center', 6);
   }
 }
 
