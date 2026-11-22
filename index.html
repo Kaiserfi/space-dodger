@@ -131,7 +131,7 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => { if (touchX !== null) touchX = pos(e); if (crawlerPtr) crawlerPtr = {x: pos(e), y: posY(e)}; });
 addEventListener('pointerup', () => touchX = null);
 addEventListener('pointercancel', () => touchX = null);
-addEventListener('pointerup', e => { if (state === 'snake') snakeUp(e); crawlerPtr = null; });
+addEventListener('pointerup', e => { if (state === 'snake') snakeUp(e); crawlerPtr = null; crawlerFire = false; });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------- AUDIO (all sounds are generated in code, no files!) ----------
@@ -716,7 +716,8 @@ function drawSnakeOver(s) {
 // ---------- CRAWLER (original shooter: a centipede winds through a mushroom field) ----------
 const CR = { COLS: 20, ROWS: 25, CELL: 24, OX: 0, OY: 96, ZONE: 19 };   // ZONE: rows from here down are your zone
 const CG = { path: 'crawler', local: 'sdBoardCrawler', pb: 'sdPBcrawler_', score: () => (crawler ? crawler.score : 0) };
-let crawler = null, crawlerBest = 0, crawlerOverAt = 0, crawlerPtr = null;
+let crawler = null, crawlerBest = 0, crawlerOverAt = 0, crawlerPtr = null, crawlerFire = false;
+const CR_FIRE = {x: 418, y: 642, r: 36};   // on-screen FIRE button for phones
 try { crawlerBest = +(localStorage.getItem('sdCrawlerBest') || 0); } catch(e) {}
 const crPX = x => CR.OX + x*CR.CELL + CR.CELL/2, crPY = y => CR.OY + y*CR.CELL + CR.CELL/2;
 const crZoneTop = () => CR.OY + CR.ZONE*CR.CELL, crZoneBottom = () => CR.OY + CR.ROWS*CR.CELL;
@@ -883,9 +884,10 @@ function crawlerUpdate() {
   if (crawlerPtr) { c.px += Math.max(-9, Math.min(9, crawlerPtr.x - c.px)); c.py += Math.max(-9, Math.min(9, crawlerPtr.y - c.py)); }
   c.px = Math.max(16, Math.min(W - 16, c.px));
   c.py = Math.max(crZoneTop() + 14, Math.min(crZoneBottom() - 16, c.py));
-  // auto-fire
+  // manual fire: hold SPACE or the FIRE button; up to 3 shots on screen, like the original
   if (c.cd > 0) c.cd--;
-  if (c.cd === 0 && c.countdown === 0) { c.bullets.push({x: c.px, y: c.py - 16}); c.cd = 9; crSfx.fire(); }   // no shooting during the countdown
+  const firing = keys[' '] || crawlerFire;
+  if (firing && c.cd === 0 && c.countdown === 0 && c.bullets.length < 3) { c.bullets.push({x: c.px, y: c.py - 16}); c.cd = 8; crSfx.fire(); }
   crawlerBullets(c);
   if (c.countdown > 0) { c.countdown--; return; }
   // the centipede moves on its own beat
@@ -923,7 +925,11 @@ function crawlerKey(e) {
 }
 function crawlerDown(e) {
   const x = pos(e), y = posY(e);
-  if (state === 'crawler') { if (y < 64 && Math.abs(x - W/2) < 36) { crawlerPause(); return; } crawlerPtr = {x, y}; return; }
+  if (state === 'crawler') {
+    if (y < 64 && Math.abs(x - W/2) < 36) { crawlerPause(); return; }
+    if (Math.hypot(x - CR_FIRE.x, y - CR_FIRE.y) < CR_FIRE.r + 10) { crawlerFire = true; return; }
+    crawlerPtr = {x, y}; return;
+  }
   if (state === 'crawlerPaused') { if (y > 375 && y < 445) crawlerQuit(); else crawlerResume(); return; }
   if (state === 'crawlerOver') { if (y > 668) crawlerQuit(); else if (Date.now() - crawlerOverAt > 1200) startCrawler(); }
 }
@@ -1009,6 +1015,12 @@ function drawCrawlerHUD(c) {
   for (let i = 0; i < c.lives; i++) { ctx.fillStyle = '#7ff'; ctx.beginPath(); ctx.moveTo(22 + i*18, 58); ctx.lineTo(30 + i*18, 74); ctx.lineTo(14 + i*18, 74); ctx.closePath(); ctx.fill(); }
   glowText('WAVE ' + c.wave, W/2, 84, 14, '#3f9', 'center', 0);
   if (c.banner > 0 && state === 'crawler') glowText('WAVE ' + c.wave, W/2, 360, 46, '#3f9', 'center', 18);
+  if (state === 'crawler') {                       // FIRE button
+    ctx.beginPath(); ctx.arc(CR_FIRE.x, CR_FIRE.y, CR_FIRE.r, 0, 6.28);
+    ctx.fillStyle = crawlerFire ? 'rgba(127,255,255,0.45)' : 'rgba(127,255,255,0.12)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(127,255,255,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+    glowText('FIRE', CR_FIRE.x, CR_FIRE.y + 5, 14, '#7ff', 'center', 6);
+  }
   if (state === 'crawler' && c.countdown > 0) glowText(String(Math.ceil(c.countdown / 60)), W/2, 420, 100, '#fd3', 'center', 30);
 }
 

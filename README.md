@@ -21,7 +21,8 @@ Snake has its own leaderboard. Online scores need the `snake` section of `databa
 ## 🪱 Crawler
 A centipede crawls down through a mushroom field. Shoot it from your zone at the bottom.
 
-- **Move:** arrow keys or WASD, or drag your finger or mouse. Shots fire automatically.
+- **Move:** arrow keys or WASD, or drag your finger or mouse.
+- **Fire:** hold **Space**, or hold the **FIRE** button on the screen. Up to three shots are on screen at once.
 - **Splitting:** each hit splits the centipede. Shooting its head is worth 100 points, and each body segment is worth 10.
 - **Mushrooms:** they block the centipede and take 4 hits to clear. Each shot segment leaves one behind.
 - **Fleas** (pink) drop mushrooms as they fall, and **spiders** (purple) zigzag above your zone from wave 2.
