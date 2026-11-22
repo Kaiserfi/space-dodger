@@ -168,20 +168,38 @@ const sfx = {
 };
 const BASS = [110,110,110,110, 87.3,87.3,87.3,87.3, 130.8,130.8,130.8,130.8, 98,98,98,98];
 const ARP  = [[220,262,330],[175,220,262],[262,330,392],[196,247,294]];
+// one loop per screen: the arcade menu and each game has its own track
+let trackName = null, track = null;
+const TRACKS = {
+  hub: { bpm: () => 96, bass: [131,131,131,131,110,110,110,110,147,147,147,147,98,98,98,98], bassWave: 'triangle', bassVol: 0.16,
+         arp: [[262,330,392],[220,262,330],[294,349,440],[196,247,294]], arpWave: 'sine', arpVol: 0.06, tick: false, sparkle: false },
+  dodger: { bpm: () => 130 + Math.min(score / 400, 50), bass: BASS, arp: ARP, bassWave: 'triangle', bassVol: 0.22,
+            arpWave: 'square', arpVol: 0.07, tick: true, sparkle: true },
+  snake: { bpm: () => 142, bass: [131,0,196,0,131,0,196,0,110,0,165,0,147,0,196,0], bassWave: 'square', bassVol: 0.1,
+           arp: [[262,330,392],[330,392,494],[220,262,330],[294,370,440]], arpWave: 'triangle', arpVol: 0.1, tick: false, sparkle: true },
+  crawler: { bpm: () => 150 + (crawler ? crawler.wave * 4 : 0), bass: [82,82,82,164,82,82,82,164,73,73,73,146,87,87,87,174], bassWave: 'sawtooth', bassVol: 0.1,
+             arp: [[165,196,247],[147,175,220],[175,208,262],[123,147,185]], arpWave: 'square', arpVol: 0.05, tick: true, sparkle: false },
+};
 function scheduleMusic() {
-  if (!musicOn || !AC) return;
-  const bpm = 130 + Math.min(score / 400, 50), stepLen = 60 / bpm / 4;
+  if (!musicOn || !AC || !track) return;
+  const tr = track, stepLen = 60 / tr.bpm() / 4;
   while (nextNote < AC.currentTime + 0.2) {
     const bar = Math.floor(step / 4) % 4, i = step % 16;
-    tone(BASS[i], nextNote, stepLen * 0.9, 'triangle', 0.22);
-    tone(ARP[bar][step % 3], nextNote, stepLen * 0.6, 'square', 0.07);
-    if (step % 4 === 0) noise(nextNote, 0.04, 0.12);
-    if (step % 16 >= 12 && step % 2 === 0) tone(ARP[bar][2]*2, nextNote, stepLen*0.5, 'square', 0.05);
+    if (tr.bass[i]) tone(tr.bass[i], nextNote, stepLen * 0.9, tr.bassWave, tr.bassVol);
+    tone(tr.arp[bar][step % 3], nextNote, stepLen * 0.6, tr.arpWave, tr.arpVol);
+    if (tr.tick && step % 4 === 0) noise(nextNote, 0.04, 0.12);
+    if (tr.sparkle && i >= 12 && i % 2 === 0) tone(tr.arp[bar][2] * 2, nextNote, stepLen * 0.5, tr.arpWave, 0.05);
     nextNote += stepLen; step++;
   }
 }
-function startMusic() { initAudio(); if (!AC) return; musicOn = true; nextNote = AC.currentTime + 0.05; step = 0; clearInterval(musicTimer); musicTimer = setInterval(scheduleMusic, 50); }
-function stopMusic() { musicOn = false; clearInterval(musicTimer); }
+function playTrack(name) {
+  initAudio(); if (!AC) return;
+  if (trackName === name && musicOn) return;
+  trackName = name; track = TRACKS[name]; musicOn = true;
+  nextNote = AC.currentTime + 0.05; step = 0; clearInterval(musicTimer); musicTimer = setInterval(scheduleMusic, 50);
+}
+function startMusic() { playTrack('dodger'); }
+function stopMusic() { musicOn = false; trackName = null; clearInterval(musicTimer); }
 function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; }
 
 // ---------- SETUP ----------
@@ -444,7 +462,7 @@ const cellKey = (x, y) => x + ',' + y;
 function snakeStepFrames(s) { return Math.max(6, 12 - Math.floor(s.body.length / 3) - (s.stage - 1)); }
 
 function startSnake() {
-  startMusic();
+  playTrack('snake');
   const cx = Math.floor(SN.COLS / 2), cy = Math.floor(SN.ROWS / 2);
   snake = { body: [{x: cx, y: cy}, {x: cx-1, y: cy}, {x: cx-2, y: cy}, {x: cx-3, y: cy}, {x: cx-4, y: cy}],
             dir: {x: 1, y: 0}, queue: [], timer: 0, grow: 0, score: 0, stage: 1, eaten: 0,
@@ -750,7 +768,7 @@ function crawlerSpawnCentipede(c) {
 function crKey(x, y) { return x + ',' + y; }
 
 function startCrawler() {
-  stopMusic();
+  playTrack('crawler');
   crawler = { mush: new Map(), chains: [], px: W/2, py: crZoneBottom() - 30, bullets: [], cd: 0,
               fleas: [], spiders: [], lives: 3, inv: 0, score: 0, wave: 1, nextLife: 12000,
               timer: 0, fleaT: 900, spiderT: 1500, countdown: 180, banner: 120, reason: '', tick: 0 };
@@ -1209,6 +1227,7 @@ function hubMove(d) {
 }
 function hubPick() { initAudio(); sfx.power(); GAMES[hubSel].start(); }
 function hubKey(e) {
+  initAudio();
   if (e.repeat) return;
   const k = e.key.toLowerCase();
   if (k === 'arrowleft' || k === 'a') hubMove(-1);
@@ -1216,6 +1235,7 @@ function hubKey(e) {
   else if (k === ' ' || k === 'enter') hubPick();
 }
 function hubTap(x, y) {
+  initAudio();
   if (x < 70 && y > 290 && y < 430) hubMove(-1);
   else if (x > 410 && y > 290 && y < 430) hubMove(1);
   else if (x >= 70 && x <= 410 && y >= 150 && y <= 570) hubPick();
@@ -1271,7 +1291,7 @@ function drawBoard() {
   if (Math.floor(Date.now()/500)%2) glowText('PRESS SPACE OR TAP', W/2, 676, 16, '#fff', 'center', 8);
 }
 
-(function loop(){ if (state.startsWith('snake')) snakeUpdate(); else if (state.startsWith('crawler')) crawlerUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
+(function loop(){ if (state === 'hub' && AC && !musicOn) playTrack('hub'); if (state.startsWith('snake')) snakeUpdate(); else if (state.startsWith('crawler')) crawlerUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
 </script>
 </body>
 </html>
