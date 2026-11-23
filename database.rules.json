@@ -51,6 +51,17 @@
           ".write": true,
           ".validate": "newData.hasChildren(['bag', 'xp']) && newData.child('xp').hasChildren()"
         }
+      },
+      "event": {
+        ".read": true,
+        ".write": true
+      },
+      "graves": {
+        ".read": true,
+        "$id": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['x', 'z', 'items', 'until']) && newData.child('until').isNumber()"
+        }
       }
     }
   }
