@@ -825,6 +825,22 @@ function crawlerStepChains(c) {
       ch.segs.reverse();
       ch.dir = Math.sign(ch.segs[0].x - ch.segs[1].x) || ch.dir;   // face away from its body
     }
+    // going round in circles: if the head keeps returning to the same few cells, push it out, down towards the player first
+    if (np) {
+      const hk = crKey(np.x, np.y), hist = ch.hist || (ch.hist = []);
+      if (hist.filter(k => k === hk).length >= 3) {
+        const own = new Set(ch.segs.map(p => crKey(p.x, p.y)));
+        for (const [dx, dy] of [[0, 1], [dir0, 0], [-dir0, 0], [0, -1]]) {
+          const x = h.x + dx, y = h.y + dy, k = crKey(x, y);
+          if (x >= 0 && x < CR.COLS && y >= 0 && y < CR.ROWS && !c.mush.has(k) && !own.has(k)) { np = {x, y}; break; }
+        }
+        if (np && crKey(np.x, np.y) === hk && h.y + 1 < CR.ROWS && c.mush.has(crKey(h.x, h.y + 1))) {   // sealed in: chew down through the mushroom
+          c.mush.delete(crKey(h.x, h.y + 1)); np = {x: h.x, y: h.y + 1};
+        }
+        ch.hist.length = 0;
+      }
+      hist.push(crKey(np.x, np.y)); if (hist.length > 40) hist.shift();
+    }
     if (np) { ch.segs.unshift(np); ch.segs.pop(); }   // the body follows the head
   }
 }
