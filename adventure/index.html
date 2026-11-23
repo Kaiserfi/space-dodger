@@ -332,6 +332,7 @@ const town = new THREE.Group();
 scene.add(town);
 
 // ----- the ground, a river, a bridge and paths -----
+const QUARRY = { x: 12, z: 72, r: 13.5 };   // the quarry, south-west of the smithy
 const groundGeo = new THREE.PlaneGeometry(240, 240, 240, 240);   // a fine grid so the hall's flat patch lines up
 groundGeo.rotateX(-Math.PI / 2);
 const gp = groundGeo.attributes.position;
@@ -339,6 +340,8 @@ for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
   const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60);   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
+  if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
 }
 groundGeo.computeVertexNormals();
@@ -2055,6 +2058,41 @@ function makeRock(x, z, s = 1, ore = 'copper'){
   return g;
 }
 
+// the quarry: a levelled gravel floor of copper and tin rocks, fenced in with a gap facing the smithy road
+function buildQuarry(){
+  const { x: QX, z: QZ, r: QR } = QUARRY;
+  let seed = 7; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S / 2);
+  grd.addColorStop(0, 'rgba(128,112,92,1)'); grd.addColorStop(0.82, 'rgba(120,104,84,1)'); grd.addColorStop(1, 'rgba(120,104,84,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 2600; i++) { const x = R() * S, y = R() * S; if (Math.hypot(x - S / 2, y - S / 2) > S * 0.46) continue;
+    const c = 80 + R() * 90; g.fillStyle = `rgba(${c},${c * 0.94},${c * 0.86},.8)`; g.beginPath(); g.ellipse(x, y, 1 + R() * 4, 1 + R() * 3, R() * 3, 0, 7); g.fill(); }
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(QR + 2.5, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 }));
+  floor.position.set(QX, 0.04, QZ); floor.receiveShadow = true; town.add(floor);
+  // a post-and-rail fence round the edge, open towards the smithy road
+  const gateA = Math.atan2(-9.6, 8.6), gap = 0.28, N = 36;
+  const post = new THREE.BoxGeometry(0.24, 1.45, 0.24), postM = mat(0x7a5a36), railM = mat(0x8a6a42);
+  const at = a => [QX + Math.cos(a) * QR, QZ + Math.sin(a) * QR];
+  const diff = a => Math.abs(Math.atan2(Math.sin(a - gateA), Math.cos(a - gateA)));
+  for (let i = 0; i < N; i++) {
+    const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2;
+    if (diff(a0) < gap || diff(a1) < gap) continue;
+    const [x0, z0] = at(a0), [x1, z1] = at(a1);
+    const p = new THREE.Mesh(post, postM); p.position.set(x0, 0.72, z0); p.castShadow = true; town.add(p);
+    if (diff(a1 + 0.01) < gap + 0.2) { const p2 = new THREE.Mesh(post, postM); p2.position.set(x1, 0.72, z1); p2.castShadow = true; town.add(p2); }
+    const L = Math.hypot(x1 - x0, z1 - z0);
+    for (const y of [0.55, 1.15]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, L), railM); r.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); r.rotation.y = Math.atan2(x1 - x0, z1 - z0); r.castShadow = true; town.add(r); }
+    for (const t of [0, 0.5]) solidAt(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, 0.6);
+  }
+  // a lamp by the way in
+  const [lx, lz] = at(gateA + gap + 0.12); lamp(lx + 0.8, lz - 0.8);
+  // five copper rocks to the west and five tin to the east
+  [[-8, -3, 'copper'], [-9, 2.5, 'copper'], [-6, 7, 'copper'], [-3.5, -7.5, 'copper'], [-2.5, 1.5, 'copper'],
+   [3.5, 9, 'tin'], [8, 4.5, 'tin'], [2.5, 4.5, 'tin'], [0.5, -3, 'tin'], [-1, 9.5, 'tin']]
+    .forEach(([dx, dz, ore]) => makeRock(QX + dx, QZ + dz, 1.2, ore));
+}
 
 const equipped = { head: null, back: null, body: null, legs: null, feet: null, weapon: null, shield: null };   // what is worn in each slot
 // ----- the adventurer -----
@@ -2796,7 +2834,7 @@ const TOWNSFOLK = [
     talks: [
       ["Bertram. I guard the farm road. Mostly from Truffle.", "That pig has escaped four times this month. Four."],
       ["Bram keeps offering me cabbages. I keep accepting. It's becoming a problem."],
-      ["There's a goblin been sniffing round the quarry. You'd do us a favour if you sorted it out."] ],
+      ["Gertrude's fenced off the new quarry past the smithy. Says it keeps the pig out. It doesn't."] ],
     barks: ['Watch the pig.', 'All quiet on the farm road.', '*yawns*'] },
   { name: 'Godwin', title: 'the guard', level: 10, x: 41, z: 60.8, rad: 0.6,
     look: { gender: 'male', skin: 0xf1cba0, hair: 'short', hairCol: 0xc0442a, shirt: 0x8a9099, pants: 0x3a3a44 },
@@ -2838,7 +2876,7 @@ const TOWNSFOLK = [
       ["Something's been nicking my socks. I blame goblins. I blame goblins for most things, to be fair."],
       ["Listen. Hear that? No? Me neither. That's what a healthy forest sounds like."] ],
     barks: ['Mind the roots.', 'Morning, old oak.', 'Who goes there?'] },
-  { name: 'Gertrude', title: 'the miner', x: 39, z: 28, rad: 2, hat: 'helm',
+  { name: 'Gertrude', title: 'the miner', x: 15.5, z: 66, rad: 1.2, hat: 'helm',
     look: { gender: 'female', skin: 0xb07a50, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x7a5a3a, pants: 0x3a3a3a },
     talks: [
       ["You here to mine or to stand about? Either's fine. Only one of 'em pays.", "Gertrude. Copper on that side, tin on this. Don't mix 'em up — I'll know."],
@@ -3330,7 +3368,7 @@ function animalSound(kind, vol = 1){
 // A mask painted over the map keeps grass off paths, floors, the green, the river and the farm field, and shortens it round the village.
 let grass = null;
 const GRASS_Q = { low: { n: 16000, r: 20 }, high: { n: 48000, r: 30 } };
-const GM = { x0: -124, x1: 74, z0: -20, z1: 66, ppu: 2 };
+const GM = { x0: -124, x1: 74, z0: -20, z1: 96, ppu: 2 };
 let grassMask = null;
 function grassMaskTexture(){
   if (grassMask) return grassMask;
@@ -3347,6 +3385,7 @@ function grassMaskTexture(){
   for (const h of houses) g.fillRect(X(h.x - h.hw - 0.5), Z(h.z - h.hd - 0.5), (h.hw * 2 + 1) * GM.ppu, (h.hd * 2 + 1) * GM.ppu);
   g.fillRect(X(HALL.x - 7.5 * HS), Z(HALL.z - 6.5 * HS), 15 * HS * GM.ppu, 13 * HS * GM.ppu);
   g.fillRect(X(47.5), Z(3.5), 11 * GM.ppu, 8 * GM.ppu);   // the farm field
+  g.beginPath(); g.arc(X(QUARRY.x), Z(QUARRY.z), (QUARRY.r + 0.8) * GM.ppu, 0, 7); g.fill();   // the quarry floor
   g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return grassMask = t;
@@ -3674,14 +3713,11 @@ function populateVillage(){
   roadPath([out(h1), [-62, 9], [-72, 7], [-84, 6]]);                   // west past the first house to the woods
   roadPath([G, [-24, 12], [-6, 14], [6, 13], [14.5, 12]]);              // east to the hall door
   roadPath([[14.5, 12], [22, 16], [26, 30], [26, 54], [30, 58], out(smithyHouse), D(smithyHouse)]);   // the smithy, out to the south-east
-  roadPath([[22, 16], [34, 18], [42.6, 21.4]]);                            // the quarry
-  roadPath([out(smithyHouse), [49, 58], [51, 48]]);                    // round the smithy to the tin rocks
+  roadPath([[26, 54], [23, 59], [QUARRY.x + 8.6, QUARRY.z - 9.6]]);   // south-west to the quarry gate
   roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
-  // the quarry, out to the south-east beyond the hall
-  [[46, 22, 'copper'], [50, 26, 'copper'], [54, 20, 'copper'], [56, 30, 'copper'], [44, 34, 'tin'], [48, 38, 'tin'], [53, 36, 'tin'], [57, 42, 'tin']]
-    .forEach(([x, z, ore]) => makeRock(x, z, 1.2, ore));
+  buildQuarry();
   // the fishing spot in the river
   addWorldNpc(-40, 14, { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
     talks: [
@@ -3698,7 +3734,6 @@ function populateVillage(){
   const wenna = TOWNSFOLK.find(f => f.name === 'Wenna'); wenna.x = wbx; wenna.z = wbz;
   for (const f of TOWNSFOLK) addWorldNpc(f.x, f.z, f);
   buildFarm();
-  spawnMonster('goblin', 37, 30);   // a temporary goblin near the quarry, for testing combat
   // things that make the green feel lived in: market stalls, benches, a signpost, lamps, barrels and crates
   const spots = [];
   for (const [sx, sz, col] of [[-46.5, 12, 0xb04a3a], [-47, 17, 0x3a6a9a]]) { const [x, z] = off(sx, sz, 1.9); stall(x, z, col); solidBoxes.push({ x0: x - 1.7, x1: x + 1.7, z0: z - 1, z1: z + 1 }); spots.push([x, z]); }
