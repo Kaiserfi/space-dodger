@@ -968,13 +968,35 @@ function chopSound(){
   o.connect(og); og.connect(sfxOut(ctx)); o.start(t); o.stop(t + 0.15);
 }
 // a sharp clink for striking stone
-function clinkSound(){
-  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
-  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.12);
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 3;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-  src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.12);
+// ----- skilling sounds: one short beat per action, made in code. Each varies a little in pitch so repeats don't grate -----
+function sfx(build){ const ctx = audio(); if (!ctx) return; const out = ctx.createGain(); out.connect(sfxOut(ctx)); build(ctx, ctx.currentTime + 0.005, out); }
+// filtered noise with an attack and a decay
+function nz(ctx, out, t, dur, type, f0, f1, q, vol, att, dec){
+  const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, dur); const f = ctx.createBiquadFilter(); f.type = type;
+  f.frequency.setValueAtTime(f0, t); f.frequency.linearRampToValueAtTime(f1, t + dur); f.Q.value = q;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, att + dec));
+  n.connect(f); f.connect(g); g.connect(out); n.start(t); n.stop(t + dur);
 }
+// ringing metal: a few partials that die away
+function ring(ctx, out, t, parts, dur, vol){ for (const [f, g0, k] of parts) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = f;
+  g.gain.setValueAtTime(vol * g0, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur / (k || 1)); o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02); } }
+const wobble = () => 0.95 + Math.random() * 0.1;
+// mining: a bright pick strike, a gritty crunch of stone, a low knock and a few falling chips
+function mineSound(){ sfx((ctx, t, out) => { const p = wobble(); out.gain.value = 0.6;
+  ring(ctx, out, t, [[1650 * p, 1, 1], [3420 * p, 0.5, 1.6], [5280 * p, 0.3, 2.2]], 0.3, 0.32);
+  nz(ctx, out, t, 0.12, 'bandpass', 2100, 1800, 0.9, 0.9, 0.001, 0.1);
+  nz(ctx, out, t, 0.1, 'lowpass', 320, 320, 0.7, 0.8, 0.001, 0.08);
+  for (let i = 0; i < 5; i++) nz(ctx, out, t + 0.07 + Math.random() * 0.25, 0.03, 'bandpass', 2500 + Math.random() * 1700, 3000, 2.5, 0.15 + Math.random() * 0.2, 0.001, 0.025); }); }
+// the anvil: one ringing clang per hammer strike
+function anvilSound(){ sfx((ctx, t, out) => { const p = wobble(); out.gain.value = 0.55;
+  ring(ctx, out, t, [[950 * p, 1, 1], [2410 * p, 0.55, 1.5], [3780 * p, 0.35, 2], [5130 * p, 0.2, 2.6]], 0.5, 0.3);
+  nz(ctx, out, t, 0.05, 'lowpass', 1200, 1200, 0.7, 0.7, 0.001, 0.04); }); }
+// smelting: a bellows whoosh flaring into fire, then a short hiss
+function smeltSound(){ sfx((ctx, t, out) => { out.gain.value = 0.6;
+  nz(ctx, out, t, 0.45, 'bandpass', 300, 1100, 0.8, 0.5, 0.12, 0.3);
+  nz(ctx, out, t + 0.18, 0.55, 'lowpass', 500, 450, 0.7, 0.8, 0.05, 0.45);
+  nz(ctx, out, t + 0.5, 0.3, 'highpass', 4200, 4200, 0.7, 0.25, 0.01, 0.25); }); }
+const clinkSound = smeltSound;   // older name for the furnace sound
 // the wood groaning as it starts to tip over
 function creakSound(dur){
   const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
@@ -1122,13 +1144,10 @@ function updateCook(){
   if (!hasItem('Raw shrimp')) { stopCooking(); return; }
   cooking.t0 = performance.now(); setAct({ k: 'cook', t: Date.now() });
 }
-function sizzleSound(burnt){
-  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
-  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.7);
-  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = burnt ? 1200 : 3000;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18, t + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
-  src.connect(hp); hp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.7);
-}
+function sizzleSound(burnt){ sfx((ctx, t, out) => { out.gain.value = 0.5;   // a short sizzle with a couple of pops; burnt is harsher, with a smoky rumble
+  nz(ctx, out, t, burnt ? 0.8 : 0.7, 'highpass', burnt ? 1700 : 3200, burnt ? 1500 : 3000, 0.7, 0.7, 0.01, burnt ? 0.7 : 0.55);
+  for (let i = 0; i < 6; i++) nz(ctx, out, t + Math.random() * 0.5, 0.04, 'highpass', 2500, 2500, 0.7, 0.3 + Math.random() * 0.3, 0.001, 0.03);
+  if (burnt) nz(ctx, out, t + 0.1, 0.6, 'lowpass', 380, 380, 0.7, 0.45, 0.1, 0.4); }); }
 function eatSound(){
   const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
   for (let i = 0; i < 3; i++) { const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.08);
@@ -1153,7 +1172,7 @@ function updateSmelt(){
   // the bar is done: the ores go in, a bar comes out
   if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting('You have run out of ore.'); return; }
   removeItem('Copper ore'); removeItem('Tin ore');
-  clinkSound();
+  smeltSound();
   addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6);
   showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6 Smithing XP`);
   if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting(); return; }
@@ -1196,12 +1215,12 @@ function updateSmith(){
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (hero && smithing.rec) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, smithing.rec.x, smithing.rec.z);
   heroAnim.mode = 'work';
-  const hits = Math.floor(k * 4); if (hits > smithing.hits && k < 1) { smithing.hits = hits; clinkSound(); }   // a clang every so often
+  const hits = Math.floor(k * 4); if (hits > smithing.hits && k < 1) { smithing.hits = hits; anvilSound(); }   // a clang every so often
   if (k < 1) return;
   const r = smithing.r; stopSmithing();
   if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
   for (let i = 0; i < r.bars; i++) removeItem('Bronze bar');
-  addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); clinkSound();
+  addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); anvilSound();
   showToast(`You make a ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
 }
 function equip(name){
@@ -1668,7 +1687,7 @@ function updateTrees(){
     const facing = screenX(rec.x, rec.z) < screenX(hero.position.x, hero.position.z) ? -1 : 1;   // face the node as the camera sees it
     heroFacing = facing;
     setHeroSwing(phase, rec.kind === 'rock' ? 'pick' : 'axe', yawTo(hero.position.x, hero.position.z, rec.x, rec.z));   // face the node: the arms wind up, strike and recover
-    if (chop.t % 45 === 25) { if (rec.kind === 'rock') clinkSound(); else chopSound(); }   // the blow lands as the tool comes down
+    if (chop.t % 45 === 25) { if (rec.kind === 'rock') mineSound(); else chopSound(); }   // the blow lands as the tool comes down
     if (chop.t >= CHOP_FRAMES) {
       // the node is claimed on the server first: if someone else got there, nothing falls
       chop.rec = null; rec.g.rotation.z = 0; rec.state = 'claiming'; setAct(null);
@@ -2587,13 +2606,11 @@ const fishSpots = [];
 const SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#f08a6a" stroke="#7a3a2a" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
 // a splash when the line goes in
-function splashSound(){
-  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
-  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.5);
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.5);
-}
+function splashSound(){ sfx((ctx, t, out) => { out.gain.value = 0.55;   // a soft splash: water gently parting and settling, then two faint drips
+  nz(ctx, out, t, 0.6, 'bandpass', 1800 * wobble(), 600, 0.9, 0.8, 0.12, 0.45);
+  nz(ctx, out, t, 0.5, 'lowpass', 380, 380, 0.7, 0.45, 0.15, 0.3);
+  for (const [d, f, v] of [[0.3, 900, 0.1], [0.42, 1200, 0.07]]) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(f + 600, t + d); o.frequency.exponentialRampToValueAtTime(f, t + d + 0.05);
+    g.gain.setValueAtTime(v, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.1); o.connect(g); g.connect(out); o.start(t + d); o.stop(t + d + 0.12); } }); }
 function catchFish(){
   showToast('You dip your net in the water...');
   setAct({ k: 'fish', t: Date.now() }); setTimeout(() => setAct(null), 2000);
