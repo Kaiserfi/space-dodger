@@ -9,3 +9,7 @@
 ## Demo scene 2: the village comes to the fire
 
 `demo2.js` (54 seconds): as soon as Aldric sets off to light the fire, Lyra, Fenwick, Bram, Hilde and Pip leave what they're doing on a staggered schedule and walk real routes (from the game's pathfinder) to their seats, leaving seats free for players. They chat, Hilde and Aldric warn as the fire gets low, the player throws on a log, and everyone cheers before Lyra plays. `bonfire-demo2.mp4` is the recording.
+
+## Scaled-up layout
+
+`bonfire-big.js` is the bigger version: a larger fire, two rings of log benches (6 benches of two close in, 8 benches of three further out, 36 seats), a clearing about 21 units across, the oaks moved out to the edge, and two ways in, from the hall road and from the green. It fills most seats to show a busy night. `big-day.png` and `big-night.png` show it.
