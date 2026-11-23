@@ -1770,6 +1770,7 @@ const DB = 'https://space-dodger-1a558-default-rtdb.firebaseio.com';
 const REGROW_MS = 25000;   // a shared tree or rock comes back after this long
 const ONLINE = { ok: false, id: '', name: '', ready: false, nodes: {}, chatK: 0, sig: '', lastWrite: 0, saveJson: '', lastSave: 0 };
 const remote = {};   // the other players on screen
+const joinSeen = {};   // when each player was last on screen, so joins are announced once
 const HAMMER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M7 3 L11 3 L11 7 L7 7 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="7.4" y="7" width="1.4" height="7" fill="#7a4d22"/></svg>`;
 const COIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -1884,7 +1885,9 @@ function setRemote(id, p){
   if (p.t && Date.now() - p.t > 30000) { removeRemote(id); return; }   // a left-behind entry from a closed browser
   let r = remote[id];
   if (!r) {
-    if (ONLINE.announce) addSystemLine(`${p.n || 'A player'} has joined the village.`);   // only after the list of who is here has loaded
+    // a join line only after the first list, and not again for someone who was just here (a briefly stale entry is not a new arrival)
+    if (ONLINE.announce && !(joinSeen[id] && Date.now() - joinSeen[id] < 600000)) addSystemLine(`${p.n || 'A player'} has joined the village.`);
+    joinSeen[id] = Date.now();
     const lookJson = JSON.stringify(p.l || {});
     const frames = [0, 1, 2, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(p.l || look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
@@ -1918,6 +1921,7 @@ function setRemote(id, p){
 }
 function removeRemote(id){
   const r = remote[id]; if (!r) return;
+  joinSeen[id] = Date.now();
   scene.remove(r.sprite); r.sprite.material.dispose();
   r.frames.forEach(t => t.dispose());
   r.swing.axe.concat(r.swing.pick).forEach(t => t.dispose());
