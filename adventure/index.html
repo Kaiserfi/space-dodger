@@ -1765,9 +1765,18 @@ async function enterVillage(name){
   setStatus('Joining...');
   try { const r = await fetch(`${DB}/adventure/saves/${id}.json`); applySave(await r.json()); } catch (e) {}
   ONLINE.saveJson = JSON.stringify(currentSave());
+  cleanStalePlayers();
   startStreams();
   ONLINE.ready = true;
   document.getElementById('online').hidden = true;
+}
+// remove players left behind by closed browsers (no update for a minute)
+async function cleanStalePlayers(){
+  try {
+    const all = await (await fetch(`${DB}/adventure/players.json`)).json() || {};
+    const now = Date.now();
+    for (const id in all) if (all[id] && all[id].t && now - all[id].t > 60000) fetch(`${DB}/adventure/players/${id}.json`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
 }
 // your progress, as saved online
 function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look }; }
@@ -1797,7 +1806,7 @@ function writePresence(force){
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null };
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, t: now };
   fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -1821,6 +1830,7 @@ async function claimNode(rec){
 // the other players: a sprite with their look, and their name above it
 function setRemote(id, p){
   if (!p || id === ONLINE.id) return;
+  if (p.t && Date.now() - p.t > 30000) { removeRemote(id); return; }   // a left-behind entry from a closed browser
   let r = remote[id];
   if (!r) {
     const lookJson = JSON.stringify(p.l || {});
