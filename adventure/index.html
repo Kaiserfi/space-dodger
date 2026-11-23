@@ -2193,6 +2193,7 @@ function applySave(d){
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
   renderBag(); renderStats(); renderGear();
 }
+window.beforeUpdateReload = () => ONLINE.ready ? saveNow(false) : null;   // save before refreshing for a new version
 async function saveNow(keepalive){
   if (!ONLINE.ready) return;
   const j = JSON.stringify(currentSave());
@@ -2436,5 +2437,6 @@ document.getElementById('retryBtn').addEventListener('click', bootOnline);
 bootOnline();
 frame();
 </script>
+<script src="../update-check.js"></script>
 </body>
 </html>
