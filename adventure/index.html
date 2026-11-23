@@ -757,12 +757,17 @@ function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const SELL = { 'Logs': 4, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25 };
 function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
+// how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
+const DEMAND = {};   // name -> { n, t }
+function demandNow(name){ const d = DEMAND[name]; return d ? Math.max(0, d.n - Math.floor((Date.now() - d.t) / 90000)) : 0; }   // one sale fades every 90 seconds
+function sellPrice(name, extra = 0){ const f = Math.max(0.4, 1 - 0.05 * (demandNow(name) + extra)); return Math.max(1, Math.round(SELL[name] * f)); }
+function sellQuote(name, n){ let t = 0; for (let i = 0; i < n; i++) t += sellPrice(name, i); return t; }   // each unit in a big sale pays a little less
 function renderShop(){
   const buyRows = SHOP.map((it, i) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ICON_FOR[it.name]}
     <span style="flex:1">${it.name}<br><small style="color:#c9b27a">${it.price} coins</small></span>
     <button data-s="${i}" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Buy</button></div>`).join('');
   const sellRows = Object.keys(SELL).filter(n => countOf(n) > 0).map(n => `<div style="display:flex;align-items:center;gap:6px;padding:5px 0">${ICON_FOR[n]}
-    <span style="flex:1">${n}<br><small style="color:#c9b27a">x${countOf(n)} &middot; ${SELL[n]} each</small></span>
+    <span style="flex:1">${n}<br><small style="color:#c9b27a">x${countOf(n)} &middot; ${sellPrice(n)} each now <span style="opacity:.7">(base ${SELL[n]})</span></small></span>
     <button data-sell="${n}|1" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 8px;cursor:pointer">Sell 1</button>
     <button data-sell="${n}|all" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 8px;cursor:pointer">All</button></div>`).join('')
     || '<div style="color:#c9b27a;padding:5px 0">Bring me logs, ores, bars or your bronze gear.</div>';
@@ -776,10 +781,11 @@ function sellItem(name, all){
   if (!have) { showToast(`You have no ${name.toLowerCase()} to sell.`); return; }
   if (!hasItem('Coins') && bag.length >= BAG_SIZE) { showToast('Your bag is full, so there is no room for the coins.'); return; }
   const n = all ? have : 1;
+  const coins = sellQuote(name, n);
   for (let k = 0; k < n; k++) removeItem(name);
-  const coins = n * SELL[name];
+  DEMAND[name] = { n: demandNow(name) + n, t: Date.now() };
   addItem('Coins', coins, COIN_ICON);
-  showToast(`You sell ${n} ${name.toLowerCase()} for ${coins} coins.`);
+  showToast(`You sell ${n} ${name.toLowerCase()} for ${coins} coins.` + (DEMAND[name].n >= 4 ? ' Mara pays less after many sales.' : ''));
   renderShop(); renderBag();
 }
 function buyItem(it){
@@ -1861,7 +1867,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -1877,6 +1883,7 @@ function applySave(d){
     d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name] }); });
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
+  if (d && d.dm) Object.keys(d.dm).forEach(k => { if (d.dm[k] && typeof d.dm[k].n === 'number') DEMAND[k] = d.dm[k]; });   // Mara's prices carry over
   if (d && d.xp && d.v === 2) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
