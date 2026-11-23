@@ -48,7 +48,10 @@
   .bagHead { padding:7px 10px; border-bottom:1px solid #5b4324; color:#f0c35a; font-size:14px; }
   .bagGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; padding:8px 10px; }
   .slot { aspect-ratio:1; background:#1d160c; border:1px solid #5b4324; border-radius:4px; display:flex; align-items:center; justify-content:center; position:relative; }
-  .slot.full { background:#3a2a16; }
+  .slot.full { background:#3a2a16; cursor:grab; touch-action:none; }
+  .slot.dropOn { border-color:#f0c35a; }
+  .slot.lifted { opacity:.35; }
+  #dragGhost { position:fixed; z-index:9999; pointer-events:none; width:40px; height:40px; margin:-20px 0 0 -20px; display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
   .slot .swatch { width:14px; height:14px; border-radius:3px; }
   .slot .qty { position:absolute; right:3px; bottom:0; font-size:10px; color:#f0c35a; }
   .bagFoot { padding:0 10px 8px; font-size:12px; color:#c9b27a; }
@@ -113,6 +116,16 @@
   #questDoneBtn { margin-top:12px; padding:8px 30px; font:16px Georgia,serif; color:#f0c35a; background:linear-gradient(180deg,#5a3e1c,#2a1c0c); border:2px solid #a07a3c; border-radius:6px; cursor:pointer; }
   #camPad { position:fixed; right:12px; bottom:64px; z-index:8; display:grid; grid-template-columns:repeat(2, 46px); gap:6px; }
   #camPad[hidden] { display:none; }
+  @media (max-width: 700px), (pointer: coarse) {
+    #hint { display:none; }   /* phone players already know to tap; the hint just covers the view */
+    #chatBox { width:calc(100vw - 140px) !important; bottom:12px !important; }
+    #chatLog { height:56px !important; font-size:12px; }
+    #logoutBtn, #lookBtn { font-size:12px !important; padding:4px 8px !important; }
+    #questTrack { font-size:12px; max-width:calc(100vw - 90px); }
+    #camPad { bottom:12px; grid-template-columns:repeat(2, 40px); } #camPad button { width:40px; height:40px; font-size:19px; }
+  }
+  /* an open panel takes the place of the quest note, so they never sit on top of each other */
+  body:has(#bagPanel:not([hidden])) #questTrack, body:has(#statsPanel:not([hidden])) #questTrack, body:has(#gearPanel:not([hidden])) #questTrack, body:has(#setPanel:not([hidden])) #questTrack { display:none; }
   #camPad button { width:46px; height:46px; font:22px Georgia,serif; color:#f0c35a; background:linear-gradient(180deg, rgba(58,42,22,.9), rgba(26,18,10,.9)); border:2px solid #a07a3c; border-radius:10px; touch-action:none; user-select:none; -webkit-user-select:none; padding:0; }
   #camPad button:active { border-color:#f0c35a; background:rgba(90,66,30,.95); }
   /* polish: warm parchment-and-gold panels, soft shadows, a vignette */
@@ -1416,7 +1429,37 @@ document.getElementById('smithClose').addEventListener('click', () => { document
 document.getElementById('smithList').addEventListener('click', e => {
   const b = e.target.closest('button[data-r]'); if (b && !b.disabled) makeGear(RECIPES[+b.dataset.r]);
 });
+// drag an item to another slot to move it; dropping it on another item swaps the two
+let bagDrag = null, bagDragged = false;
+document.getElementById('bagGrid').addEventListener('pointerdown', e => {
+  const cell = e.target.closest('.slot[data-i]'); if (!cell || e.button > 0) return;
+  bagDrag = { it: bag[+cell.dataset.i], cell, x: e.clientX, y: e.clientY, ghost: null, over: null };
+});
+addEventListener('pointermove', e => {
+  const d = bagDrag; if (!d) return;
+  if (!d.ghost) {
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+    d.ghost = document.createElement('div'); d.ghost.id = 'dragGhost'; d.ghost.innerHTML = d.it.icon; document.body.appendChild(d.ghost);
+    d.cell.classList.add('lifted');
+  }
+  d.ghost.style.left = e.clientX + 'px'; d.ghost.style.top = e.clientY + 'px';
+  const under = document.elementFromPoint(e.clientX, e.clientY), over = under && under.closest('#bagGrid .slot');
+  if (over !== d.over) { if (d.over) d.over.classList.remove('dropOn'); d.over = over; if (over) over.classList.add('dropOn'); }
+});
+function endBagDrag(drop){
+  const d = bagDrag; bagDrag = null; if (!d || !d.ghost) return;
+  d.ghost.remove(); bagDragged = true; setTimeout(() => { bagDragged = false; }, 0);
+  if (drop && d.over && bag.includes(d.it)) {
+    const to = +d.over.dataset.s, other = bag.find(x => x.slot === to);
+    if (other) other.slot = d.it.slot;
+    d.it.slot = to;
+  }
+  renderBag();
+}
+addEventListener('pointerup', () => endBagDrag(true));
+addEventListener('pointercancel', () => endBagDrag(false));
 document.getElementById('bagGrid').addEventListener('click', e => {
+  if (bagDragged) return;
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && FOOD[it.name]) { removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
@@ -2654,19 +2697,21 @@ const ORE_NAME = 'Copper ore';
 function addItem(name, qty = 1, icon = '') {
   const have = bag.find(i => i.name === name);
   if (have) have.qty += qty;
-  else if (bag.length < BAG_SIZE) bag.push({ name, qty, icon });
+  else if (bag.length < BAG_SIZE) bag.push({ name, qty, icon, slot: freeSlot() });
   else return false;
   renderBag();
   return true;
 }
+// each item keeps its own slot, so you can arrange your bag how you like
+function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.slot === i)) return i; return -1; }
 function hasItem(name){ return bag.some(i => i.name === name); }
 function renderBag() {
   let html = '';
   for (let i = 0; i < BAG_SIZE; i++) {
-    const it = bag[i];
+    const k = bag.findIndex(x => x.slot === i), it = bag[k];
     html += it
-      ? `<div class="slot full" data-i="${i}" title="${it.name}${statText(it.name) ? ' (' + statText(it.name) + ')' : ''}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
-      : '<div class="slot"></div>';
+      ? `<div class="slot full" data-i="${k}" data-s="${i}" title="${it.name}${statText(it.name) ? ' (' + statText(it.name) + ')' : ''}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
+      : `<div class="slot" data-s="${i}"></div>`;
   }
   document.getElementById('bagGrid').innerHTML = html;
   document.getElementById('bagFoot').textContent = `${bag.length} / ${BAG_SIZE} slots used`;
@@ -2753,7 +2798,7 @@ const TOWNSFOLK = [
       ["Bram keeps offering me cabbages. I keep accepting. It's becoming a problem."],
       ["There's a goblin been sniffing round the quarry. You'd do us a favour if you sorted it out."] ],
     barks: ['Watch the pig.', 'All quiet on the farm road.', '*yawns*'] },
-  { name: 'Godwin', title: 'the guard', level: 10, x: 29.5, z: 46, rad: 2.5,
+  { name: 'Godwin', title: 'the guard', level: 10, x: 41, z: 60.8, rad: 0.6,
     look: { gender: 'male', skin: 0xf1cba0, hair: 'short', hairCol: 0xc0442a, shirt: 0x8a9099, pants: 0x3a3a44 },
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     talks: [
@@ -3825,7 +3870,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -3838,7 +3883,8 @@ function openSpotNear(x, z){
 function applySave(d){
   if (d && d.bag) {
     bag.length = 0;
-    d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name] }); });
+    d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
+    bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
   if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
