@@ -1901,6 +1901,95 @@ function decoratePaths(){
   });
   town.add(fl, stem);
 }
+// if the adventurer has ended up inside a solid box (a door shutting on them, say), slide them to the nearest clear spot
+function unstick(){
+  if (!hero || !hardHit(hero.position.x, hero.position.z)) return;
+  for (let r = 0.25; r <= 4; r += 0.25) for (let a = 0; a < 16; a++) {
+    const x = hero.position.x + Math.cos(a * Math.PI / 8) * r, z = hero.position.z + Math.sin(a * Math.PI / 8) * r;
+    if (!hardHit(x, z)) { hero.position.set(x, 0, z); heroShadow.position.set(x, 0.06, z); return; }
+  }
+}
+// open or close a house door: a swing on its hinge, and the doorway is walkable only while it is open
+function toggleDoor(rec){
+  rec.open = !rec.open;
+  if (rec.open === false) unstick();   // never shut a door on the adventurer
+  rec.pivot.rotation.y = rec.open ? -Math.PI / 2 : 0;
+  rec.leaf.userData.action = rec.open ? 'Close' : 'Open';
+  const i = solidBoxes.indexOf(rec.box);
+  if (rec.open && i >= 0) solidBoxes.splice(i, 1);
+  if (!rec.open && i < 0) solidBoxes.push(rec.box);
+}
+// a villager stands inside a house; clicking them walks over and opens their dialogue
+// villagers wander a little around their spot: inside their house, or round the green for Mara
+const WANDER = [];
+function npcFrames(look){
+  return [0, 1, 0, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
+}
+function pickWanderTarget(w){
+  for (let i = 0; i < 12; i++) {
+    const tx = w.lx + (Math.random() * 2 - 1) * w.rad, tz = w.lz + (Math.random() * 2 - 1) * w.rad;
+    if (tx < w.box.x0 || tx > w.box.x1 || tz < w.box.z0 || tz > w.box.z1) continue;
+    if (hardHit(w.ox + tx * w.k, w.oz + tz * w.k)) continue;
+    w.tx = tx; w.tz = tz; return;
+  }
+  w.tx = w.sp.position.x; w.tz = w.sp.position.z;   // nowhere better: stay put
+}
+function addWander(sp, rec, frames, o){
+  WANDER.push({ sp, rec, frames, lx: o.lx, lz: o.lz, rad: o.rad, box: o.box, k: o.k, ox: o.ox, oz: o.oz,
+    tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1 });
+}
+function updateWanderers(){
+  for (const w of WANDER) {
+    const sp = w.sp, x = sp.position.x, z = sp.position.z;
+    let moving = false;
+    if (w.pause > 0) w.pause--;
+    else {
+      const dx = w.tx - x, dz = w.tz - z, dist = Math.hypot(dx, dz);
+      if (dist < 0.03) { pickWanderTarget(w); w.pause = 150 + Math.random() * 240; }   // arrived: rest, then pick somewhere else
+      else {
+        const step = Math.min(dist, 0.02), nx = x + dx / dist * step, nz = z + dz / dist * step;
+        if (hardHit(w.ox + nx * w.k, w.oz + nz * w.k)) { w.tx = x; w.tz = z; }   // something in the way
+        else { sp.position.set(nx, 0, nz); moving = true; w.face = dx < 0 ? -1 : 1; w.tick++; }
+      }
+    }
+    const idx = moving ? Math.floor(w.tick / 10) % 4 : 0;
+    if (sp.material.map !== w.frames[idx]) sp.material.map = w.frames[idx];
+    w.frames.forEach(t => { t.repeat.x = w.face; t.offset.x = w.face < 0 ? 1 : 0; });   // face the way they walk
+    w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
+  }
+}
+function addNpc(g, h, lx, lz, npc){
+  const frames = npcFrames(npc.look);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
+  sp.center.set(0.5, 0); sp.scale.set(2.1, 2.8, 1); sp.position.set(lx, 0, lz); sp.renderOrder = 10;
+  g.add(sp);
+  const p = h.toWorld(lx, lz);
+  const rec = { kind: 'npc', name: npc.name, lines: npc.lines, x: p.x, z: p.z, s: 0.7, state: 'standing' };
+  sp.userData = { action: 'Talk', name: npc.name, rec };
+  trees.push(sp);
+  const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
+  addWander(sp, rec, frames, { lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
+}
+// the smithy's furnace and anvil, inside its walls
+function furnishSmithy(g, h){
+  const S = HOUSE_SIZE;
+  const f = new THREE.Group(); f.scale.setScalar(S); g.add(f);   // the furnishings are drawn at the house's own units, then scaled
+  const fx = -1.6, fz = -1.8, ax = 1.4, az = -0.4;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.0), texMat(wallStone, 1, 1, 0xa0a0a0)); body.position.set(fx, 0.8, fz); f.add(body);
+  const fire = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.05), fireMat); fire.position.set(fx, 0.6, fz + 0.52); f.add(fire);
+  const fp = h.toWorld(fx * S, fz * S);
+  body.userData = { action: 'Smelt', name: 'Furnace', rec: { kind: 'furnace', x: fp.x, z: fp.z, s: 1, state: 'standing' } };
+  trees.push(body);
+  solidBoxes.push({ x0: fp.x - 1, x1: fp.x + 1, z0: fp.z - 1, z1: fp.z + 1 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), ironDark); base.position.set(ax, 0.2, az); f.add(base);
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.4), ironDark); waist.position.set(ax, 0.5, az); f.add(waist);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.5), steelTop); face.position.set(ax, 0.7, az); f.add(face);
+  const apt = h.toWorld(ax * S, az * S);
+  base.userData = { action: 'Smith', name: 'Anvil', rec: { kind: 'anvil', x: apt.x, z: apt.z, s: 1, state: 'standing' } };
+  trees.push(base);
+  solidBoxes.push({ x0: apt.x - 1, x1: apt.x + 1, z0: apt.z - 1, z1: apt.z + 1 });
+  addNpc(g, h, 0.6 * S, 1.0 * S, VILLAGERS[3]);
+}
 // a villager who stands out in the open, with a choice at the end of her talk
 function addWorldNpc(x, z, npc){
   const frames = npcFrames(npc.look);
