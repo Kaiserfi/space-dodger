@@ -1024,7 +1024,7 @@ function levelUpSound(){
   }
 }
 function cancelChop(){
-  stopSmelting(); stopCooking();
+  stopSmelting(); stopCooking(); stopSmithing();
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
@@ -1159,7 +1159,7 @@ function renderSmith(){
   document.getElementById('smithList').innerHTML = RECIPES.map((r, i) => {
     const ok = lvl >= r.level && bars >= r.bars;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ITEMS[r.name].icon}
-      <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} bronze bar${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small></span>
+      <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} bronze bar${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small><br><small style="color:#9ac87a">${statText(r.name)}</small></span>
       <button data-r="${i}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Make</button></div>`;
   }).join('');
 }
@@ -1168,10 +1168,31 @@ function makeGear(r){
   if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
   if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { showToast('Your bag is full.'); return; }
+  if (smithing || smelting || cooking) return;
+  // hammering takes a moment: the bars are used when the piece is finished, so walking away wastes nothing
+  document.getElementById('smithPanel').hidden = true;
+  const anvil = trees.find(t => t.userData.rec && t.userData.rec.kind === 'anvil');
+  smithing = { r, t0: performance.now(), rec: anvil && anvil.userData.rec, hits: 0 };
+  document.getElementById('smeltLabel').textContent = `Smithing a ${r.name.toLowerCase()}...`;
+  document.getElementById('smeltBar').style.display = 'block';
+  setAct({ k: 'smith', t: Date.now() });
+}
+let smithing = null;
+function smithTime(r){ return 1800 + r.bars * 700; }
+function stopSmithing(){ if (!smithing) return; smithing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'smith') setAct(null); }
+function updateSmith(){
+  if (!smithing) return;
+  const T = smithTime(smithing.r), k = (performance.now() - smithing.t0) / T;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  if (hero && smithing.rec) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, smithing.rec.x, smithing.rec.z);
+  heroAnim.mode = 'work';
+  const hits = Math.floor(k * 4); if (hits > smithing.hits && k < 1) { smithing.hits = hits; clinkSound(); }   // a clang every so often
+  if (k < 1) return;
+  const r = smithing.r; stopSmithing();
+  if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
   for (let i = 0; i < r.bars; i++) removeItem('Bronze bar');
-  addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp);
-  showToast(`You make a ${r.name.toLowerCase()}.  +${r.xp} Smithing XP`);
-  renderSmith();
+  addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); clinkSound();
+  showToast(`You make a ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
 }
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
@@ -1180,8 +1201,10 @@ function equip(name){
   equipped[def.slot] = name;
   heroFrame = '';   // redraw the sprite with the new gear
   renderBag(); renderStats(); renderGear();
-  showToast(`Equipped ${name.toLowerCase()}.`);
+  showToast(`Equipped ${name.toLowerCase()}${statText(name) ? ' (' + statText(name) + ')' : ''}.`);
 }
+// an item's bonuses, as text: "+6 Attack", "+2 Defence"
+function statText(name){ const d = ITEMS[name]; if (!d) return ''; return [d.atk && `+${d.atk} Attack`, d.def && `+${d.def} Defence`].filter(Boolean).join(', '); }
 function gearBonus(stat){
   return Object.values(equipped).reduce((t, n) => t + (n && ITEMS[n][stat] ? ITEMS[n][stat] : 0), 0);
 }
@@ -1201,7 +1224,7 @@ const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Logs': 4, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25 };
+const SELL = { 'Logs': 4, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -1251,14 +1274,14 @@ document.getElementById('shopList').addEventListener('click', e => {
 });
 
 // ----- the gear tab: each slot and what is worn in it -----
-const SLOT_NAMES = { head: 'Head', back: 'Back', body: 'Body', legs: 'Legs', weapon: 'Weapon', shield: 'Shield' };
+const SLOT_NAMES = { head: 'Head', back: 'Back', body: 'Body', legs: 'Legs', feet: 'Feet', weapon: 'Weapon', shield: 'Shield' };
 function renderGear(){
   document.getElementById('gearList').innerHTML = Object.keys(SLOT_NAMES).map(slot => {
     const worn = equipped[slot];
     return `<div class="gearRow"><span>${SLOT_NAMES[slot]}</span>${worn
-      ? `<b data-unequip="${slot}" title="Take off" style="cursor:pointer">${worn} &times;</b>`
+      ? `<b data-unequip="${slot}" title="Take off" style="cursor:pointer;text-align:right">${worn} &times;<br><small style="color:#9ac87a">${statText(worn)}</small></b>`
       : '<span style="color:#7a6a4a">empty</span>'}</div>`;
-  }).join('');
+  }).join('') + `<div class="gearRow" style="border:0;margin-top:4px"><span>Total</span><b>+${gearBonus('atk')} Attack, +${gearBonus('def')} Defence</b></div>`;
 }
 function unequip(slot){
   const name = equipped[slot]; if (!name) return;
@@ -1783,7 +1806,7 @@ function makeRock(x, z, s = 1, ore = 'copper'){
 }
 
 
-const equipped = { head: null, back: null, body: null, legs: null, weapon: null, shield: null };   // what is worn in each slot
+const equipped = { head: null, back: null, body: null, legs: null, feet: null, weapon: null, shield: null };   // what is worn in each slot
 // ----- the adventurer -----
 const START = new THREE.Vector3(HALL.x, 0, HALL.z + 2.4 * HALL_SCALE);   // the spawn point: inside the hall, just south of the centre pillar
 const hex = n => '#' + n.toString(16).padStart(6, '0');
@@ -1854,7 +1877,7 @@ function makeChibi(o){
   for (const s of [-1, 1]) {
     const eye = new THREE.Mesh(gRound(0.12, 16), basic(0x1e1a2a)); eye.scale.set(0.8, 1.15, 0.5); eye.position.set(s * 0.22, 0.02, 0.56); head.add(eye); eyes.push(eye);
     const shine = new THREE.Mesh(gRound(0.04, 8), basic(0xffffff)); shine.position.set(s * 0.22 + 0.03, 0.08, 0.62); head.add(shine); eyes.push(shine);
-    const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek);
+    if (female) { const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek); }   // rosy cheeks on the female build only
   }
   const smile = new THREE.Mesh(geo('smile', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), basic(0x5a2a2a)); smile.rotation.z = Math.PI; smile.position.set(0, -0.14, 0.6); head.add(smile);
   // hair: a rounded cap tipped forward over the brow, and a patch behind the ears down to the nape so no scalp shows
@@ -1862,13 +1885,13 @@ function makeChibi(o){
   const nape = chibiPart(head, geo('nape', () => new THREE.SphereGeometry(0.655, 24, 12, Math.PI * 1.14, Math.PI * 0.72, Math.PI * 0.2, Math.PI * 0.55)), o.hairCol, 0, 0.02, -0.02, false);
   nape.material = nape.material.clone(); nape.material.side = THREE.DoubleSide;
   if (o.hair === 'long') chibiPart(head, gRound(0.56, 28), o.hairCol, 0, -0.26, -0.2).scale.set(1.22, 1.22, 0.78);   // one smooth fall behind the head
-  if (o.hair === 'topknot') chibiPart(head, gRound(0.2, 14), o.hairCol, 0, 0.7, -0.15);
+  const knot = o.hair === 'topknot' ? chibiPart(head, gRound(0.2, 14), o.hairCol, 0, 0.7, -0.15) : null;
   // tools and worn gear
   const tools = { axe: makeTool('axe'), pick: makeTool('pick') };
   for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
   const gear = new THREE.Group(); body.add(gear);
   g.scale.setScalar(CHIBI_SCALE);
-  g.userData.chibi = { body, legs, arms, head, eyes, tools, gear, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
+  g.userData.chibi = { knot, body, legs, arms, head, eyes, tools, gear, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
   return g;
 }
 // the village emblem, "The Oak and the River", and the cloth of the villager's cloak
@@ -1919,18 +1942,55 @@ function dressChibi(g, eq){
   if (!c.cloak) { c.cloak = new THREE.Group(); c.body.add(c.cloak); }
   c.cloak.clear(); if (eq.back === "Villager's cloak") addCape(g);
   for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
-  if (eq.weapon) {
-    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -Math.PI / 2;   // held point forward
-    const len = eq.weapon === 'Bronze sword' ? 0.9 : 0.45;
-    chibiPart(w, geo('grip', () => new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6)), 0x5a3a1a, 0, 0, 0);
-    chibiPart(w, geo('guard', () => new THREE.BoxGeometry(0.32, 0.06, 0.08)), 0x7a4d22, 0, -0.12, 0);
-    chibiPart(w, geo('blade' + len, () => new THREE.BoxGeometry(0.1, len, 0.03)), 0xcd7f32, 0, -0.14 - len / 2, 0);
-    c.arms[1].add(w);
+  // armour: every piece is listed so it can be taken off again
+  (c.armour || []).forEach(m => m.parent && m.parent.remove(m)); c.armour = [];
+  if (c.knot) c.knot.visible = !eq.head;   // a helmet covers the top knot
+  const BR = 0xa8682a, BD = 0x5e3416, BL = 0xe0a458;
+  const A = (parent, g2, col, x, y, z, ol = true) => { const m = chibiPart(parent, g2, col, x, y, z, ol); c.armour.push(m); return m; };
+  if (eq.head === 'Bronze helmet') {
+    const h = c.head;
+    A(h, geo('helmDome', () => new THREE.SphereGeometry(0.7, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.55)), BR, 0, 0.05, -0.02).rotation.x = -0.25;
+    A(h, geo('helmBand', () => new THREE.CylinderGeometry(0.71, 0.71, 0.14, 24)), BD, 0, 0.2, 0, false);
+    A(h, geo('helmCrest', () => new THREE.ConeGeometry(0.1, 0.32, 6)), BL, 0, 0.82, -0.05);
+    for (const sx of [-1, 1]) A(h, geo('helmCheek', () => new THREE.BoxGeometry(0.12, 0.34, 0.3)), BR, sx * 0.64, -0.02, -0.02).rotation.z = sx * 0.1;
+    const nk = A(h, geo('helmNeck', () => new THREE.SphereGeometry(0.66, 20, 10, Math.PI * 1.15, Math.PI * 0.7, Math.PI * 0.35, Math.PI * 0.45)), BR, 0, 0, -0.02, false);
+    nk.material = nk.material.clone(); nk.material.side = THREE.DoubleSide;
   }
-  if (eq.shield) {
-    const sh = chibiPart(c.arms[0], geo('shield', () => new THREE.CylinderGeometry(0.34, 0.34, 0.07, 16)), 0xcd7f32, -0.12, -0.3, 0);
-    sh.rotation.z = Math.PI / 2; sh.userData.isGear = true;
-    chibiPart(sh, geo('boss', () => new THREE.CylinderGeometry(0.1, 0.1, 0.06, 10)), 0x7a4d22, 0, -0.05, 0, false);
+  if (eq.body === 'Bronze chestplate') {
+    const b = c.body;
+    A(b, geo('chest', () => new THREE.CapsuleGeometry(0.41, 0.3, 6, 16)), BR, 0, 1.04, 0).scale.set(1, 1, 0.9);
+    A(b, geo('chestRidge', () => new THREE.BoxGeometry(0.06, 0.55, 0.06)), BL, 0, 1.08, 0.37, false);
+    A(b, geo('chestBelt', () => new THREE.CylinderGeometry(0.43, 0.43, 0.1, 20)), BD, 0, 0.8, 0, false);
+    for (const sx of [-1, 1]) for (const y of [1.25, 0.95]) A(b, geo('rivet', () => new THREE.SphereGeometry(0.035, 6, 5)), BL, sx * 0.22, y, 0.36, false);
+    for (const arm of c.arms) { A(arm, geo('pauldron', () => new THREE.SphereGeometry(0.22, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55)), BR, 0, 0.02, 0).scale.set(1.1, 0.8, 1.1);
+      A(arm, geo('vambrace', () => new THREE.CylinderGeometry(0.13, 0.12, 0.18, 12)), BD, 0, -0.3, 0, false); }
+  }
+  if (eq.legs === 'Bronze leg armour') for (const l of c.legs) {   // plated thighs and shins with a knee guard, nothing hanging at the hips
+    A(l, geo('thigh', () => new THREE.CapsuleGeometry(0.165, 0.18, 6, 12)), BR, 0, -0.18, 0);
+    A(l, geo('knee', () => new THREE.SphereGeometry(0.11, 10, 8)), BL, 0, -0.33, 0.12);
+    A(l, geo('shin', () => new THREE.CylinderGeometry(0.17, 0.15, 0.2, 12)), BR, 0, -0.42, 0);
+  }
+  if (eq.feet === 'Bronze boots') for (const l of c.legs) {   // a bronze shell over each boot, with a darker cuff and a light toe cap
+    A(l, geo('bootShell', () => new THREE.SphereGeometry(0.21, 16, 10)), BR, 0, -0.5, 0.07).scale.set(1, 0.62, 1.32);
+    A(l, geo('bootCuff', () => new THREE.CylinderGeometry(0.17, 0.18, 0.1, 14)), BD, 0, -0.4, 0, false);
+    A(l, geo('bootToe', () => new THREE.SphereGeometry(0.09, 10, 8)), BL, 0, -0.52, 0.3, false).scale.set(1.2, 0.7, 0.8);
+  }
+  if (eq.weapon) {   // a full-size blade held angled down and forward; the dagger is the same, shorter
+    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -0.75; c.arms[1].add(w);
+    const len = eq.weapon === 'Bronze sword' ? 1.15 : 0.6;
+    chibiPart(w, geo('swGrip', () => new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8)), 0x4a2e16, 0, 0.05, 0);
+    chibiPart(w, geo('swPommel', () => new THREE.SphereGeometry(0.07, 8, 6)), BL, 0, 0.22, 0, false);
+    chibiPart(w, geo('swGuard' + len, () => new THREE.BoxGeometry(len > 1 ? 0.5 : 0.34, 0.08, 0.12)), BD, 0, -0.13, 0);
+    chibiPart(w, geo('swBlade' + len, () => new THREE.BoxGeometry(len > 1 ? 0.16 : 0.13, len, 0.04)), 0xd8904a, 0, -0.17 - len / 2, 0);
+    chibiPart(w, geo('swTip' + len, () => new THREE.ConeGeometry(len > 1 ? 0.113 : 0.092, 0.2, 4)), 0xd8904a, 0, -0.27 - len, 0).rotation.set(Math.PI, Math.PI / 4, 0);
+    chibiPart(w, geo('swFuller' + len, () => new THREE.BoxGeometry(0.03, len * 0.85, 0.05)), BL, 0, -0.17 - len / 2, 0, false);
+  }
+  if (eq.shield) {   // a big round shield on the left arm, with a rim, a boss and rivets
+    const sh = new THREE.Group(); sh.userData.isGear = true; sh.position.set(-0.16, -0.32, 0.05); sh.rotation.set(0, -0.35, Math.PI / 2); c.arms[0].add(sh);
+    chibiPart(sh, geo('shDisc', () => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24)), BR, 0, 0, 0);
+    chibiPart(sh, geo('shRim', () => new THREE.TorusGeometry(0.48, 0.04, 6, 24).rotateX(Math.PI / 2)), BD, 0, -0.05, 0, false);
+    chibiPart(sh, geo('shBoss', () => new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)), BL, 0, -0.04, 0, false).rotation.x = Math.PI;
+    for (let i = 0; i < 6; i++) chibiPart(sh, geo('rivet', () => new THREE.SphereGeometry(0.035, 6, 5)), BL, Math.cos(i * 1.05) * 0.36, -0.05, Math.sin(i * 1.05) * 0.36, false);
   }
 }
 const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
@@ -2131,7 +2191,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -2334,16 +2394,32 @@ const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
   <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
 // food you can eat from the bag
 const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
+const HELM_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M3 10 Q3 3 8 3 Q13 3 13 10 L13 12 L11 12 L11 9 L5 9 L5 12 L3 12 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="3" y="8" width="10" height="1.4" fill="#6a3c18"/><path d="M7.4 1.2 L8.6 1.2 L8 3 Z" fill="#e0a458"/></svg>`;
+const CHEST_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M5 2 L11 2 L14 5 L12.5 7 L12 14 L4 14 L3.5 7 L2 5 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="7.5" y="4" width="1" height="8" fill="#e0a458"/><rect x="4" y="11" width="8" height="1.2" fill="#6a3c18"/></svg>`;
+const LEGS_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M4 2 L12 2 L12.5 14 L9 14 L8 6 L7 14 L3.5 14 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="4" y="2" width="8" height="1.4" fill="#6a3c18"/><circle cx="5.5" cy="9" r="0.9" fill="#e0a458"/><circle cx="10.5" cy="9" r="0.9" fill="#e0a458"/></svg>`;
+const BOOTS_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 4 L6 4 L6 10 L8 11 L8 13 L2 13 Z M9 4 L13 4 L13 10 L15 11 L15 13 L9 13 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="2" y="5.5" width="4" height="1" fill="#6a3c18"/><rect x="9" y="5.5" width="4" height="1" fill="#6a3c18"/></svg>`;
 const ITEMS = {
   "Villager's cloak": { slot: 'back', def: 1, icon: CLOAK_ICON },
   'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
+  'Bronze helmet': { slot: 'head', def: 2, icon: HELM_ICON },
+  'Bronze chestplate': { slot: 'body', def: 8, icon: CHEST_ICON },
+  'Bronze leg armour': { slot: 'legs', def: 5, icon: LEGS_ICON },
+  'Bronze boots': { slot: 'feet', def: 1, icon: BOOTS_ICON },
   'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
   'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON }
 };
 const RECIPES = [
-  { name: 'Bronze dagger', bars: 1, level: 1, xp: 12 },
-  { name: 'Bronze sword',  bars: 2, level: 4, xp: 25 },
-  { name: 'Bronze shield', bars: 2, level: 6, xp: 30 }
+  { name: 'Bronze dagger',     bars: 1, level: 1,  xp: 12 },
+  { name: 'Bronze boots',      bars: 1, level: 2,  xp: 12 },
+  { name: 'Bronze helmet',     bars: 1, level: 3,  xp: 14 },
+  { name: 'Bronze sword',      bars: 2, level: 4,  xp: 25 },
+  { name: 'Bronze shield',     bars: 2, level: 6,  xp: 30 },
+  { name: 'Bronze leg armour', bars: 3, level: 8,  xp: 40 },
+  { name: 'Bronze chestplate', bars: 5, level: 10, xp: 65 }
 ];
 const BAG_SIZE = 30;
 const bag = [];
@@ -2364,7 +2440,7 @@ function renderBag() {
   for (let i = 0; i < BAG_SIZE; i++) {
     const it = bag[i];
     html += it
-      ? `<div class="slot full" data-i="${i}" title="${it.name}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
+      ? `<div class="slot full" data-i="${i}" title="${it.name}${statText(it.name) ? ' (' + statText(it.name) + ')' : ''}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
       : '<div class="slot"></div>';
   }
   document.getElementById('bagGrid').innerHTML = html;
@@ -3109,7 +3185,8 @@ const HAMMER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rende
 const COIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <circle cx="8" cy="8" r="5.5" fill="#e8c040" stroke="#7a5a10" stroke-width="0.8"/><circle cx="8" cy="8" r="2.5" fill="none" stroke="#b8901c" stroke-width="0.8"/></svg>`;
 const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
-  'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON, 'Raw shrimp': SHRIMP_ICON,
+  'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
+  'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON };
 function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
@@ -3278,8 +3355,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000 };
+const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing' };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000, smith: 6000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -3349,7 +3426,7 @@ function updateOnline(){
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
     } else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
-    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -3390,6 +3467,7 @@ function frame(){
   updateWalk();
   updateSmelt();
   updateCook();
+  updateSmith();
   updateQuest();
   updateHeroAnim();
   updateTrees();
