@@ -39,7 +39,7 @@ A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 - **Look:** arrow keys or middle-mouse drag turn the camera; the wheel zooms. On a phone, drag one finger to turn, pinch to zoom, or use the turn and zoom buttons in the bottom right.
 - **Indoors:** when you step inside a house, the smithy or the hall, the walls fold down into an outline on the floor and the camera moves in closer, so you can see the room.
 - **Skills:** chop trees with the bronze axe, mine copper and tin rocks with the bronze pickaxe, smelt bronze at the furnace, smith at the anvil, and fish at the river.
-- **Villagers:** click a villager to talk to them. Doors open and close when clicked.
+- **Villagers:** the village has a baker, a woodcutter, an angler, a smith, a trader, a guard, an old gossip, a kid, a bard, a forester, a miner and an old fisherman. Click one to talk: each has a personality, and what they say changes the more you talk to them (and sometimes mentions your skills). Walk near them and they make remarks out loud. Doors open and close when clicked.
 - **Chat:** press Enter to type. Your line shows above your character in yellow.
 - **Settings:** the settings tab (under the Gear tab on the right) has Music and Sounds volume sliders; tap the speaker icon next to either to mute it. Settings are saved in your browser.
 - **Log out:** the button in the top left saves your progress and returns you to the arcade.
