@@ -71,6 +71,26 @@
   .npcBub { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 6; max-width: 200px; padding: 4px 9px; background: rgba(250, 244, 228, .94); border: 1px solid #a07a3c; border-radius: 10px; color: #3a2a14; font: italic 13px Georgia, serif; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.35); white-space: nowrap; }
   .chatBub:before { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-top: 6px solid rgba(12, 10, 8, .9); border-bottom: 0; z-index: 1; }
   #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
+  #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
+  #questTrack b { color:#f0c35a; font-weight:normal; }
+  #questTrack[hidden], #questDone[hidden] { display:none; }
+  #qMark { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:6; font:bold 30px Georgia,serif; color:#ffd24a; text-shadow:0 0 3px #000, 2px 2px 0 #5a3a10, -1px -1px 0 #5a3a10; display:none; }
+  .qRow { margin:4px 0; color:#c9b27a; } .qOn { color:#f0c35a; } .qDone { color:#7ac85a; } .qLock { color:#7a6a4a; font-size:12px; margin-top:10px; }
+  .qStep { margin:2px 0 6px 16px; font-size:12px; color:#e8efe6; }
+  #questDone { position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at center, rgba(0,0,0,.3), rgba(0,0,0,.75)); }
+  .qScroll { position:relative; width:min(540px, 88vw); max-height:86vh; overflow:auto; padding:22px 28px 20px; background:linear-gradient(180deg,#f4e6c4,#e6d0a0); border:3px solid #a07a3c; border-radius:6px; box-shadow:0 0 0 6px #4a3418, 0 20px 50px rgba(0,0,0,.6), inset 0 0 40px rgba(140,100,40,.35); color:#3a2610; text-align:center; font-family:Georgia,serif; animation:unroll .6s ease-out; }
+  @keyframes unroll { from { transform:scaleY(.1); opacity:0; } to { transform:scaleY(1); opacity:1; } }
+  .qBanner { font-size:13px; letter-spacing:4px; color:#8a5a20; text-transform:uppercase; }
+  .qScroll h1 { margin:4px 0 2px; font-size:30px; color:#6a2a10; }
+  .qSub { font-style:italic; color:#6a4a24; margin-bottom:6px; }
+  #qEmblem { width:80px; height:80px; display:block; margin:0 auto; }
+  .qCols { display:flex; gap:14px; text-align:left; margin-top:6px; flex-wrap:wrap; }
+  .qBox { flex:1; min-width:180px; background:rgba(255,248,226,.6); border:1px solid #c8a060; border-radius:5px; padding:8px 12px; }
+  .qBox h3 { margin:0 0 6px; font-size:13px; letter-spacing:1px; color:#8a5a20; text-transform:uppercase; }
+  .qr { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:14px; } .qr b { margin-left:auto; color:#2e6a2a; }
+  .qi { width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; }
+  .qQuote { margin-top:12px; font-style:italic; font-size:14px; color:#5a3a18; }
+  #questDoneBtn { margin-top:12px; padding:8px 30px; font:16px Georgia,serif; color:#f0c35a; background:linear-gradient(180deg,#5a3e1c,#2a1c0c); border:2px solid #a07a3c; border-radius:6px; cursor:pointer; }
   #camPad { position:fixed; right:12px; bottom:64px; z-index:8; display:grid; grid-template-columns:repeat(2, 46px); gap:6px; }
   #camPad[hidden] { display:none; }
   #camPad button { width:46px; height:46px; font:22px Georgia,serif; color:#f0c35a; background:linear-gradient(180deg, rgba(58,42,22,.9), rgba(26,18,10,.9)); border:2px solid #a07a3c; border-radius:10px; touch-action:none; user-select:none; -webkit-user-select:none; padding:0; }
@@ -146,7 +166,22 @@
   <button data-cam="left" title="Turn left">&#x27F2;</button><button data-cam="in" title="Zoom in">+</button>
   <button data-cam="right" title="Turn right">&#x27F3;</button><button data-cam="out" title="Zoom out">&minus;</button>
 </div>
-<div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center">Smelting bronze...<div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
+<div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
+<div id="questTrack" hidden></div>
+<div id="questDone" hidden>
+  <div class="qScroll">
+    <div class="qBanner">Quest complete</div>
+    <h1>A Hearty Welcome</h1>
+    <div class="qSub">You have earned your place in the village.</div>
+    <canvas id="qEmblem" width="120" height="120"></canvas>
+    <div class="qCols">
+      <div class="qBox"><h3>Rewards</h3><div class="qr"><span class="qi">COIN</span>50 coins</div><div class="qr"><span class="qi">BREAD</span>3 Brenna's bread</div><div class="qr"><span class="qi">CLOAK</span>Villager's cloak</div><div class="qr"><span class="qi" style="color:#a07a2c">&#9733;</span>1 quest point</div></div>
+      <div class="qBox"><h3>Experience</h3><div class="qr">Woodcutting<b>+60</b></div><div class="qr">Fishing<b>+60</b></div><div class="qr">Cooking<b>+60</b></div><div class="qr">Mining<b>+60</b></div><div class="qr">Smithing<b>+80</b></div></div>
+    </div>
+    <div class="qQuote">&ldquo;There. Now you smell like woodsmoke and fish like the rest of us. Welcome home.&rdquo; &mdash; Brenna</div>
+    <button id="questDoneBtn">Continue</button>
+  </div>
+</div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
 <div id="creator" hidden>
@@ -452,6 +487,8 @@ function furnishHome(g, h, w, d, t, rot){
   put(B(1.0, 0.6, 0.2), fireMat, fx, 0.45, BK + 1.25);
   put(B(3.2, 0.25, 1.5), dark, fx, 2.2, BK + 0.75);
   block(fx, BK + 0.7, 1.4, 0.8);
+  { const fp = h.toWorld(fx, BK + 1.4), hearth = room.children[room.children.length - 4];
+    hearth.userData = { action: 'Cook', name: 'Fireplace', rec: { kind: 'range', x: fp.x, z: fp.z, s: 0.9, state: 'standing' } }; trees.push(hearth); }
   // a table and two stools on the right, with a candle and a loaf on it
   const tx = R - 2.4, tz = 0.8;
   put(B(2.6, 0.2, 1.6), wood, tx, 1.5, tz);
@@ -954,7 +991,7 @@ function addXp(skill, amt){
   const before = levelOf(SKILL_XP[skill]);
   SKILL_XP[skill] += amt; renderStats();
   const after = levelOf(SKILL_XP[skill]);
-  if (after > before) { levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${after}.`); }
+  if (after > before) { if (!quietLevelUps) levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${after}.`); }
 }
 // a little brass fanfare: "duh duh du duhhhh"
 function levelUpSound(){
@@ -974,7 +1011,7 @@ function levelUpSound(){
   }
 }
 function cancelChop(){
-  stopSmelting();
+  stopSmelting(); stopCooking();
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
@@ -989,7 +1026,9 @@ function clickNode(rec){
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door') { /* no tool needed */ }
+  if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
+  if (rec.kind === 'range' && !hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
+  if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
   else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
   else if (rec.kind === 'rock') { if (!hasItem(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
   else if (!hasItem(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
@@ -1006,7 +1045,7 @@ function clickNode(rec){
     .filter(p => !blocked(p.x, p.z))
     .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
   if (!spots.length) return;
-  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
+  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else if (rec.kind === 'range') cook(rec); else if (rec.kind === 'animal') petAnimal(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
 }
 // one copper ore and one tin ore make one bronze bar
 function removeItem(name){
@@ -1020,12 +1059,59 @@ const SMELT_MS = 2400;
 let smelting = null;   // { rec, t0 } while a bar is in the furnace
 const canSmelt = () => hasItem('Copper ore') && hasItem('Tin ore') && (bag.length < BAG_SIZE || hasItem('Bronze bar'));
 function smelt(rec){
-  if (smelting) return;
+  if (smelting || cooking) return;
   if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; }
   if (!canSmelt()) { showToast('Your bag is full.'); return; }   // check room before starting
   smelting = { rec, t0: performance.now() };
   setAct({ k: 'smelt', t: Date.now() });
+  document.getElementById('smeltLabel').textContent = 'Smelting bronze...';
   document.getElementById('smeltBar').style.display = 'block';
+}
+// cooking: raw shrimp on a fireplace, one at a time; low levels burn some
+const COOK_MS = 1900;
+let cooking = null;
+function cook(rec){
+  if (cooking || smelting) return;
+  if (!hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
+  cooking = { rec, t0: performance.now() };
+  setAct({ k: 'cook', t: Date.now() });
+  document.getElementById('smeltLabel').textContent = 'Cooking...';
+  document.getElementById('smeltBar').style.display = 'block';
+}
+function stopCooking(msg){
+  if (!cooking) return;
+  cooking = null; document.getElementById('smeltBar').style.display = 'none';
+  if (ONLINE.act && ONLINE.act.k === 'cook') setAct(null);
+  if (msg) showToast(msg);
+}
+function updateCook(){
+  if (!cooking) return;
+  const k = (performance.now() - cooking.t0) / COOK_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, cooking.rec.x, cooking.rec.z);
+  heroAnim.mode = 'work';
+  if (k < 1) return;
+  if (!hasItem('Raw shrimp')) { stopCooking(); return; }
+  removeItem('Raw shrimp');
+  const burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - 1));
+  if (Math.random() < burn) { addItem('Burnt shrimp', 1, BURNT_ICON); showToast('Oops. You burn the shrimp.'); sizzleSound(true); }
+  else { addItem('Shrimp', 1, COOKED_SHRIMP_ICON); addXp('Cooking', 30); showToast(`You cook the shrimp (${countOf('Shrimp')} cooked).  +30 Cooking XP`); sizzleSound(false); }
+  if (!hasItem('Raw shrimp')) { stopCooking(); return; }
+  cooking.t0 = performance.now(); setAct({ k: 'cook', t: Date.now() });
+}
+function sizzleSound(burnt){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.7);
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = burnt ? 1200 : 3000;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18, t + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+  src.connect(hp); hp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.7);
+}
+function eatSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  for (let i = 0; i < 3; i++) { const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.08);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900 + i * 150; bp.Q.value = 2;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.3, t + i * 0.16); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.16 + 0.08);
+    src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t + i * 0.16); src.stop(t + i * 0.16 + 0.1); }
 }
 function stopSmelting(msg){
   if (!smelting) return;
@@ -1093,11 +1179,12 @@ document.getElementById('smithList').addEventListener('click', e => {
 document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
+  if (it && FOOD[it.name]) { removeItem(it.name); showToast(FOOD[it.name]); eatSound(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
 
 // ----- Mara's shop: tools for coins -----
-const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }];
+const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 }];
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
@@ -1241,10 +1328,118 @@ addEventListener('pointerdown', startMusic, { once: true });   // browsers only 
 
 // ----- talking: a line at a time, in the panel at the bottom -----
 let dlg = null, dlgLine = 0;
+// ----- quests -----
+// A Hearty Welcome: Brenna's oven is cold. A walk round the village that hands out each tool as it is needed.
+const QUEST = { hw: 0, qp: 0 };
+const HW_STEPS = 9;   // 9 means done
+const cnt = n => countOf(n);
+function giveTool(name, icon){ if (hasItem(name)) return false; addItem(name, 1, icon); return true; }
+function questTalk(name){
+  const s = QUEST.hw;
+  const say = (...l) => l;
+  if (s >= HW_STEPS) return null;
+  if (name === 'Aldric' && s === 0) { QUEST.hw = 1; questStep('Talk to Brenna the baker, in the far west cottage.');
+    return say('Halt. State your business.', '...A newcomer with no tools and no plan. Wonderful.', 'Go and see Brenna the baker, in the far west cottage. Her oven has gone cold and she will not stop talking about it.', 'Help her out, and maybe this village will make something of you.'); }
+  if (name === 'Brenna') {
+    if (s <= 1) { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.');
+      return say('Oh, thank goodness, a helper! My oven has gone stone cold.', 'I need five good logs to get it going again. You will want an axe for that.', 'Mara on the green has a spare one. Tell her I sent you. And mind the flour on your way out.'); }
+    if (s <= 3) {
+      if (cnt('Logs') >= 5) { for (let i = 0; i < 5; i++) removeItem('Logs'); addXp('Woodcutting', 0); QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.');
+        return say('Five logs! Look at you, all sawdust and pride.', 'The fire is going. Now I need a filling for my pies: three cooked shrimp.', 'Fenwick on the riverbank has a spare net. Catch them, cook them on a fireplace, and bring them to me. Any fireplace in the village will do.'); }
+      return say(`Still ${5 - cnt('Logs')} log${5 - cnt('Logs') === 1 ? '' : 's'} short, dear.`, s === 2 ? 'Mara on the green has an axe for you.' : 'The young trees round the village chop easily. Tobin can tell you more, if he is awake.'); }
+    if (s <= 5) {
+      if (cnt('Shrimp') >= 3) { for (let i = 0; i < 3; i++) removeItem('Shrimp'); QUEST.hw = 6; questStep('Get a pickaxe from Gertrude at the quarry.');
+        return say('Oh, they smell wonderful. You did not burn them all, I am impressed.', 'One more thing. The oven door has come off its hinge. Dunmore the smith can fix it, but he needs a bronze bar.', 'Gertrude at the quarry will lend you a pickaxe. Copper and tin, smelted together. You will see.'); }
+      return say(`I need three cooked shrimp. You have ${cnt('Shrimp')}.`, s === 4 ? 'Fenwick on the riverbank has a spare net.' : 'Cook them on a fireplace: there is one in every cottage, mine included.'); }
+    if (s <= 7) return say('The hinge, dear. Dunmore needs a bronze bar to fix it.', s === 6 ? 'Gertrude at the quarry will lend you a pickaxe.' : 'Mine copper and tin, smelt them at the furnace in the smithy, and give the bar to Dunmore.');
+    if (s === 8) { setTimeout(completeHeartyWelcome, 0);
+      return say('Dunmore came by. The door shuts, the fire roars, and the whole village smells of bread again.', 'You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer.', 'This is for you: a villager\'s cloak, with our oak and river on the back. You are one of us now.'); }
+  }
+  if (name === 'Mara' && s === 2) { const gave = giveTool(AXE_NAME, AXE_ICON); QUEST.hw = 3; questStep('Chop 5 logs and bring them to Brenna.');
+    return say(gave ? 'Brenna sent you? Then this one is on the house. Do not tell anyone, I have a reputation.' : 'You already have an axe? Then you are ahead of most.', 'Five logs, was it? The young trees round the green chop easily. Off you go.'); }
+  if (name === 'Fenwick' && s === 4) { const gave = giveTool('Small fishing net', NET_ICON); QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.');
+    return say(gave ? 'Brenna wants shrimp? Here, take my old net. Caught a fish as long as a horse with that net.' : 'You have a net already? Good. Mine has a hole in it anyway.', 'Shrimp come up by the bank. Dip the net, wait, lift. Then cook them, unless you like them wriggling.'); }
+  if (name === 'Gertrude' && s === 6) { const gave = giveTool(PICK_NAME, PICK_ICON); QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.');
+    return say(gave ? 'For Brenna\'s oven? Fine. Take this pickaxe. Bring it back sharp or do not bring it back.' : 'Got your own pickaxe? Good. Saves me a lecture.', 'Copper over there, tin over here. One of each makes a bronze bar at the smithy furnace.'); }
+  if (name === 'Dunmore' && s === 7) {
+    if (cnt('Bronze bar') >= 1) { removeItem('Bronze bar'); giveTool('Hammer', HAMMER_ICON); QUEST.hw = 8; questStep('Go back to Brenna.');
+      return say('A bronze bar for Brenna\'s hinge? Leave it with me.', '*clang* *clang* ...There. Good as new. Better, if I am honest.', 'Keep that hammer. Every smith needs one, and you look like you might become one.'); }
+    return say('No bar, no hinge. Copper and tin, smelted at the furnace behind me.'); }
+  return null;
+}
+function questStep(text){ showToast('Quest updated: ' + text); renderStats(); saveNow && saveNow(false); }
+// what to do next, for the tracker and the quest tab
+function questObjective(){
+  const s = QUEST.hw;
+  return ['Talk to Aldric the guard at the hall door.', 'Talk to Brenna the baker, in the far west cottage.', 'Get an axe from Mara the trader on the green.',
+    `Chop logs for Brenna (${Math.min(5, cnt('Logs'))}/5).`, 'Get a fishing net from Fenwick, by the river.',
+    `Catch and cook shrimp for Brenna (${Math.min(3, cnt('Shrimp'))}/3 cooked).`, 'Get a pickaxe from Gertrude at the quarry.',
+    cnt('Bronze bar') ? 'Give the bronze bar to Dunmore at the smithy.' : 'Mine copper and tin, then smelt a bronze bar.', 'Go back to Brenna.', 'Complete!'][Math.min(s, 9)];
+}
+function questTarget(){
+  const s = QUEST.hw;
+  return [s === 0 && 'Aldric', s === 1 && 'Brenna', s === 2 && 'Mara', s === 3 && cnt('Logs') >= 5 && 'Brenna', s === 4 && 'Fenwick',
+    s === 5 && cnt('Shrimp') >= 3 && 'Brenna', s === 6 && 'Gertrude', s === 7 && cnt('Bronze bar') && 'Dunmore', s === 8 && 'Brenna'].find(Boolean) || null;
+}
+let questShown = '', qMark = null;
+const qV = new THREE.Vector3();
+function updateQuest(){
+  const text = QUEST.hw >= HW_STEPS ? '' : questObjective();
+  if (text !== questShown) { questShown = text; const el = document.getElementById('questTrack'); el.hidden = !text; el.innerHTML = text ? `<b>A Hearty Welcome</b><br>${text}` : ''; if (statsSub === 'quests') renderStats(); }
+  if (!qMark) { qMark = document.createElement('div'); qMark.id = 'qMark'; qMark.textContent = '!'; document.body.appendChild(qMark); }
+  const who = questTarget(), b = who && BARKERS.find(x => x.rec.name === who);
+  if (!b || dlg) { qMark.style.display = 'none'; return; }
+  b.sp.getWorldPosition(qV); qV.y += 5.2 * (b.sp.scale.x / CHIBI_SCALE) + Math.sin(performance.now() / 250) * 0.15;
+  qV.project(camera);
+  qMark.style.display = qV.z < 1 ? 'block' : 'none';
+  qMark.style.left = (qV.x + 1) / 2 * innerWidth + 'px'; qMark.style.top = (-qV.y + 1) / 2 * innerHeight + 'px';
+}
+function completeHeartyWelcome(){
+  if (QUEST.hw >= HW_STEPS) return;
+  QUEST.hw = HW_STEPS; QUEST.qp = (QUEST.qp || 0) + 1;
+  closeDialogBox();
+  addItem('Coins', 50, COIN_ICON); addItem("Brenna's bread", 3, BREAD_ICON); addItem("Villager's cloak", 1, CLOAK_ICON);
+  quietLevelUps = true;
+  for (const [k, v] of [['Woodcutting', 60], ['Fishing', 60], ['Cooking', 60], ['Mining', 60], ['Smithing', 80]]) addXp(k, v);
+  quietLevelUps = false;
+  questJingle();
+  document.getElementById('questDone').hidden = false;
+  renderStats(); saveNow(false);
+}
+let quietLevelUps = false;
+function closeDialogBox(){ dlg = null; document.getElementById('dialog').hidden = true; document.getElementById('dlgChoice').hidden = true; document.getElementById('dlgNext').hidden = false; }
+// the quest-complete fanfare: a rising pickup, "ta-ta-ta TAAA, da-da", then a held chord with bell sparkles
+function questJingle(){
+  const ctx = audio(); if (!ctx) return; const t0 = ctx.currentTime + 0.05;
+  const out = ctx.createGain(); out.gain.value = 0.5; out.connect(sfxOut(ctx));
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const brass = (m, at, dur, vol = 0.16, bright = 2600) => {
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = bright;
+    const g = ctx.createGain(), s = t0 + at;
+    g.gain.setValueAtTime(0.0001, s); g.gain.linearRampToValueAtTime(vol, s + 0.025); g.gain.setValueAtTime(vol * 0.85, s + Math.max(0.03, dur - 0.12)); g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+    lp.connect(g); g.connect(out);
+    for (const [type, mul, v] of [['sawtooth', 1, 0.6], ['square', 1.002, 0.25], ['sine', 0.5, 0.35]]) {
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; o.frequency.value = hz(m) * mul; og.gain.value = v;
+      if (dur > 0.5) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5.5; lg.gain.value = hz(m) * 0.006; l.connect(lg); lg.connect(o.frequency); l.start(s + 0.25); l.stop(s + dur); }
+      o.connect(og); og.connect(lp); o.start(s); o.stop(s + dur + 0.05);
+    }
+  };
+  const bell = (m, at, vol = 0.1) => { const s = t0 + at; for (const [mul, v] of [[1, 1], [2.76, 0.4]]) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = hz(m) * mul; g.gain.setValueAtTime(vol * v, s); g.gain.exponentialRampToValueAtTime(0.0001, s + 1.2); o.connect(g); g.connect(out); o.start(s); o.stop(s + 1.25); } };
+  const drum = (at, vol, f) => { const s = t0 + at, o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(f, s); o.frequency.exponentialRampToValueAtTime(f * 0.85, s + 0.2); g.gain.setValueAtTime(vol, s); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.7); o.connect(g); g.connect(out); o.start(s); o.stop(s + 0.75); };
+  [[67, 0], [72, 0.15], [76, 0.3]].forEach(([m, a]) => brass(m, a, 0.13));
+  drum(0, 0.3, 98); drum(0.45, 0.5, 98);
+  brass(79, 0.45, 0.42); brass(76, 0.9, 0.16); brass(79, 1.08, 0.16);
+  drum(1.25, 0.55, 82);
+  for (const m of [72, 76, 79, 84]) brass(m, 1.25, 2.6, 0.12, 2200);
+  brass(48, 1.25, 2.6, 0.16, 900);
+  [84, 88, 91, 96].forEach((m, k) => bell(m, 1.3 + k * 0.09)); bell(96, 2.0, 0.07); bell(91, 2.25, 0.05);
+}
 // villagers remember how often you have talked to them: the first chats run in order, then they pick something to say.
 // A line can be a function, so it can mention your skills.
 const MET = (() => { try { return JSON.parse(localStorage.getItem('itapMet')) || {}; } catch (e) { return {}; } })();
 function openDialog(npc){
+  const ql = questTalk(npc.name);
+  if (ql) { npc.lines = ql; dlg = npc; dlgLine = 0; showDialog(); return; }
   if (npc.talks) {
     const n = MET[npc.name] || 0;
     const set = n < npc.talks.length ? npc.talks[n] : npc.talks[1 + Math.floor(Math.random() * Math.max(1, npc.talks.length - 1))] || npc.talks[0];
@@ -1589,9 +1784,53 @@ function makeChibi(o){
   g.userData.chibi = { body, legs, arms, head, eyes, tools, gear, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
   return g;
 }
+// the village emblem, "The Oak and the River", and the cloth of the villager's cloak
+// the village emblem, "The Oak and the River": a gold oak in a ring above two river waves
+window.drawEmblem = (g, cx, cy, R, gold = '#e2b84c', dark = '#3a4a24') => {
+  g.save(); g.translate(cx, cy);
+  g.lineWidth = R * 0.09; g.strokeStyle = gold; g.beginPath(); g.arc(0, 0, R, 0, 7); g.stroke();      // the ring
+  g.lineWidth = R * 0.03; g.beginPath(); g.arc(0, 0, R * 0.86, 0, 7); g.stroke();
+  g.fillStyle = gold;
+  // a broad oak: a wide, knobbly crown on a stout trunk that forks into branches, with roots spreading at the base
+  for (const [x, y, r] of [[0, -0.36, 0.2], [-0.24, -0.3, 0.18], [0.24, -0.3, 0.18], [-0.42, -0.14, 0.16], [0.42, -0.14, 0.16], [-0.26, -0.08, 0.19], [0.26, -0.08, 0.19], [0, -0.14, 0.22], [-0.12, -0.46, 0.13], [0.12, -0.46, 0.13]]) { g.beginPath(); g.arc(x * R, y * R, r * R, 0, 7); g.fill(); }
+  g.strokeStyle = gold; g.lineCap = 'round';
+  g.lineWidth = R * 0.15; g.beginPath(); g.moveTo(0, R * 0.36); g.lineTo(0, R * 0.0); g.stroke();                 // trunk
+  g.lineWidth = R * 0.07; for (const s2 of [-1, 1]) { g.beginPath(); g.moveTo(0, R * 0.1); g.quadraticCurveTo(s2 * R * 0.1, R * 0.02, s2 * R * 0.2, R * 0.04); g.stroke(); }   // branches under the crown
+  g.lineWidth = R * 0.05; for (const s2 of [-1, 1]) { g.beginPath(); g.moveTo(0, R * 0.3); g.quadraticCurveTo(s2 * R * 0.1, R * 0.36, s2 * R * 0.22, R * 0.38); g.stroke(); }   // roots
+  // gaps between the crown and the branches, so the tree reads as a tree and not a cloud
+  g.fillStyle = dark; for (const s2 of [-1, 1]) { g.beginPath(); g.ellipse(s2 * R * 0.13, R * 0.13, R * 0.07, R * 0.05, 0, 0, 7); g.fill(); }
+  g.fillStyle = gold;
+  // two river waves beneath
+  g.strokeStyle = gold; g.lineWidth = R * 0.07; g.lineCap = 'round';
+  for (const y of [0.52, 0.67]) { g.beginPath(); for (let i = 0; i <= 24; i++) { const x = -0.55 + i * 1.1 / 24; const yy = y + Math.sin(i / 24 * Math.PI * 3) * 0.04; i ? g.lineTo(x * R, yy * R) : g.moveTo(x * R, yy * R); } g.stroke(); }
+  g.restore();
+};
+// the cape's cloth: moss green with a fine weave, a gold border on all four edges, and the emblem in the middle
+window.capeTexture = () => {
+  const W = 512, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  g.fillStyle = '#5c7e44'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 4000; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(30,50,20,.12)' : 'rgba(200,230,160,.08)'; g.fillRect(Math.random() * W, Math.random() * H, 2, 1); }
+  const b = 26; g.fillStyle = '#d8b048'; g.fillRect(0, 0, W, b); g.fillRect(0, H - b, W, b); g.fillRect(0, 0, b, H); g.fillRect(W - b, 0, b, H);
+  g.fillStyle = '#a07a2c'; for (const [x, y, w, h] of [[0, b - 4, W, 4], [0, H - b, W, 4], [b - 4, 0, 4, H], [W - b, 0, 4, H]]) g.fillRect(x, y, w, h);
+  drawEmblem(g, W / 2, H * 0.47, 120, '#e2b84c', '#5c7e44');
+  return cv;
+};
+
+let capeTex = null;
+function addCape(fig){
+  const c = fig.userData.chibi, b = c.cloak;
+  if (!capeTex) { capeTex = new THREE.CanvasTexture(capeTexture()); capeTex.colorSpace = THREE.SRGBColorSpace; capeTex.anisotropy = 8; }
+  const cape = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.62, 1.15, 20, 1, true, Math.PI - 1.25, 2.5), new THREE.MeshToonMaterial({ map: capeTex, gradientMap: toonRamp, side: THREE.DoubleSide }));
+  cape.position.set(0, 0.92, -0.04); cape.castShadow = true; cape.userData.shadowSet = true; b.add(cape);
+  const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.405, 0.625, 1.16, 20, 1, true, Math.PI - 1.25, 2.5), outlineMat); edge.scale.set(1.04, 1.01, 1.04); edge.userData.shadowSet = true; cape.add(edge);
+  const collar = chibiPart(b, new THREE.TorusGeometry(0.33, 0.08, 8, 20), 0x5c7e44, 0, 1.45, -0.02); collar.rotation.x = Math.PI / 2; collar.scale.set(1.1, 0.95, 1);
+  const clasp = chibiPart(b, new THREE.CylinderGeometry(0.08, 0.08, 0.05, 10), 0xd8b048, 0, 1.4, 0.33, false); clasp.rotation.x = Math.PI / 2;
+}
 // the sword, dagger and shield the hero wears, from the Gear tab
 function dressChibi(g, eq){
   const c = g.userData.chibi; c.gear.clear();
+  if (!c.cloak) { c.cloak = new THREE.Group(); c.body.add(c.cloak); }
+  c.cloak.clear(); if (eq.body === "Villager's cloak") addCape(g);
   for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
   if (eq.weapon) {
     const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -Math.PI / 2;   // held point forward
@@ -1805,7 +2044,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec && !smelting) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -1915,7 +2154,15 @@ const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 
 let statsSub = 'skills';
 function renderStats(){
   const body = document.getElementById('statsBody');
-  if (statsSub === 'quests') { body.innerHTML = '<p>No quests yet.</p>'; return; }
+  if (statsSub === 'quests') {
+    const done = QUEST.hw >= HW_STEPS;
+    body.innerHTML = `<h4>Quests</h4>
+      <div class="qRow ${done ? 'qDone' : QUEST.hw ? 'qOn' : ''}">${done ? '&#10003;' : QUEST.hw ? '&#9679;' : '&#9675;'} A Hearty Welcome</div>
+      <div class="qStep">${done ? 'Completed. Brenna\'s oven roars again.' : questObjective()}</div>
+      <div class="qRow qLock">&#128274; More quests are coming</div>
+      <div class="statRow" style="margin-top:8px"><span>Quest points</span><b>${QUEST.qp || 0}</b></div>`;
+    return;
+  }
   const names = Object.keys(SKILL_XP);
   // a row per skill: its level, a bar filling towards the next level, and the XP still needed
   const xpFor = lvl => 25 * (lvl - 1) * (lvl - 1);   // the XP where a level starts (the inverse of levelOf)
@@ -1988,7 +2235,20 @@ const SHIELD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rende
   <path d="M4 3 L12 3 L12 8 Q12 12 8 14 Q4 12 4 8 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
   <rect x="7.5" y="5" width="1" height="6" fill="#f2c28a"/></svg>`;
 // what each smithing recipe makes, and what each piece of gear adds
+const NET_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <rect x="7" y="9" width="1.4" height="6" fill="#7a4d22"/><path d="M3 2 Q8 0 13 2 L11 9 L5 9 Z" fill="none" stroke="#d8c890" stroke-width="1"/><path d="M4 4 L12 4 M4.6 6.5 L11.4 6.5 M6 2 L6.5 9 M8 1.5 L8 9 M10 2 L9.5 9" stroke="#b8a870" stroke-width="0.6"/></svg>`;
+const COOKED_SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#e8622a" stroke="#7a2a12" stroke-width="0.8"/><path d="M6 6.5 L8 8 M5.5 8.5 L7.5 10" stroke="#a83a12" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
+const BURNT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#2a2420" stroke="#0a0806" stroke-width="0.8"/><rect x="6" y="7" width="1" height="1" fill="#5a3a20"/></svg>`;
+const BREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 10 Q2 4 8 4 Q14 4 14 10 L13 12 L3 12 Z" fill="#c8883a" stroke="#6a3a12" stroke-width="0.8"/><path d="M5 6 L6 8 M8 5.5 L8.5 7.5 M11 6 L10.5 8" stroke="#f0c870" stroke-width="0.8"/></svg>`;
+const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
+// food you can eat from the bag
+const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
 const ITEMS = {
+  "Villager's cloak": { slot: 'body', def: 1, icon: CLOAK_ICON },
   'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
   'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
   'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON }
@@ -2023,8 +2283,11 @@ function renderBag() {
   document.getElementById('bagGrid').innerHTML = html;
   document.getElementById('bagFoot').textContent = `${bag.length} / ${BAG_SIZE} slots used`;
 }
-addItem(AXE_NAME, 1, AXE_ICON);   // the starting kit
-addItem(PICK_NAME, 1, PICK_ICON);
+// no starting kit: the tools are handed out during A Hearty Welcome
+setTimeout(() => { const d = document.getElementById('questDone');
+  d.innerHTML = d.innerHTML.replace('COIN', COIN_ICON).replace('BREAD', BREAD_ICON).replace('CLOAK', CLOAK_ICON);
+  drawEmblem(document.getElementById('qEmblem').getContext('2d'), 60, 60, 54, '#3a5a2a', '#efdcb2');
+  document.getElementById('questDoneBtn').addEventListener('click', () => { d.hidden = true; }); }, 0);   // after the icons below are defined
 document.querySelectorAll('.subTabs button').forEach(b => b.addEventListener('click', () => {
   statsSub = b.dataset.sub;
   document.querySelectorAll('.subTabs button').forEach(x => x.classList.toggle('on', x === b));
@@ -2136,7 +2399,7 @@ function splashSound(){
   src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.5);
 }
 function catchFish(){
-  showToast('You cast a line...');
+  showToast('You dip your net in the water...');
   setAct({ k: 'fish', t: Date.now() }); setTimeout(() => setAct(null), 2000);
   splashSound();
   setTimeout(() => {
@@ -2322,6 +2585,7 @@ function updateWanderers(){
     else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z) - (w.parentYaw || 0);
     turnChibi(sp, w.yaw || 0);
     poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90);
+    if (w.rec.after) w.rec.after(sp, moving, w.tick);
     if (w.rec.name === 'Wenna') { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.45); c2.body.position.y = 0.02; c2.body.rotation.x = -0.05; c2.arms.forEach(a => a.rotation.x = -0.5); sp.rotation.y = 0; }
     w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
   }
@@ -2367,7 +2631,7 @@ function addWorldNpc(x, z, npc){
   const sp = makeChibi(npc.look);
   sp.position.set(x, 0, z);
   scene.add(sp);
-  const rec = { kind: 'npc', name: npc.name, title: npc.title, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, x, z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', name: npc.name, title: npc.title, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
@@ -2402,6 +2666,160 @@ function wearHat(fig, kind){
   if (kind === 'straw') { chibiPart(h, new THREE.CylinderGeometry(0.98, 1.02, 0.06, 24), 0xe0c470, 0, 0.42, -0.02); chibiPart(h, new THREE.CylinderGeometry(0.48, 0.56, 0.4, 20), 0xe0c470, 0, 0.62, -0.02); chibiPart(h, new THREE.CylinderGeometry(0.565, 0.565, 0.1, 20), 0xa84434, 0, 0.48, -0.02, false); }
   if (kind === 'helm') { chibiPart(h, new THREE.SphereGeometry(0.7, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), 0x9aa0a8, 0, 0.06, -0.02).rotation.x = -0.3; chibiPart(h, new THREE.CylinderGeometry(0.72, 0.72, 0.12, 20), 0x6a7078, 0, 0.12, 0, false); }
   if (kind === 'hood') { const hd = chibiPart(h, new THREE.SphereGeometry(0.74, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), 0x3a5a2a, 0, 0.02, -0.06); hd.rotation.x = -0.55; chibiPart(h, new THREE.ConeGeometry(0.2, 0.5, 8), 0x3a5a2a, 0, 0.3, -0.7, false).rotation.x = -1.8; }
+}
+// ----- the farm, east of the hall between the quarry road and the river: a barn, a paddock of animals, crops and the two farmers -----
+const ANIMALS = [];
+function buildFarm(){
+  const fl = (parent, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); parent.add(o); return o; };
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const planks = (rx, ry, col) => texMat(woodTex(), rx, ry, col);
+  // the barn: red plank walls, white trim, X-braced double doors and a gambrel roof in the village shingles, facing the field
+  const BX = 51, BZ = -5;
+  const barn = new THREE.Group(); barn.position.set(BX, 0, BZ); barn.scale.setScalar(1.45); town.add(barn);
+  fl(barn, B(6, 3.4, 5), planks(4, 2, 0xb04434), 0, 1.7, 0);
+  fl(barn, B(2.4, 2.6, 0.15), planks(2, 2, 0x8a2e24), 0, 1.3, 2.56);
+  for (const d of [-1, 1]) fl(barn, B(0.12, 3.2, 0.06), 0xe8e2d4, 0, 1.3, 2.66).rotation.z = d * 0.74;
+  fl(barn, B(2.6, 0.14, 0.1), 0xe8e2d4, 0, 2.66, 2.62); for (const sx of [-1, 1]) fl(barn, B(0.14, 2.7, 0.1), 0xe8e2d4, sx * 1.27, 1.32, 2.62);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) fl(barn, B(0.18, 3.4, 0.18), 0xe8e2d4, sx * 3, 1.7, sz * 2.5);
+  const rs = new THREE.Shape(); rs.moveTo(-3.4, 0); rs.lineTo(-2.2, 1.4); rs.lineTo(0, 2.4); rs.lineTo(2.2, 1.4); rs.lineTo(3.4, 0); rs.lineTo(-3.4, 0);
+  fl(barn, new THREE.ExtrudeGeometry(rs, { depth: 5.6, bevelEnabled: false }), new THREE.MeshStandardMaterial({ map: roofTex, color: 0x6a5a4a, flatShading: true }), 0, 3.4, -2.8);
+  const gs = new THREE.Shape(); gs.moveTo(-3, 0); gs.lineTo(-2, 1.2); gs.lineTo(0, 2.1); gs.lineTo(2, 1.2); gs.lineTo(3, 0);
+  fl(barn, new THREE.ExtrudeGeometry(gs, { depth: 0.1, bevelEnabled: false }), planks(3, 1, 0xb04434), 0, 3.4, 2.5);
+  fl(barn, B(1.0, 0.8, 0.12), 0x2a1a10, 0, 4.25, 2.62); fl(barn, B(0.9, 0.3, 0.3), 0xd8b850, 0, 4.0, 2.7);
+  solidBoxes.push({ x0: BX - 4.6, x1: BX + 4.6, z0: BZ - 3.8, z1: BZ + 3.8 });
+  // hay bales beside the doors
+  for (const [x, z, r] of [[BX - 6, BZ + 2.5, 0.3], [BX - 6.2, BZ - 0.5, -0.2]]) { fl(town, new THREE.CylinderGeometry(0.8, 0.8, 1.3, 9), 0xd8b850, x, 0.8, z).rotation.set(Math.PI / 2, 0, r); solidBoxes.push({ x0: x - 0.9, x1: x + 0.9, z0: z - 0.8, z1: z + 0.8 }); }
+  // the paddock: a post-and-rail fence with a gate gap on the village side, and a water trough
+  const P0 = [34, -9], P1 = [44, 1], gate = [38.2, 40.6];
+  const fence = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(L / 2.2)), a = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) fl(town, B(0.24, 1.45, 0.24), 0x7a5a36, x0 + (x1 - x0) * i / n, 0.72, z0 + (z1 - z0) * i / n);
+    for (const y of [0.55, 1.15]) { const r = fl(town, B(0.12, 0.14, L), 0x8a6a42, (x0 + x1) / 2, y, (z0 + z1) / 2); r.rotation.y = a; }
+    solidBoxes.push({ x0: Math.min(x0, x1) - 0.2, x1: Math.max(x0, x1) + 0.2, z0: Math.min(z0, z1) - 0.2, z1: Math.max(z0, z1) + 0.2 }); };
+  fence(P0[0], P0[1], P1[0], P0[1]); fence(P1[0], P0[1], P1[0], P1[1]); fence(P0[0], P0[1], P0[0], P1[1]);
+  fence(P0[0], P1[1], gate[0], P1[1]); fence(gate[1], P1[1], P1[0], P1[1]);
+  fl(town, B(2.2, 0.7, 0.9), planks(2, 1, 0x7a5a3a), 42, 0.35, -7.6); fl(town, B(2.0, 0.06, 0.7), new THREE.MeshStandardMaterial({ color: 0x3a7ab0, roughness: 0.1 }), 42, 0.68, -7.6);
+  solidBoxes.push({ x0: 40.8, x1: 43.2, z0: -8.2, z1: -7 });
+  // the field: tilled rows of cabbages, wheat and carrots, and a scarecrow keeping watch
+  const field = new THREE.Group(); field.position.set(53, 0, 4.5); town.add(field);
+  for (let r = 0; r < 5; r++) {
+    fl(field, B(10, 0.22, 1.0), 0x5a3e24, 0, 0.11, r * 1.5);
+    for (let i = 0; i < 9; i++) { const x = -4.4 + i * 1.1, z = r * 1.5;
+      if (r < 2) fl(field, new THREE.IcosahedronGeometry(0.38, 0), [0x5a9a3a, 0x6aaa48][i % 2], x, 0.45, z).scale.y = 0.75;
+      else if (r < 4) for (let k = 0; k < 3; k++) { fl(field, new THREE.CylinderGeometry(0.03, 0.03, 1.05, 4), 0xc8a850, x + (k - 1) * 0.16, 0.7, z); fl(field, new THREE.ConeGeometry(0.08, 0.3, 5), 0xd8b860, x + (k - 1) * 0.16, 1.3, z); }
+      else { fl(field, new THREE.ConeGeometry(0.1, 0.22, 5).rotateX(Math.PI), 0xd8702a, x, 0.28, z); for (const s2 of [-1, 1]) fl(field, new THREE.ConeGeometry(0.07, 0.55, 4), 0x3f8a32, x + s2 * 0.07, 0.6, z).rotation.z = s2 * 0.3; } }
+  }
+  const sc = new THREE.Group(); sc.position.set(59.5, 0, 7.5); sc.scale.setScalar(1.4); town.add(sc);
+  fl(sc, B(0.12, 2.4, 0.12), 0x6a4a2a, 0, 1.2, 0); fl(sc, B(1.8, 0.1, 0.1), 0x6a4a2a, 0, 1.8, 0); fl(sc, B(0.7, 0.8, 0.35), 0x4a6a8a, 0, 1.6, 0);
+  fl(sc, new THREE.IcosahedronGeometry(0.28, 0), 0xd8c898, 0, 2.35, 0); fl(sc, new THREE.CylinderGeometry(0.5, 0.5, 0.05, 8), 0xd8b860, 0, 2.55, 0); fl(sc, new THREE.CylinderGeometry(0.24, 0.28, 0.25, 8), 0xd8b860, 0, 2.68, 0);
+  solidBoxes.push({ x0: 59, x1: 60, z0: 7, z1: 8 });
+  // the farm road, off the quarry road: to the paddock gate, and on to the barn doors
+  roadPath([[34, 18], [37.5, 9], [39.4, 3]]);
+  roadPath([[37.5, 9], [44, 3.2], [BX, BZ + 5.3]]);
+  // ----- the animals: faceted low-poly, like the trees and rocks -----
+  const lowBall = (r, d = 0) => new THREE.IcosahedronGeometry(r, d);
+  const eyeD = (parent, x, y, z) => fl(parent, B(0.07, 0.09, 0.04), 0x15110d, x, y, z);
+  const leg4 = (g, col, w, d, h, r) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) fl(g, new THREE.CylinderGeometry(r, r * 0.85, h, 6), col, sx * w, h / 2, sz * d); };
+  const animal = (kind, name, x, z, k, box, info) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.random() * 6; g.scale.setScalar(k); scene.add(g);
+    const rec = { kind: 'animal', animal: kind, name, info, x, z, s: 0.8, state: 'standing' };
+    g.userData = { action: 'Pet', name, rec }; trees.push(g);
+    addWander(g, rec, null, { lx: x, lz: z, rad: 3, box, k: 1, ox: 0, oz: 0 });
+    ANIMALS.push({ g, rec }); return g; };
+  const pen = { x0: P0[0] + 1.2, x1: P1[0] - 1.2, z0: P0[1] + 1.2, z1: P1[1] - 1.2 }, yard = { x0: 41.5, x1: 46.5, z0: 1.8, z1: 4 };
+  function cow(name, x, z, info){ const g = animal('cow', name, x, z, 1.45, pen, info);
+    leg4(g, 0xe8e2d6, 0.38, 0.6, 0.8, 0.12); for (const sx of [-1, 1]) for (const sz of [-1, 1]) fl(g, B(0.22, 0.12, 0.24), 0x3a2a20, sx * 0.38, 0.06, sz * 0.6);
+    fl(g, B(0.95, 0.75, 1.7), 0xeee8dc, 0, 1.15, 0); fl(g, B(0.97, 0.5, 0.5), 0x2a2622, 0, 1.25, 0.3); fl(g, B(0.6, 0.45, 0.45), 0x2a2622, 0.2, 1.2, -0.45);
+    const head = new THREE.Group(); head.position.set(0, 1.45, 1.05); g.add(head);
+    fl(head, B(0.55, 0.55, 0.6), 0xeee8dc, 0, 0, 0); fl(head, B(0.5, 0.3, 0.25), 0xd89890, 0, -0.17, 0.35);
+    for (const sx of [-1, 1]) { eyeD(head, sx * 0.17, 0.1, 0.31); fl(head, new THREE.ConeGeometry(0.06, 0.25, 5), 0xd8ccb0, sx * 0.22, 0.36, -0.1).rotation.z = sx * -0.5; fl(head, B(0.22, 0.1, 0.1), 0xeee8dc, sx * 0.36, 0.12, -0.05); }
+    fl(g, B(0.08, 0.6, 0.08), 0xeee8dc, 0, 1.05, -0.88).rotation.x = 0.3; g.userData.head = head; }
+  function sheep(name, x, z, info){ const g = animal('sheep', name, x, z, 1.45, pen, info);
+    leg4(g, 0x2a2622, 0.25, 0.35, 0.55, 0.07);
+    for (const [px, py, pz, r] of [[0, 0.95, 0, 0.55], [0.25, 1.05, 0.3, 0.38], [-0.25, 1.05, 0.25, 0.38], [0.25, 1.0, -0.3, 0.38], [-0.25, 1.02, -0.3, 0.4], [0, 1.3, 0, 0.36]]) fl(g, lowBall(r), 0xeeece4, px, py, pz);
+    const head = new THREE.Group(); head.position.set(0, 1.12, 0.66); g.add(head);
+    fl(head, B(0.34, 0.38, 0.42), 0x2e2a26, 0, 0, 0); fl(head, lowBall(0.18), 0xeeece4, 0, 0.24, -0.08);
+    for (const sx of [-1, 1]) { fl(head, B(0.04, 0.05, 0.03), 0xd8d0b8, sx * 0.1, 0.06, 0.22); fl(head, B(0.2, 0.08, 0.1), 0x2e2a26, sx * 0.24, 0.08, -0.02); } g.userData.head = head; }
+  function pig(name, x, z, info){ const g = animal('pig', name, x, z, 1.45, pen, info);
+    leg4(g, 0xe0a0a0, 0.26, 0.4, 0.38, 0.09); fl(g, lowBall(0.6, 1), 0xe8a8a6, 0, 0.75, 0).scale.set(0.85, 0.75, 1.15);
+    const head = new THREE.Group(); head.position.set(0, 0.85, 0.65); g.add(head);
+    fl(head, lowBall(0.36), 0xe8a8a6, 0, 0, 0); fl(head, new THREE.CylinderGeometry(0.16, 0.16, 0.14, 7).rotateX(Math.PI / 2), 0xd88a88, 0, -0.06, 0.34);
+    for (const sx of [-1, 1]) { eyeD(head, sx * 0.15, 0.1, 0.28); const e = fl(head, new THREE.ConeGeometry(0.12, 0.2, 4), 0xd89090, sx * 0.22, 0.3, 0); e.rotation.set(0.4, 0, sx * -0.4); }
+    fl(g, new THREE.TorusGeometry(0.08, 0.03, 4, 6, Math.PI * 1.6), 0xd89090, 0, 0.85, -0.72).rotation.y = Math.PI / 2; g.userData.head = head; }
+  function chicken(name, x, z, col, info){ const g = animal('chicken', name, x, z, 1.1, yard, info);
+    for (const sx of [-1, 1]) fl(g, new THREE.CylinderGeometry(0.03, 0.03, 0.3, 4), 0xd89020, sx * 0.1, 0.15, 0);
+    fl(g, lowBall(0.3), col, 0, 0.45, 0).scale.set(0.85, 0.85, 1.1); fl(g, new THREE.ConeGeometry(0.18, 0.32, 5), col, 0, 0.62, -0.3).rotation.x = -0.8;
+    const head = new THREE.Group(); head.position.set(0, 0.78, 0.22); g.add(head);
+    fl(head, lowBall(0.17), col, 0, 0, 0); fl(head, new THREE.ConeGeometry(0.05, 0.14, 4), 0xe89020, 0, -0.02, 0.2).rotation.x = Math.PI / 2;
+    fl(head, B(0.04, 0.1, 0.12), 0xc82828, 0, 0.18, 0.02); fl(head, B(0.04, 0.08, 0.04), 0xc82828, 0, -0.1, 0.15);
+    for (const sx of [-1, 1]) eyeD(head, sx * 0.09, 0.04, 0.13); g.userData.head = head; }
+  cow('Buttercup', 37, -6, 'Buttercup the cow. She chews slowly and judges you.'); cow('Clover', 41, -3, 'Clover the cow. She has a nose for apples.');
+  sheep('Woolsley', 36.5, -2, 'Woolsley the sheep. Extremely fluffy. Mildly suspicious.'); sheep('Bramble', 39, -7.2, 'Bramble the sheep. Has burrs in places burrs should not be.'); sheep('Puff', 42, -5.5, 'Puff the sheep. Mostly wool, a little sheep.');
+  pig('Truffle', 39.5, -1.5, 'Truffle the pig. Covered in mud and very proud of it.');
+  chicken('Henrietta', 42.5, 2.6, 0xf2eee4, 'Henrietta the hen. In charge of the other hens.'); chicken('Pecks', 44.5, 3.2, 0xb87840, 'Pecks the hen. Pecks.'); chicken('Dot', 45.5, 2.2, 0xf2eee4, 'Dot the hen. Small, loud.'); chicken('Ginger', 43.6, 3.6, 0xb87840, 'Ginger the hen. Thinks she is a rooster.');
+  // ----- the farmers -----
+  const overalls = fig => { const b = fig.userData.chibi.body; chibiPart(b, new THREE.BoxGeometry(0.5, 0.42, 0.06), 0x3a5a8a, 0, 1.1, 0.33); for (const sx of [-1, 1]) chibiPart(b, new THREE.BoxGeometry(0.08, 0.5, 0.05), 0x3a5a8a, sx * 0.18, 1.4, 0.32, false); };
+  const bram = addWorldNpc(50, 13.2, FARMERS[0]); overalls(bram);
+  const fork = new THREE.Group(); fork.position.set(0, -0.45, 0.05); bram.userData.chibi.arms[1].add(fork);
+  chibiPart(fork, new THREE.CylinderGeometry(0.035, 0.035, 2.2, 6), 0x7a4d22, 0, 0.4, 0.06); chibiPart(fork, new THREE.BoxGeometry(0.42, 0.06, 0.06), 0x9aa0a8, 0, 1.52, 0.06);
+  for (const dx of [-0.18, 0, 0.18]) chibiPart(fork, new THREE.CylinderGeometry(0.03, 0.015, 0.55, 5), 0x9aa0a8, dx, 1.8, 0.06, false);
+  const hilde = addWorldNpc(44, 5.6, FARMERS[1]);
+  chibiPart(hilde.userData.chibi.body, new THREE.BoxGeometry(0.52, 0.5, 0.05), 0xf0ece0, 0, 0.82, 0.42);
+  const bask = new THREE.Group(); bask.position.set(0, 0.92, 0.7); hilde.userData.chibi.body.add(bask);
+  chibiPart(bask, new THREE.CylinderGeometry(0.3, 0.24, 0.26, 12), 0x9a7040, 0, 0, 0);
+  for (let i = 0; i < 5; i++) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), toonMat(0xf6eee0)); e.scale.y = 1.25; e.position.set(Math.cos(i * 1.3) * 0.14, 0.15, Math.sin(i * 1.3) * 0.14); bask.add(e); }
+  NPC_SPOTS.push([BX, BZ], [39, -4], [53, 7.5], [44, 3]);
+}
+const FARMERS = [
+  { name: 'Bram', title: 'the farmer', rad: 3, hat: 'straw', look: { gender: 'male', skin: 0xd9a070, hair: 'short', hairCol: 0x7a4a22, shirt: 0xc8a060, pants: 0x3a5a8a },
+    talks: [
+      ['Mornin\'! You\'ve got the look of someone who has never been chased by a goose.', 'Bram. This is my farm, and those are my girls: Buttercup and Clover. Best cows in the valley.', 'Don\'t tell Hilde I said that. She says the hens are the best. She\'s wrong, but don\'t tell her.'],
+      ['See those cabbages? Grew them myself. Talked to every one of them. A cabbage likes a bit of conversation.'],
+      ['Truffle got into Brenna\'s flour sacks last week. Came out looking like a ghost. Squealed for an hour.'],
+      ['Woolsley the sheep has been looking at me funny. I think he knows I sold his winter coat to Mara.'],
+      ['Hobb says there are goblins in the western woods. If they come for my cabbages, they\'ll meet my pitchfork.'] ],
+    barks: ['Come on, girls!', 'Lovely cabbages.', '*whistles*', 'Who left the gate open?'] },
+  { name: 'Hilde', title: 'the farmer\'s wife', rad: 1.6, hat: 'straw', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xd8b058, shirt: 0xe8e0d0, pants: 0x5a7a40 },
+    after: (sp) => { const a = sp.userData.chibi.arms; a[0].rotation.x = -0.9; a[1].rotation.x = -0.9; },
+    talks: [
+      ['Mind the chickens, they bite. Well, they peck. Same thing, if you ask Pecks.', 'Hilde. I run this farm. Bram thinks he runs it, which is sweet.', 'Four hens: Henrietta, Pecks, Dot and Ginger. Ginger thinks she\'s a rooster. We let her.'],
+      ['Eggs every morning, rain or shine. More reliable than Bram, and they don\'t talk to the cabbages.'],
+      ['If Bram tells you his cows are the best in the valley, smile and nod. It keeps him happy.'],
+      ['Brenna gets her eggs from me. Wenna gets her gossip from me. Everyone gets something from Hilde.'],
+      ['Henrietta laid a double-yolker yesterday. She has been insufferable ever since.'] ],
+    barks: ['Here, chick chick chick!', 'Ginger, get down from there.', 'Eggs! Fresh eggs!', 'Bram!'] },
+];
+// farm animals make a sound now and then: one at a time, every half a minute or so, and only when you are nearby
+let nextAnimalSound = performance.now() + 20000;
+function updateAnimals(){
+  const now = performance.now();
+  for (const a of ANIMALS) { const h = a.g.userData.head; if (h) h.rotation.x = Math.sin(now / 900 + a.g.id) * 0.12 + (a.rec.animal === 'chicken' ? Math.max(0, Math.sin(now / 300 + a.g.id * 3)) * 0.5 : 0); }
+  if (!hero || now < nextAnimalSound) return;
+  nextAnimalSound = now + 25000 + Math.random() * 35000;
+  const near = ANIMALS.filter(a => a.g.position.distanceTo(hero.position) < 30);
+  if (!near.length) return;
+  const a = near[Math.floor(Math.random() * near.length)];
+  animalSound(a.rec.animal, Math.max(0.15, 1 - a.g.position.distanceTo(hero.position) / 30));
+}
+function petAnimal(rec){ showToast(rec.info); animalSound(rec.animal, 1); }
+// the voices: a buzzing tone shaped by a few vowel-like filters, plus some breath, like the game's other sounds
+function animalSound(kind, vol = 1){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + 0.02;
+  const out = ctx.createGain(); out.gain.value = 0.5 * vol; out.connect(sfxOut(ctx));
+  const voice = (start, dur, f0, f1, formants, tremolo = 0, breath = 0, rough = 0) => {
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0 * (0.95 + Math.random() * 0.1), t + start); o.frequency.linearRampToValueAtTime(f1, t + start + dur);
+    if (rough) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 33; lg.gain.value = f0 * rough; l.connect(lg); lg.connect(o.frequency); l.start(t + start); l.stop(t + start + dur); }
+    const env = ctx.createGain(); env.gain.setValueAtTime(0.0001, t + start); env.gain.linearRampToValueAtTime(1, t + start + Math.min(0.15, dur * 0.2)); env.gain.setValueAtTime(1, t + start + dur * 0.7); env.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+    if (tremolo) { const l = ctx.createOscillator(), lg = ctx.createGain(), tg = ctx.createGain(); l.frequency.value = tremolo; lg.gain.value = 0.45; tg.gain.value = 0.55; l.connect(lg); lg.connect(tg.gain); env.connect(tg); tg.connect(out); l.start(t + start); l.stop(t + start + dur); }
+    else env.connect(out);
+    for (const [f, q, g, fEnd] of formants) { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(f, t + start); if (fEnd) bp.frequency.linearRampToValueAtTime(fEnd, t + start + dur); bp.Q.value = q; const gg = ctx.createGain(); gg.gain.value = g; o.connect(bp); bp.connect(gg); gg.connect(env); }
+    if (breath) { const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, dur); const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = formants[0][0]; bp.Q.value = 2; const ng = ctx.createGain(); ng.gain.value = breath; n.connect(bp); bp.connect(ng); ng.connect(env); n.start(t + start); n.stop(t + start + dur); }
+    o.start(t + start); o.stop(t + start + dur + 0.05);
+  };
+  if (kind === 'cow') voice(0, 1.5, 110, 85, [[260, 4, 1.4, 520], [700, 5, 0.5, 900], [2400, 6, 0.05]]);
+  if (kind === 'sheep') voice(0, 0.9, 330, 280, [[750, 5, 1.2], [1250, 6, 0.7], [2600, 7, 0.2]], 11);
+  if (kind === 'pig') { voice(0, 0.2, 150, 120, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); voice(0.3, 0.26, 130, 105, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); }
+  if (kind === 'chicken') { [0, 0.17, 0.36, 0.5].forEach((s0, i) => voice(s0, 0.07, 600 + i * 20, 760, [[1100, 6, 1.4], [2300, 7, 0.5]])); voice(0.78, 0.38, 520, 880, [[900, 5, 1.3], [1900, 6, 0.7]]); }
 }
 // remarks villagers say out loud now and then when you are nearby
 const BARKERS = [], NPC_SPOTS = [];
@@ -2479,6 +2897,7 @@ function populateVillage(){
   const [wbx, wbz] = off(-30, 14.6, 1.6);
   const wenna = TOWNSFOLK.find(f => f.name === 'Wenna'); wenna.x = wbx; wenna.z = wbz;
   for (const f of TOWNSFOLK) addWorldNpc(f.x, f.z, f);
+  buildFarm();
   // things that make the green feel lived in: market stalls, benches, a signpost, lamps, barrels and crates
   const spots = [];
   for (const [sx, sz, col] of [[-46.5, 12, 0xb04a3a], [-47, 17, 0x3a6a9a]]) { const [x, z] = off(sx, sz, 1.9); stall(x, z, col); solidBoxes.push({ x0: x - 1.7, x1: x + 1.7, z0: z - 1, z1: z + 1 }); spots.push([x, z]); }
@@ -2504,6 +2923,7 @@ function scatterOaks(){
   };
   const clear = (x, z) => {
     if (x < -100 || x > 52 || z < -8 || z > 58) return false;
+    if (x > 30 && x < 62 && z > -13 && z < 14) return false;   // the farm
     if (solidBoxes.some(b => x > b.x0 - 5 && x < b.x1 + 5 && z > b.z0 - 5 && z < b.z1 + 5)) return false;   // houses, nodes and the well: a canopy's width plus room to walk round
     if (x > -1 && x < 34 && z > -12 && z < 18) return false;     // the hall and its doorway, with room round the walls
     if (ROADS.some(r => segDist(x, z, r) < 3.5)) return false;   // roads
@@ -2589,7 +3009,8 @@ const COIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderi
   <circle cx="8" cy="8" r="5.5" fill="#e8c040" stroke="#7a5a10" stroke-width="0.8"/><circle cx="8" cy="8" r="2.5" fill="none" stroke="#b8901c" stroke-width="0.8"/></svg>`;
 const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON, 'Raw shrimp': SHRIMP_ICON,
-  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON };
+  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
+  "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON };
 function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
 const setStatus = t => { document.getElementById('onlineStatus').textContent = t; };
 function showJoin(msg, withName){
@@ -2645,7 +3066,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -2661,6 +3082,7 @@ function applySave(d){
     d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name] }); });
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
+  if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
   if (d && d.dm) Object.keys(d.dm).forEach(k => { if (d.dm[k] && typeof d.dm[k].n === 'number') DEMAND[k] = d.dm[k]; });   // Mara's prices carry over
   if (d && d.xp && d.v === 2) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
@@ -2753,8 +3175,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200 };
+const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking' };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -2823,7 +3245,7 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else poseChibi(r.sprite, act && act.k === 'smelt' ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    } else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -2863,6 +3285,8 @@ function updateMotes(now){
 function frame(){
   updateWalk();
   updateSmelt();
+  updateCook();
+  updateQuest();
   updateHeroAnim();
   updateTrees();
   updateDebris();
@@ -2872,6 +3296,7 @@ function frame(){
   updateOnline();
   updateWanderers();
   updateBarks();
+  updateAnimals();
   checkDialogDistance();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
   updateDoor();
