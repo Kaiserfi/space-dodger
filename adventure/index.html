@@ -1405,10 +1405,11 @@ function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
                       line(16, 24, 23, 24, head); line(16, 25, 15, 27, head); line(17, 25, 23, 25, headDark); rect(23, 23, 1, 1, head); } }
     : { up: () => { line(6, 11, 3, 2, handle); line(7, 11, 4, 2, handle);   // the axe: the same long handle, with a broad flared blade
                     rect(0, 1, 4, 4, head); rect(0, 5, 2, 1, head); rect(0, 0, 2, 1, head); line(0, 4, 3, 4, headDark); rect(4, 2, 1, 2, headDark); },
-        mid: () => { line(19, 13, 22, 4, handle); line(20, 13, 23, 4, handle);
-                     rect(19, 1, 5, 4, head); rect(18, 0, 2, 1, head); rect(18, 5, 2, 1, head); line(19, 4, 23, 4, headDark); },
-        down: () => { line(20, 15, 21, 25, handle); line(21, 15, 22, 25, handle);
-                      rect(18, 21, 4, 5, head); rect(17, 20, 1, 2, head); rect(17, 25, 1, 2, head); line(18, 25, 21, 25, headDark); } };
+        // in the swing and the strike the blade juts forward off the handle, its flared cutting edge facing the tree
+        mid: () => { line(19, 13, 19, 3, handle); line(20, 13, 20, 3, handle);
+                     rect(21, 2, 2, 4, head); rect(23, 1, 1, 6, head); rect(21, 5, 2, 1, headDark); rect(19, 2, 2, 1, headDark); },
+        down: () => { line(19, 15, 19, 25, handle); line(20, 15, 20, 25, handle);
+                      rect(21, 20, 2, 4, head); rect(23, 19, 1, 6, head); rect(21, 23, 2, 1, headDark); rect(19, 26, 2, 1, headDark); } };
   if (a.hair === 'long') rect(7, 4, 4, 13, a.hairCol);
   // the far arm and leg sit behind the body
   rect(9, 14, 3, 6, a.shirt); rect(9, 20 + dyL, 3, 8, a.pants); rect(9, 28 + dyL, 4, 3, boots);
