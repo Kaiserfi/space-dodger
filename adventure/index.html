@@ -965,9 +965,22 @@ const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a1a, emissive: 0xff
 const stoneDark = mat(0x5a5650), ironDark = mat(0x3a3f46), steelTop = mat(0x6a7078);
 const doorBox = box(-1.3, 1.3, 5.4, 5.6);   // only solid while shut
 let doorOpen = false, doorTargetAngle = 0, doorCloseIn = 0;
+// solid boxes are filed into 4-unit squares, so a check only looks at the few boxes nearby. The index is rebuilt whenever a box is added or removed.
+let boxVer = 0, boxIdx = null, boxIdxVer = -1;
+solidBoxes.push = function(...a){ boxVer++; return Array.prototype.push.apply(this, a); };
+solidBoxes.splice = function(...a){ boxVer++; return Array.prototype.splice.apply(this, a); };
+const BUCKET = 4, bKey = (bx, bz) => bx * 4096 + bz;
+function boxesNear(x, z){
+  if (boxIdxVer !== boxVer) {
+    boxIdx = new Map(); boxIdxVer = boxVer;
+    for (const b of solidBoxes) for (let bx = Math.floor((b.x0 - 1) / BUCKET); bx <= Math.floor((b.x1 + 1) / BUCKET); bx++)
+      for (let bz = Math.floor((b.z0 - 1) / BUCKET); bz <= Math.floor((b.z1 + 1) / BUCKET); bz++) { const k = bKey(bx, bz); let l = boxIdx.get(k); if (!l) boxIdx.set(k, l = []); l.push(b); }
+  }
+  return boxIdx.get(bKey(Math.floor(x / BUCKET), Math.floor(z / BUCKET))) || [];
+}
 const blocked = (x, z) => {
   const r = 1.0;    // the adventurer's visible body is about 2 units wide, so it stops this far from walls and pillars
-  if (solidBoxes.some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r)) return true;
+  if (boxesNear(x, z).some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r)) return true;
   return !doorOpen && x > doorBox.x0 - r && x < doorBox.x1 + r && z > doorBox.z0 - r && z < doorBox.z1 + r;
 };
 let walkQueue = [];   // the rest of the route after the current waypoint
@@ -977,7 +990,7 @@ const PATH = { C: 0.5, X0: -120, Z0: -120, NX: 481, NZ: 481 };   // the whole gr
 const cellX = ix => PATH.X0 + ix * PATH.C, cellZ = iz => PATH.Z0 + iz * PATH.C;
 const cellFree = (ix, iz) => !blocked(cellX(ix), cellZ(iz));
 // does the body overlap a solid box right here (no clearance margin)? used to let a character step out of a tight spot
-function hardHit(x, z){ return solidBoxes.some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
+function hardHit(x, z){ return boxesNear(x, z).some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
 // A* over the grid. If the target cannot be reached, the route goes to the reachable cell nearest to it.
 function findPath(fromV, toV){
   const { NX, NZ } = PATH;
@@ -985,9 +998,9 @@ function findPath(fromV, toV){
   const gx = Math.min(NX - 1, Math.max(0, Math.round((toV.x - PATH.X0) / PATH.C)));
   const gz = Math.min(NZ - 1, Math.max(0, Math.round((toV.z - PATH.Z0) / PATH.C)));
   // a cell is usable if the body fits there; right next to where we stand, any cell we are not actually inside is usable, so a tight spot can be left
-  const free = new Uint8Array(NX * NZ);   // which cells the body fits in, worked out once for this search
-  for (let iz = 0; iz < NZ; iz++) for (let ix = 0; ix < NX; ix++) free[iz * NX + ix] = blocked(cellX(ix), cellZ(iz)) ? 0 : 1;
-  const usable = (ix, iz) => free[iz * NX + ix] === 1 || (Math.hypot(ix - sx, iz - sz) < 6 && !hardHit(cellX(ix), cellZ(iz)));
+  const free = new Int8Array(NX * NZ).fill(-1);   // which cells the body fits in, worked out only for the cells the search reaches
+  const isFree = i => { if (free[i] < 0) { const ix = i % NX; free[i] = blocked(cellX(ix), cellZ((i - ix) / NX)) ? 0 : 1; } return free[i] === 1; };
+  const usable = (ix, iz) => isFree(iz * NX + ix) || (Math.hypot(ix - sx, iz - sz) < 6 && !hardHit(cellX(ix), cellZ(iz)));
   const N = NX * NZ, g = new Float64Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
   const h = (ix, iz) => { const dx = Math.abs(ix - gx), dz = Math.abs(iz - gz); return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz); };
   const heap = [];   // a small binary heap of [score, cell]
