@@ -742,7 +742,29 @@ function showToast(msg){
   t.textContent = msg; t.style.display = 'block';
   clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { t.style.display = 'none'; }, 2400);
 }
-function addXp(skill, amt){ SKILL_XP[skill] += amt; renderStats(); }
+function addXp(skill, amt){
+  const before = levelOf(SKILL_XP[skill]);
+  SKILL_XP[skill] += amt; renderStats();
+  const after = levelOf(SKILL_XP[skill]);
+  if (after > before) { levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${after}.`); }
+}
+// a little brass fanfare: "duh duh du duhhhh"
+function levelUpSound(){
+  const ctx = audio(); if (!ctx) return; const t0 = ctx.currentTime + 0.02;
+  const out = ctx.createGain(); out.gain.value = 0.22; out.connect(ctx.destination);
+  const notes = [[523.25, 0, 0.14], [523.25, 0.17, 0.14], [659.25, 0.34, 0.12], [783.99, 0.5, 1.1]];   // C C E G
+  for (const [f, at, len] of notes) {
+    for (const [mul, type, vol] of [[1, 'sawtooth', 0.5], [1.005, 'square', 0.25], [0.5, 'triangle', 0.6]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      o.type = type; o.frequency.value = f * mul; lp.type = 'lowpass'; lp.frequency.value = 2200;
+      const s = t0 + at;
+      g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(vol, s + 0.02);
+      g.gain.setValueAtTime(vol * 0.8, s + len * 0.6); g.gain.exponentialRampToValueAtTime(0.001, s + len + 0.15);
+      if (len > 0.5) { const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 5.5; lg.gain.value = 4; lfo.connect(lg); lg.connect(o.frequency); lfo.start(s + 0.2); lfo.stop(s + len + 0.2); }   // vibrato on the long note
+      o.connect(lp); lp.connect(g); g.connect(out); o.start(s); o.stop(s + len + 0.2);
+    }
+  }
+}
 function cancelChop(){
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
