@@ -49,6 +49,14 @@
   .gearList { padding:6px 10px 8px; }
   .gearRow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #3a2a16; }
   .gearRow b { color:#f0c35a; font-weight:normal; }
+  #setPanel { position:fixed; right:58px; top:52px; width:240px; border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
+  #setPanel[hidden] { display:none; }
+  .setRow { display:flex; align-items:center; gap:8px; padding:8px 10px; }
+  .setRow label { width:52px; }
+  .setRow input[type=range] { flex:1; accent-color:#f0c35a; }
+  .muteBtn { width:30px; height:30px; flex:none; padding:0; background:#1d150b; border:1px solid #5b4324; border-radius:5px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .muteBtn svg { width:18px; height:18px; }
+  .muteBtn.muted { border-color:#d64b3c; }
   #online[hidden] { display: none !important; }
   .chatBub { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 6; max-width: 240px; padding: 5px 9px; margin-top: -9px; background: rgba(12, 10, 8, .9); border: 1px solid #5b4324; border-radius: 8px; color: #ffe14d; font: 14px Georgia, serif; line-height: 1.3; text-align: center; word-wrap: break-word; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
   .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
@@ -56,9 +64,9 @@
   #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
   /* polish: warm parchment-and-gold panels, soft shadows, a vignette */
   body:after { content:''; position:fixed; inset:0; pointer-events:none; z-index:4; background:radial-gradient(ellipse at center, transparent 55%, rgba(10,8,4,.38) 100%); }
-  #statsPanel, #bagPanel, #gearPanel, #shopPanel, #smithPanel, #dialog { background:linear-gradient(180deg, rgba(48,36,20,.96), rgba(22,16,9,.96)) !important; border-color:#a07a3c !important; box-shadow:0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,220,150,.15); backdrop-filter:blur(4px); }
-  .tabIcon, #musicBtn, #backArcade, #logoutBtn, #lookBtn { background:linear-gradient(180deg, rgba(58,42,22,.92), rgba(26,18,10,.92)) !important; border-color:#a07a3c !important; box-shadow:0 3px 10px rgba(0,0,0,.45); transition:transform .12s, border-color .12s; }
-  .tabIcon:hover, #musicBtn:hover, #backArcade:hover, #logoutBtn:hover, #lookBtn:hover { transform:translateY(-1px); border-color:#f0c35a !important; }
+  #statsPanel, #bagPanel, #gearPanel, #setPanel, #shopPanel, #smithPanel, #dialog { background:linear-gradient(180deg, rgba(48,36,20,.96), rgba(22,16,9,.96)) !important; border-color:#a07a3c !important; box-shadow:0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,220,150,.15); backdrop-filter:blur(4px); }
+  .tabIcon, #logoutBtn, #lookBtn { background:linear-gradient(180deg, rgba(58,42,22,.92), rgba(26,18,10,.92)) !important; border-color:#a07a3c !important; box-shadow:0 3px 10px rgba(0,0,0,.45); transition:transform .12s, border-color .12s; }
+  .tabIcon:hover, #logoutBtn:hover, #lookBtn:hover { transform:translateY(-1px); border-color:#f0c35a !important; }
   #hint, #toast, #chatLog { backdrop-filter:blur(3px); box-shadow:0 3px 10px rgba(0,0,0,.35); }
   .bagHead, #dlgName, .crBox h2 { letter-spacing:.5px; text-shadow:0 1px 0 #000; }
 </style>
@@ -69,6 +77,7 @@
   <button class="tabIcon" id="tabStats" title="Stats"><svg viewBox="0 0 16 16"><rect x="2" y="9" width="3" height="5" fill="#d64b3c"/><rect x="6" y="5" width="3" height="9" fill="#4bc24b"/><rect x="10" y="2" width="3" height="12" fill="#3b7fd6"/><rect x="1" y="14" width="14" height="1" fill="#c9b27a"/></svg></button>
   <button class="tabIcon" id="tabBag" title="Bag"><svg viewBox="0 0 16 16"><path d="M5 5 Q5 2 8 2 Q11 2 11 5" fill="none" stroke="#c9b27a" stroke-width="1.5"/><rect x="3" y="5" width="10" height="9" rx="2" fill="#9a6b3a"/><rect x="3" y="8" width="10" height="1" fill="#6b4524"/><rect x="7" y="7" width="2" height="2" fill="#f0c35a"/></svg></button>
   <button class="tabIcon" id="tabGear" title="Gear"><svg viewBox="0 0 16 16"><path d="M3 9 Q3 3 8 3 Q13 3 13 9 L13 12 L3 12 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="3" y="9" width="10" height="1.5" fill="#434a53"/></svg></button>
+  <button class="tabIcon" id="tabSettings" title="Settings"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.2" fill="none" stroke="#c9b27a" stroke-width="2"/><g stroke="#c9b27a" stroke-width="2.2"><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15M3 3l1.8 1.8M11.2 11.2L13 13M13 3l-1.8 1.8M4.8 11.2L3 13"/></g><circle cx="8" cy="8" r="1.4" fill="#c9b27a"/></svg></button>
 </div>
 <div id="statsPanel" hidden>
   <div class="subTabs"><button class="on" data-sub="skills">Skills</button><button data-sub="quests">Quests</button></div>
@@ -82,6 +91,11 @@
 <div id="shopPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Mara's shop</span><button id="shopClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
   <div id="shopList" style="padding:6px 10px;max-height:62vh;overflow-y:auto;"></div>
+</div>
+<div id="setPanel" hidden>
+  <div class="bagHead">Settings</div>
+  <div class="setRow"><button class="muteBtn" id="muteMusic" title="Mute music"></button><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100"></div>
+  <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
 </div>
 <div id="gearPanel" hidden>
   <div class="bagHead">Gear</div>
@@ -97,13 +111,11 @@
   <div style="text-align:right;margin-top:8px"><button id="dlgNext" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 12px;cursor:pointer">Continue</button></div>
   <div id="dlgChoice" hidden style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button id="dlgYes" style="font:inherit;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:5px;padding:4px 14px;cursor:pointer">Yes</button><button id="dlgNo" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:4px 14px;cursor:pointer">No</button></div>
 </div>
-<button id="musicBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Music: on</button>
 <div id="chatBox" style="position:fixed;left:12px;bottom:46px;width:min(320px,70vw);z-index:9;font:13px Georgia,serif;color:#e8efe6;">
   <div id="chatLog" style="background:rgba(0,0,0,.55);border-radius:6px 6px 0 0;padding:6px 8px;height:110px;overflow-y:auto;"></div>
   <input id="chatInput" maxlength="120" placeholder="Press Enter to chat" style="width:100%;box-sizing:border-box;font:13px Georgia,serif;background:rgba(20,16,10,.9);color:#e8efe6;border:1px solid #5b4324;border-radius:0 0 6px 6px;padding:6px 8px;outline:none;">
 </div>
 <div id="heroChat" class="chatBub" style="display:none"></div>
-<a id="backArcade" href="../" style="position:fixed;left:12px;top:52px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;text-decoration:none;">&lt; Arcade</a>
 <div id="online" style="position:fixed;inset:0;z-index:30;background:rgba(5,10,6,.88);display:flex;align-items:center;justify-content:center;">
   <div style="background:rgba(30,24,16,.97);border:2px solid #f0c35a;border-radius:10px;padding:18px 20px;width:min(320px,88vw);text-align:center;color:#e8efe6;font:15px Georgia,serif;">
     <div style="color:#f0c35a;font-size:18px;margin-bottom:8px">ITAP Adventure</div>
@@ -115,7 +127,7 @@
     <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
   </div>
 </div>
-<button id="logoutBtn" style="position:fixed;left:12px;top:92px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
+<button id="logoutBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
 <div id="hint">Tap to walk. Two fingers pinch to zoom and slide to turn. Mouse: middle-drag to turn, scroll to zoom.</div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
@@ -590,11 +602,11 @@ function walkStart(point, then, replan = false){
 }
 function creak(){
   try {
-    creak.ctx = creak.ctx || new (window.AudioContext || window.webkitAudioContext)();
-    const c = creak.ctx, o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+    const c = audio(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
     o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.4);
     g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.5);
+    o.connect(g); g.connect(sfxOut(c)); o.start(t); o.stop(t + 0.5);
   } catch (e) {}
 }
 function openDoor(){ if (doorOpen) return; doorOpen = true; doorTargetAngle = Math.PI / 2; creak(); }
@@ -678,6 +690,12 @@ function audio(){
     return audioCtx;
   } catch (e) { return null; }
 }
+// all sound effects go through one gain, so the Sounds slider sets their volume
+function sfxOut(ctx){
+  if (!ctx.sfxBus) { ctx.sfxBus = ctx.createGain(); ctx.sfxBus.connect(ctx.destination); }
+  ctx.sfxBus.gain.value = SETTINGS.sfxMute ? 0 : SETTINGS.sfx / 100;
+  return ctx.sfxBus;
+}
 function noiseBuffer(ctx, dur){
   const n = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
@@ -689,11 +707,11 @@ function chopSound(){
   const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.2);
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 1.2;
   const g = ctx.createGain(); g.gain.setValueAtTime(0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.2);
+  src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.2);
   const o = ctx.createOscillator(), og = ctx.createGain();
   o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
   og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.15);
+  o.connect(og); og.connect(sfxOut(ctx)); o.start(t); o.stop(t + 0.15);
 }
 // a sharp clink for striking stone
 function clinkSound(){
@@ -701,7 +719,7 @@ function clinkSound(){
   const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.12);
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 3;
   const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.12);
+  src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.12);
 }
 // the wood groaning as it starts to tip over
 function creakSound(dur){
@@ -710,7 +728,7 @@ function creakSound(dur){
   o.type = 'sawtooth'; o.frequency.setValueAtTime(110, t); o.frequency.linearRampToValueAtTime(160, t + dur);
   lp.type = 'lowpass'; lp.frequency.value = 500;
   g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.22, t + dur * 0.5); g.gain.linearRampToValueAtTime(0.0001, t + dur);
-  o.connect(lp); lp.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur + 0.05);
+  o.connect(lp); lp.connect(g); g.connect(sfxOut(ctx)); o.start(t); o.stop(t + dur + 0.05);
 }
 // the trunk hitting the ground: a deep thud with a little rustle
 function fallSound(){
@@ -718,11 +736,11 @@ function fallSound(){
   const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.6);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
   const g = ctx.createGain(); g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.6);
+  src.connect(lp); lp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.6);
   const o = ctx.createOscillator(), og = ctx.createGain();
   o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.4);
   og.gain.setValueAtTime(0.7, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.5);
+  o.connect(og); og.connect(sfxOut(ctx)); o.start(t); o.stop(t + 0.5);
 }
 
 // which arm pose a point in the swing shows: wind up (first 40%), strike (40-55%), recover (the rest)
@@ -751,7 +769,7 @@ function addXp(skill, amt){
 // a little brass fanfare: "duh duh du duhhhh"
 function levelUpSound(){
   const ctx = audio(); if (!ctx) return; const t0 = ctx.currentTime + 0.02;
-  const out = ctx.createGain(); out.gain.value = 0.22; out.connect(ctx.destination);
+  const out = ctx.createGain(); out.gain.value = 0.22; out.connect(sfxOut(ctx));
   const notes = [[523.25, 0, 0.14], [523.25, 0.17, 0.14], [659.25, 0.34, 0.12], [783.99, 0.5, 1.1]];   // C C E G
   for (const [f, at, len] of notes) {
     for (const [mul, type, vol] of [[1, 'sawtooth', 0.5], [1.005, 'square', 0.25], [0.5, 'triangle', 0.6]]) {
@@ -934,7 +952,11 @@ document.getElementById('gearList').addEventListener('click', e => {
 document.getElementById('tabGear').addEventListener('click', () => { togglePanel('gearPanel', 'tabGear'); renderGear(); });
 
 // ----- village music: a soft loop made from synthesised notes (no sound files) -----
-const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4, on: true };
+const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
+// the volume settings, saved in this browser
+const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false };
+try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
+const musicLevel = () => SETTINGS.musicMute ? 0 : SETTINGS.music / 100;
 const MUSIC_BEAT = 60 / 76 / 2;                         // an eighth note at 76 beats a minute
 const MUSIC_BASS = [146.83, 123.47, 196.0, 220.0];      // the chords: D, B minor, G, A
 const MUSIC_NOTES = [293.66, 329.63, 369.99, 440, 493.88, 587.33, 659.25, 739.99, 880];   // D major pentatonic
@@ -971,16 +993,29 @@ function musicTick(){
 function startMusic(){
   if (MUSIC.master) return;
   const ctx = audio(); if (!ctx) return;
-  MUSIC.master = ctx.createGain(); MUSIC.master.gain.value = MUSIC.on ? 0.5 : 0; MUSIC.master.connect(ctx.destination);
+  MUSIC.master = ctx.createGain(); MUSIC.master.gain.value = musicLevel(); MUSIC.master.connect(ctx.destination);
   MUSIC.nextTime = ctx.currentTime + 0.1;
   MUSIC.timer = setInterval(musicTick, 150);
 }
-function toggleMusic(){
-  MUSIC.on = !MUSIC.on;
-  if (MUSIC.master) MUSIC.master.gain.value = MUSIC.on ? 0.5 : 0;
-  document.getElementById('musicBtn').textContent = MUSIC.on ? 'Music: on' : 'Music: off';
+const SPEAKER = muted => `<svg viewBox="0 0 16 16"><path d="M2 6h3l4-3v10l-4-3H2z" fill="#c9b27a"/>${muted
+  ? '<path d="M11 5.5l4 5M15 5.5l-4 5" stroke="#d64b3c" stroke-width="1.6"/>'
+  : '<path d="M11 5.5q2 2.5 0 5M12.8 3.8q3.5 4.2 0 8.4" fill="none" stroke="#c9b27a" stroke-width="1.3"/>'}</svg>`;
+function applySettings(){
+  if (MUSIC.master) MUSIC.master.gain.value = musicLevel();
+  if (audioCtx) sfxOut(audioCtx);
+  for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
+    const m = SETTINGS[k + 'Mute'], b = document.getElementById('mute' + id);
+    b.innerHTML = SPEAKER(m); b.classList.toggle('muted', m); b.title = m ? 'Unmute' : 'Mute';
+    document.getElementById('vol' + id).value = SETTINGS[k];
+  }
+  try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
-document.getElementById('musicBtn').addEventListener('click', toggleMusic);
+for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
+  document.getElementById('vol' + id).addEventListener('input', e => { SETTINGS[k] = +e.target.value; SETTINGS[k + 'Mute'] = false; applySettings(); });
+  document.getElementById('mute' + id).addEventListener('click', () => { SETTINGS[k + 'Mute'] = !SETTINGS[k + 'Mute']; applySettings(); });
+}
+document.getElementById('tabSettings').addEventListener('click', () => togglePanel('setPanel', 'tabSettings'));
+applySettings();
 addEventListener('pointerdown', startMusic, { once: true });   // browsers only allow sound after a click
 
 // ----- talking: a line at a time, in the panel at the bottom -----
@@ -1178,17 +1213,17 @@ function explosionSound(){
   const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.8);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2500, t); lp.frequency.exponentialRampToValueAtTime(180, t + 0.7);
   const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.8);
+  src.connect(lp); lp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.8);
   const o = ctx.createOscillator(), og = ctx.createGain();
   o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.5);
   og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.6);
+  o.connect(og); og.connect(sfxOut(ctx)); o.start(t); o.stop(t + 0.6);
   for (let i = 0; i < 6; i++) {
     const tt = t + 0.12 + Math.random() * 0.5;
     const s2 = ctx.createBufferSource(); s2.buffer = noiseBuffer(ctx, 0.08);
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500 + Math.random() * 2500; bp.Q.value = 4;
     const cg = ctx.createGain(); cg.gain.setValueAtTime(0.35, tt); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.08);
-    s2.connect(bp); bp.connect(cg); cg.connect(ctx.destination); s2.start(tt); s2.stop(tt + 0.09);
+    s2.connect(bp); bp.connect(cg); cg.connect(sfxOut(ctx)); s2.start(tt); s2.stop(tt + 0.09);
   }
 }
 
@@ -1630,7 +1665,7 @@ function renderStats(){
 // Only one side panel is open at a time; each tab button toggles its own panel.
 function togglePanel(panelId, btnId) {
   const open = document.getElementById(panelId).hidden;
-  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel').forEach(p => p.hidden = true);
+  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#setPanel').forEach(p => p.hidden = true);
   document.querySelectorAll('.tabIcon').forEach(b => b.classList.remove('on'));
   if (open) { document.getElementById(panelId).hidden = false; document.getElementById(btnId).classList.add('on'); }
 }
@@ -1735,7 +1770,7 @@ function splashSound(){
   const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.5);
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
   const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.5);
+  src.connect(bp); bp.connect(g); g.connect(sfxOut(ctx)); src.start(t); src.stop(t + 0.5);
 }
 function catchFish(){
   showToast('You cast a line...');
@@ -1996,14 +2031,14 @@ async function enterVillage(name){
 }
 // log out: save everything, including where you are, and leave the village
 async function logOut(){
-  if (!ONLINE.ready) return;
+  if (!ONLINE.ready) { location.href = '../'; return; }
   ONLINE.saveJson = '';
   await saveNow(false);            // the save goes through while we are still in the village
   ONLINE.ready = false;
   try { await fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'DELETE' }); } catch (e) {}
   for (const id in remote) removeRemote(id);
   document.getElementById('nameInput').value = ONLINE.name;
-  showJoin('Logged out. Your progress and position are saved.', true);
+  location.href = '../';   // back to the arcade
 }
 document.getElementById('logoutBtn').addEventListener('click', logOut);
 // remove players left behind by closed browsers (no update for a minute)
