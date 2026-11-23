@@ -70,6 +70,10 @@
   .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
   .chatBub:before { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-top: 6px solid rgba(12, 10, 8, .9); border-bottom: 0; z-index: 1; }
   #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
+  #camPad { position:fixed; right:12px; bottom:64px; z-index:8; display:grid; grid-template-columns:repeat(2, 46px); gap:6px; }
+  #camPad[hidden] { display:none; }
+  #camPad button { width:46px; height:46px; font:22px Georgia,serif; color:#f0c35a; background:linear-gradient(180deg, rgba(58,42,22,.9), rgba(26,18,10,.9)); border:2px solid #a07a3c; border-radius:10px; touch-action:none; user-select:none; -webkit-user-select:none; padding:0; }
+  #camPad button:active { border-color:#f0c35a; background:rgba(90,66,30,.95); }
   /* polish: warm parchment-and-gold panels, soft shadows, a vignette */
   body:after { content:''; position:fixed; inset:0; pointer-events:none; z-index:4; background:radial-gradient(ellipse at center, transparent 55%, rgba(10,8,4,.38) 100%); }
   #statsPanel, #bagPanel, #gearPanel, #setPanel, #shopPanel, #smithPanel, #dialog { background:linear-gradient(180deg, rgba(48,36,20,.96), rgba(22,16,9,.96)) !important; border-color:#a07a3c !important; box-shadow:0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,220,150,.15); backdrop-filter:blur(4px); }
@@ -136,7 +140,11 @@
   </div>
 </div>
 <button id="logoutBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
-<div id="hint">Tap to walk. Two fingers pinch to zoom and slide to turn. Mouse: middle-drag to turn, scroll to zoom.</div>
+<div id="hint">Tap to walk. Drag to turn, pinch to zoom. Mouse: middle-drag to turn, scroll to zoom.</div>
+<div id="camPad" hidden>
+  <button data-cam="left" title="Turn left">&#x27F2;</button><button data-cam="in" title="Zoom in">+</button>
+  <button data-cam="right" title="Turn right">&#x27F3;</button><button data-cam="out" title="Zoom out">&minus;</button>
+</div>
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center">Smelting bronze...<div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
@@ -258,7 +266,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 62 && z > -10 && z < 60);   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60);   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
 }
 groundGeo.computeVertexNormals();
@@ -672,12 +680,6 @@ function updateDoor(){
   if (hero) {
     const inside = Math.abs(hero.position.x - HALL.x) < 7 * HS && Math.abs(hero.position.z - HALL.z) < 6 * HS;
     roofMesh.visible = !inside;   // the roof lifts away while you are inside, and comes back outside
-    for (const m of hallWallMats) {
-      const want = inside ? 0.35 : 1;   // inside, the walls turn see-through so you can see yourself; outside they are solid
-      m.opacity += (want - m.opacity) * 0.12;
-      m.transparent = m.opacity < 0.99;
-      m.depthWrite = !m.transparent;
-    }
   }
   doorPivot.rotation.y += (doorTargetAngle - doorPivot.rotation.y) * 0.2;   // the door eases open or shut
   if (doorOpen && doorCloseIn > 0) {
@@ -1597,11 +1599,18 @@ renderer.domElement.addEventListener('pointerdown', e => {
 });
 renderer.domElement.addEventListener('pointermove', e => {
   if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+  const prev = touches.get(e.pointerId);
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (touches.size < 2) return;
+  if (touches.size === 1) {
+    // one finger dragged across the screen turns the camera (a short tap still walks)
+    if (Math.hypot(e.clientX - pressX, e.clientY - pressY) < 10) return;
+    yaw -= (e.clientX - prev.x) * 0.008;
+    pitch = clampPitch(pitch - (e.clientY - prev.y) * 0.005);
+    return;
+  }
   const [a, b] = [...touches.values()];
   const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-  if (pinchD > 0 && d > 0) dist = Math.min(60, Math.max(4, dist * (pinchD / d)));   // spread the fingers to come closer
+  if (pinchD > 0 && d > 0) { camEase = null; dist = Math.min(60, Math.max(4, dist * (pinchD / d))); }   // spread the fingers to come closer
   yaw -= (mx - pinchX) * 0.008;   // slide them together to turn
   pitch = clampPitch(pitch - (my - pinchY) * 0.005);
   pinchD = d; pinchX = mx; pinchY = my;
@@ -1684,7 +1693,7 @@ addEventListener('pointermove', e => {
   yaw -= dx * 0.008;
   pitch = clampPitch(pitch - dy * 0.005);
 });
-renderer.domElement.addEventListener('wheel', e => { dist = Math.min(60, Math.max(4, dist + e.deltaY * 0.02)); e.preventDefault(); }, { passive: false });
+renderer.domElement.addEventListener('wheel', e => { camEase = null; dist = Math.min(60, Math.max(4, dist + e.deltaY * 0.02)); if (indoor) savedDist = Math.max(savedDist, dist); e.preventDefault(); }, { passive: false });
 // fit the view to the screen. Phones report the new size late after a rotation, so it is checked again after a moment
 function fitView(){
   const vv = window.visualViewport;   // the visible screen, which is right even mid-rotation
@@ -1720,8 +1729,19 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
   else tip.style.display = 'none';
 });
+const camHold = {};
+// the camera buttons show on touch screens; holding one keeps turning or zooming
+if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) { document.getElementById('camPad').hidden = false; document.getElementById('hint').textContent = 'Tap to walk. Drag to turn, pinch or + / \u2212 to zoom.'; }
+document.querySelectorAll('#camPad button').forEach(b => {
+  const k = b.dataset.cam;
+  b.addEventListener('pointerdown', e => { camHold[k] = true; e.preventDefault(); e.stopPropagation(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => { camHold[k] = false; });
+});
 function turnWithKeys(){
   const speed = 0.03;
+  if (camHold.left) yaw -= speed; if (camHold.right) yaw += speed;
+  if (camHold.in) { camEase = null; dist = Math.max(4, dist - 0.35); }
+  if (camHold.out) { camEase = null; dist = Math.min(60, dist + 0.35); }
   if (turnKeys.ArrowLeft) yaw -= speed;
   if (turnKeys.ArrowRight) yaw += speed;
   if (turnKeys.ArrowUp) pitch = clampPitch(pitch - speed);
@@ -2169,6 +2189,51 @@ function scatterOaks(){
   }
 }
 populateVillage();
+// ----- walls fold flat while you're inside: the walls and door fade away, leaving a low outline of each wall on the floor -----
+const FOLDS = [];
+function addFold(group, parts, isInside){
+  const mats = [], outline = new THREE.Group(); group.add(outline);
+  for (const p of parts) p.traverse(m => { if (m.isMesh) { m.material = m.material.clone(); mats.push(m.material); } });
+  for (const w of parts) {
+    if (!w.isMesh || w.geometry.type !== 'BoxGeometry') continue;
+    const g = w.geometry.parameters; if (g.height < 2) continue;   // only the full-height walls get an outline, not lintels
+    const col = (w.material.color ? w.material.color.clone() : new THREE.Color(0x888888)).multiplyScalar(0.55);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(g.width, 0.14, g.depth), new THREE.MeshStandardMaterial({ color: col, roughness: 0.9, transparent: true, opacity: 0 }));
+    strip.position.set(w.position.x, 0.07, w.position.z); strip.rotation.y = w.rotation.y; strip.userData.shadowSet = true; outline.add(strip);
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(strip.geometry), new THREE.LineBasicMaterial({ color: 0xf0c35a, transparent: true, opacity: 0 }));
+    edge.position.copy(strip.position); edge.rotation.copy(strip.rotation); outline.add(edge);
+  }
+  outline.visible = false;
+  FOLDS.push({ parts, mats, outline, isInside, k: 1 });
+}
+for (const h of houses) {
+  const g = h.roof.parent;
+  const parts = g.children.filter(m => (m.isMesh && m !== h.roof && m.geometry.type === 'BoxGeometry' && m.position.y > 0.5) || (m.isGroup && m.children.some(c => c.userData && c.userData.action === 'Open')));
+  addFold(g, parts, () => Math.abs(hero.position.x - h.x) < h.hw && Math.abs(hero.position.z - h.z) < h.hd);
+}
+addFold(hallGroup, hallGroup.children.filter(m => (m.isMesh && (hallWallMats.includes(m.material) || m.material.map === bannerMap)) || m === doorPivot), () => Math.abs(hero.position.x - HALL.x) < 7 * HS && Math.abs(hero.position.z - HALL.z) < 6 * HS);
+// the camera: inside, it eases in closer so the room fills the screen; outside it goes back to where you had it
+let indoor = false, savedDist = 30, camEase = null, foldT = performance.now();
+function updateFolds(){
+  if (!hero) return;
+  const now = performance.now(), step = 1 - Math.exp(-(now - foldT) / 90);   // about a third of a second, however fast the screen draws
+  foldT = now;
+  let any = false;
+  for (const f of FOLDS) {
+    const inside = f.isInside(); any = any || inside;
+    f.k += ((inside ? 0 : 1) - f.k) * step;
+    if (Math.abs(f.k - (inside ? 0 : 1)) < 0.03) f.k = inside ? 0 : 1;
+    const k = f.k;
+    for (const m of f.mats) { m.opacity = k; m.transparent = k < 1; m.depthWrite = k > 0.5; }
+    for (const p of f.parts) p.visible = k > 0.02;
+    f.outline.visible = k < 0.98;
+    f.outline.children.forEach(o => { o.material.opacity = 1 - k; });
+  }
+  if (!creator.hidden) { indoor = false; camEase = null; return; }   // the character creator frames its own shot
+  if (any && !indoor) { indoor = true; savedDist = dist; camEase = Math.min(dist, 15); }
+  if (!any && indoor) { indoor = false; camEase = savedDist; }
+  if (camEase !== null) { dist += (camEase - dist) * Math.min(1, step * 0.6); if (Math.abs(camEase - dist) < 0.05) camEase = null; }
+}
 
 // ----- start -----
 renderCreator();
@@ -2466,6 +2531,7 @@ function frame(){
   updateTrees();
   updateDebris();
   updateHouses();
+  updateFolds();
   updateFish();
   updateOnline();
   updateWanderers();

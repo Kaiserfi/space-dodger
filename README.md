@@ -36,7 +36,8 @@ Crawler has its own leaderboard. Its online scores need the `crawler` section of
 A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 
 - **Walk:** click or tap the ground. Routes go round the houses, trees and rocks.
-- **Look:** arrow keys or middle-mouse drag turn the camera; the wheel zooms.
+- **Look:** arrow keys or middle-mouse drag turn the camera; the wheel zooms. On a phone, drag one finger to turn, pinch to zoom, or use the turn and zoom buttons in the bottom right.
+- **Indoors:** when you step inside a house, the smithy or the hall, the walls fold down into an outline on the floor and the camera moves in closer, so you can see the room.
 - **Skills:** chop trees with the bronze axe, mine copper and tin rocks with the bronze pickaxe, smelt bronze at the furnace, smith at the anvil, and fish at the river.
 - **Villagers:** click a villager to talk to them. Doors open and close when clicked.
 - **Chat:** press Enter to type. Your line shows above your character in yellow.
