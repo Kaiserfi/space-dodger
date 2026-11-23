@@ -814,6 +814,10 @@ function crawlerStepChains(c) {
         if (np && np.x === nx) ch.dir = dir0;
       }
     }
+    if (!np && ch.segs.length > 1) {                // no way out at all: the centipede turns round, so its tail becomes the head and can move off
+      ch.segs.reverse();
+      ch.dir = Math.sign(ch.segs[0].x - ch.segs[1].x) || ch.dir;   // face away from its body
+    }
     if (np) { ch.segs.unshift(np); ch.segs.pop(); }   // the body follows the head
   }
 }
