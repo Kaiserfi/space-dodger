@@ -2317,7 +2317,7 @@ function updateWanderers(){
     else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z) - (w.parentYaw || 0);
     turnChibi(sp, w.yaw || 0);
     poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90);
-    if (w.rec.name === 'Wenna') { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.5); c2.body.position.y = -0.38; sp.rotation.y = 0; }
+    if (w.rec.name === 'Wenna') { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.45); c2.body.position.y = 0.02; c2.body.rotation.x = -0.05; c2.arms.forEach(a => a.rotation.x = -0.5); sp.rotation.y = 0; }
     w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
   }
 }
