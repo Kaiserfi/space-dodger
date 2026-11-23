@@ -38,7 +38,8 @@ A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 - **Skills:** chop trees with the bronze axe, mine copper and tin rocks with the bronze pickaxe, smelt bronze at the furnace, smith at the anvil, and fish at the river.
 - **Villagers:** click a villager to talk to them. Doors open and close when clicked.
 - **Chat:** press Enter to type. Your line shows above your character in yellow.
-- **Music:** a village loop, toggled with the button in the top left.
+- **Settings:** the settings tab (under the Gear tab on the right) has Music and Sounds volume sliders; tap the speaker icon next to either to mute it. Settings are saved in your browser.
+- **Log out:** the button in the top left saves your progress and returns you to the arcade.
 
 The village is multiplayer. You choose a name the first time, and you see the other adventurers walking around with their names above them. Trees and rocks are shared: a tree or rock someone takes is gone for everyone until it grows back. Your bag, skills and gear are saved under your browser's player id.
 
