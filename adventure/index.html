@@ -786,7 +786,7 @@ function sellItem(name, all){
   for (let k = 0; k < n; k++) removeItem(name);
   DEMAND[name] = { n: demandNow(name) + n, t: Date.now() };
   addItem('Coins', coins, COIN_ICON);
-  showToast(`You sell ${n} ${name.toLowerCase()} for ${coins} coins.` + (DEMAND[name].n >= 4 ? ' Mara pays less after many sales.' : ''));
+  showToast(`You sell ${n} ${name.toLowerCase()} for ${coins} coins.`);
   renderShop(); renderBag();
 }
 function buyItem(it){
