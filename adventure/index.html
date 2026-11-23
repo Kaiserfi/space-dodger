@@ -1445,12 +1445,16 @@ addEventListener('pointermove', e => {
 renderer.domElement.addEventListener('wheel', e => { dist = Math.min(60, Math.max(4, dist + e.deltaY * 0.02)); e.preventDefault(); }, { passive: false });
 // fit the view to the screen. Phones report the new size late after a rotation, so it is checked again after a moment
 function fitView(){
-  const w = Math.round(innerWidth), h = Math.round(innerHeight);
+  const vv = window.visualViewport;   // the visible screen, which is right even mid-rotation
+  const w = Math.round(vv ? vv.width : innerWidth), h = Math.round(vv ? vv.height : innerHeight);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setSize(w, h, true);
 }
 addEventListener('resize', fitView);
-addEventListener('orientationchange', () => { fitView(); setTimeout(fitView, 250); setTimeout(fitView, 700); });
+// a rotation can lose finger lift-offs, so forget any touches still being tracked
+function resetTouches(){ touches.clear(); twoFingers = false; }
+addEventListener('orientationchange', () => { resetTouches(); fitView(); setTimeout(fitView, 250); setTimeout(fitView, 700); });
+addEventListener('visibilitychange', resetTouches);
 if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 // hovering the door says what a click does, as in the classic game
 const tip = document.getElementById('tip');
