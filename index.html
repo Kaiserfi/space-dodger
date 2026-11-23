@@ -770,6 +770,14 @@ function crawlerSpawnCentipede(c) {
   for (let i = 0; i < 5; i++) crawlerAddMushroom(c);
 }
 function crKey(x, y) { return x + ',' + y; }
+// the colours of each wave, cycling like the original: mushroom caps (by damage), centipede head and body
+const CRAWLER_PALETTES = [
+  { caps: {4: '#2ef2c8', 3: '#24b89c', 2: '#1a7f6c', 1: '#125a4e'}, head: '#ff4d4d', body: ['#9f3', '#6c2'] },   // green
+  { caps: {4: '#ffb347', 3: '#e08a2e', 2: '#a85c1a', 1: '#6b3a10'}, head: '#fff', body: ['#ffd24a', '#ffa31a'] },  // orange
+  { caps: {4: '#ff6fd8', 3: '#d64fb0', 2: '#9a2f7e', 1: '#5e1c4d'}, head: '#ffe14d', body: ['#6ef3ff', '#2bb7d6'] }, // pink
+  { caps: {4: '#c9a7ff', 3: '#9a7ae0', 2: '#6b4fb0', 1: '#3e2d6b'}, head: '#ff5a5a', body: ['#7fff6e', '#3fd13a'] }, // purple
+  { caps: {4: '#ff7f7f', 3: '#d44', 2: '#a22', 1: '#601414'}, head: '#fff6a0', body: ['#ff9f9f', '#e56b6b'] },  // red
+];
 
 function startCrawler() {
   playTrack('crawler');
@@ -998,7 +1006,7 @@ function drawCrawlerWorld(c) {
   ctx.fillStyle = 'rgba(63,255,153,0.04)'; ctx.fillRect(0, zy, W, crZoneBottom() - zy);
   ctx.strokeStyle = 'rgba(63,255,153,0.35)'; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, zy + 0.5); ctx.lineTo(W, zy + 0.5); ctx.stroke(); ctx.setLineDash([]);
   // mushrooms: colour fades as they're damaged
-  const caps = {4: '#2ef2c8', 3: '#24b89c', 2: '#1a7f6c', 1: '#125a4e'};
+  const pal = CRAWLER_PALETTES[(c.wave - 1) % CRAWLER_PALETTES.length], caps = pal.caps;
   for (const [k, hp] of c.mush) {
     const [x, y] = k.split(',').map(Number), cx = crPX(x), cy = crPY(y);
     ctx.fillStyle = '#e8e8e8'; ctx.fillRect(cx - 3, cy - 1, 6, 9);
@@ -1008,9 +1016,9 @@ function drawCrawlerWorld(c) {
   // centipede: red head, green body, legs that wiggle
   for (const ch of c.chains) ch.segs.forEach((p, i) => {
     const cx = crPX(p.x), cy = crPY(p.y), wig = Math.sin(c.tick / 3 + i) * 3;
-    ctx.strokeStyle = i === 0 ? '#f88' : '#6c2'; ctx.lineWidth = 2;
+    ctx.strokeStyle = i === 0 ? pal.head : pal.body[1]; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx - 5, cy + 6); ctx.lineTo(cx - 7, cy + 12 + wig); ctx.moveTo(cx + 5, cy + 6); ctx.lineTo(cx + 7, cy + 12 - wig); ctx.stroke();
-    ctx.fillStyle = i === 0 ? '#ff4d4d' : (i % 2 ? '#9f3' : '#6c2');
+    ctx.fillStyle = i === 0 ? pal.head : pal.body[i % 2];
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
     if (i === 0) { ctx.fillStyle = '#000'; ctx.fillRect(cx + ch.dir * 4 - 1.5, cy - 4, 3, 3); }
