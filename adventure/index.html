@@ -1386,57 +1386,57 @@ function giveTool(name, icon){ if (hasItem(name)) return false; addItem(name, 1,
 function questTalk(name){
   const s = QUEST.hw, me = t => ({ me: t }), run = f => ({ run: f });
   if (s >= HW_STEPS) return null;
-  if (name === 'Aldric' && s === 0) return [me('Hello. I am new here.'), 'Halt. State your business.', me('I just told you. I am new here.'),
-    '...A newcomer with no tools and no plan. Wonderful.', 'Go and see Brenna the baker, in the far west cottage. Her oven has gone cold and she will not stop talking about it.',
-    { opts: [['I will go and help her.', ['Good. Maybe this village will make something of you yet.']],
-             ['Why can she not fix it herself?', ['She is a baker, not a woodcutter. Nor a fisherman. Nor a smith. You will see.']]] },
+  if (name === 'Aldric' && s === 0) return [me("Hi! I'm new here."), 'Halt. State your business.', me("...I just did. I'm new here."),
+    'A newcomer. No tools, no plan, no idea. Wonderful.', "Go and see Brenna the baker — far west cottage. Her oven's gone cold and she won't stop going on about it.",
+    { opts: [["Sure, I'll go and help her.", ["Good. Maybe this village'll make something of you yet."]],
+             ["Why can't she fix it herself?", ["She's a baker, not a woodcutter. Or a fisherman. Or a smith. You'll see."]]] },
     run(() => { QUEST.hw = 1; questStep('Talk to Brenna the baker, in the far west cottage.'); })];
   if (name === 'Brenna') {
-    if (s <= 1) return ['Oh! A new face. Come in, come in, mind the flour.', me('Aldric sent me. He said your oven has gone cold.'),
-      'Stone cold, and the whole village is waiting on bread.',
+    if (s <= 1) return ['Oh! A new face! Come in, come in — mind the flour.', me("Aldric sent me. Said your oven's gone cold?"),
+      "Stone cold. And the whole village is waiting on their bread!",
       { opts: [
-        ['I will help. What do you need?', ['Bless you. I need five good logs to get it going again.', 'You will want an axe for that. Mara on the green has a spare one. Tell her I sent you.',
-          me('Five logs. I can do that.'), 'And mind the flour on your way out.', run(() => { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.'); })]],
-        ['What happened to your oven?', ['The fire went out in the night, and I have no wood left to light it.', 'Tobin usually brings me kindling, but Tobin is usually asleep.'], true],
-        ['Tell me about the village.', ['Small, friendly, nosy. Wenna on the green knows everyone\'s business.', 'Mara sells tools, Dunmore keeps the forge hot, and the farm out east keeps us all fed.'], true],
-        ['Sorry, I am busy right now.', ['Oh. Well, come back when you have a moment. The oven is not going anywhere.']] ] }];
+        ["I'll help. What do you need?", ["Oh, bless you! I need five good logs to get it going again.", "You'll want an axe for that. Mara on the green's got a spare — tell her I sent you.",
+          me("Five logs. I can do that."), 'Lovely. And mind the flour on your way out!', run(() => { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.'); })]],
+        ['What happened to your oven?', ["The fire went out in the night, and I've no wood left to light it.", "Tobin usually brings me kindling. But Tobin's usually asleep."], true],
+        ['Tell me about the village.', ["Small. Friendly. Nosy. Wenna on the green knows everyone's business.", "Mara sells tools, Dunmore keeps the forge going, and the farm out east keeps us all fed."], true],
+        ["Sorry, I'm busy right now.", ["Oh. Well, pop back when you've a minute. The oven's not going anywhere."]] ] }];
     if (s <= 3) {
-      if (cnt('Logs') >= 5) return [me('I have your five logs.'), 'Five logs! Look at you, all sawdust and pride.',
-        run(() => { for (let i = 0; i < 5; i++) removeItem('Logs'); }), 'There. The fire is going.', 'Now I need a filling for my pies: three cooked shrimp.',
-        me('Where do I get shrimp?'), 'Fenwick on the riverbank has a spare net. Catch them, cook them on a fireplace, and bring them to me.',
-        me('Any fireplace?'), 'Any fireplace in the village will do. Mine included.', run(() => { QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.'); })];
-      return [me('How is the oven?'), () => `Still cold. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}, dear.`, s === 2 ? 'Mara on the green has an axe for you.' : 'The young trees round the village chop easily.'];
+      if (cnt('Logs') >= 5) return [me("Got your five logs!"), 'Five logs! Look at you, all sawdust and pride.',
+        run(() => { for (let i = 0; i < 5; i++) removeItem('Logs'); }), "There — the fire's going!", "Now I need a filling for my pies. Three cooked shrimp.",
+        me("Where do I get shrimp?"), "Fenwick, down on the riverbank. He's got a spare net. Catch 'em, cook 'em on a fireplace, and bring 'em here.",
+        me("Any fireplace?"), "Any one in the village. Mine included.", run(() => { QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.'); })];
+      return [me("How's the oven?"), () => `Still cold, dear. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}.`, s === 2 ? "Mara on the green's got an axe for you." : 'The young trees round the village chop nice and easy.'];
     }
     if (s <= 5) {
-      if (cnt('Shrimp') >= 3) return [me('Three cooked shrimp, as promised.'), 'Oh, they smell wonderful. You did not burn them all, I am impressed.',
-        run(() => { for (let i = 0; i < 3; i++) removeItem('Shrimp'); }), me('Is that everything?'), 'Almost. The oven door has come off its hinge. Dunmore the smith can fix it, but he needs a bronze bar.',
-        me('And where do I get a bronze bar?'), 'Gertrude at the quarry will lend you a pickaxe. Copper and tin, smelted together. You will see.',
+      if (cnt('Shrimp') >= 3) return [me("Three cooked shrimp, as promised."), "Ooh, they smell wonderful! And you didn't burn them all. I'm impressed.",
+        run(() => { for (let i = 0; i < 3; i++) removeItem('Shrimp'); }), me("Is that everything?"), "Nearly. The oven door's come off its hinge. Dunmore can fix it, but he'll need a bronze bar.",
+        me("And where do I get one of those?"), "Gertrude, up at the quarry. She'll lend you a pickaxe. Copper and tin, melted down together — you'll see.",
         run(() => { QUEST.hw = 6; questStep('Get a pickaxe from Gertrude at the quarry.'); })];
-      return [me('I am still working on the shrimp.'), () => `I need three cooked shrimp. You have ${cnt('Shrimp')}.`, s === 4 ? 'Fenwick on the riverbank has a spare net.' : 'Cook them on a fireplace: there is one in every cottage.'];
+      return [me("Still working on the shrimp."), () => `I need three cooked ones, dear. You've got ${cnt('Shrimp')}.`, s === 4 ? "Fenwick on the riverbank has a spare net." : "Cook 'em on a fireplace — there's one in every cottage."];
     }
-    if (s <= 7) return [me('About the hinge...'), 'Dunmore needs a bronze bar to fix it, dear.', s === 6 ? 'Gertrude at the quarry will lend you a pickaxe.' : 'Mine copper and tin, smelt them at the furnace in the smithy, and give the bar to Dunmore.'];
-    if (s === 8) return [me('Dunmore fixed your oven door.'), 'He did! The door shuts, the fire roars, and the whole village smells of bread again.',
-      'You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer.', me('I had a lot of help.'),
-      'This is for you: a villager\'s cloak, with our oak and river on the back. You are one of us now.', run(completeHeartyWelcome)];
+    if (s <= 7) return [me("About that hinge..."), "Dunmore needs a bronze bar to fix it, dear.", s === 6 ? "Gertrude at the quarry will lend you a pickaxe." : "Mine some copper and tin, smelt them at the smithy furnace, and take the bar to Dunmore."];
+    if (s === 8) return [me("Dunmore's fixed your oven door!"), "He has! The door shuts, the fire's roaring, and the whole village smells of bread again.",
+      "You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer!", me("I had a lot of help."),
+      "Here — this is for you. A villager's cloak, with our oak and river on the back. You're one of us now.", run(completeHeartyWelcome)];
   }
-  if (name === 'Mara' && s === 2) return [me('Brenna sent me. She said you might have an axe.'),
-    () => hasItem(AXE_NAME) ? 'You already have an axe! Then you are ahead of most.' : 'Brenna sent you? Then this one is on the house. Do not tell anyone, I have a reputation.',
-    run(() => { giveTool(AXE_NAME, AXE_ICON); }), me('Thank you!'), 'Five logs, was it? The young trees round the green chop easily. Off you go.',
+  if (name === 'Mara' && s === 2) return [me("Brenna sent me. Said you might have an axe?"),
+    () => hasItem(AXE_NAME) ? "You've already got one! Then you're ahead of most." : "Brenna sent you? Then this one's on the house. Don't tell anyone — I've a reputation.",
+    run(() => { giveTool(AXE_NAME, AXE_ICON); }), me("Thanks, Mara!"), "Five logs, was it? The young trees round the green chop easy. Off you go.",
     run(() => { QUEST.hw = 3; questStep('Chop 5 logs and bring them to Brenna.'); })];
-  if (name === 'Fenwick' && s === 4) return [me('Brenna needs shrimp. She said you might have a net.'),
-    () => hasItem('Small fishing net') ? 'You have a net already? Good. Mine has a hole in it anyway.' : 'Brenna wants shrimp? Here, take my old net.',
-    run(() => { giveTool('Small fishing net', NET_ICON); }), 'Caught a fish as long as a horse with that net, once.', me('Really?'), 'Ysolde says it was a boot. It was not a boot.',
-    'Shrimp come up by the bank. Dip the net, wait, lift. Then cook them, unless you like them wriggling.',
+  if (name === 'Fenwick' && s === 4) return [me("Brenna needs shrimp. She said you might have a net?"),
+    () => hasItem('Small fishing net') ? "Got a net already? Good. Mine's got a hole in it anyway." : "Brenna wants shrimp, does she? Here — take my old net.",
+    run(() => { giveTool('Small fishing net', NET_ICON); }), "Caught a fish as long as a horse with that net, once.", me("Really?"), "Ysolde says it was a boot. It wasn't a boot.",
+    "Shrimp come up by the bank. Dip the net, wait, lift. Then cook 'em — unless you like 'em wriggling.",
     run(() => { QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.'); })];
-  if (name === 'Gertrude' && s === 6) return [me('I need a bronze bar for Brenna\'s oven door.'),
-    () => hasItem(PICK_NAME) ? 'Got your own pickaxe? Good. Saves me a lecture.' : 'For Brenna\'s oven? Fine. Take this pickaxe. Bring it back sharp or do not bring it back.',
-    run(() => { giveTool(PICK_NAME, PICK_ICON); }), me('How do I make a bar?'), 'Copper over there, tin over here. One of each makes a bronze bar at the smithy furnace.',
+  if (name === 'Gertrude' && s === 6) return [me("I need a bronze bar for Brenna's oven door."),
+    () => hasItem(PICK_NAME) ? "Got your own pickaxe? Good. Saves me a lecture." : "For Brenna's oven? Fine. Take this pickaxe. Bring it back sharp, or don't bring it back.",
+    run(() => { giveTool(PICK_NAME, PICK_ICON); }), me("How do I make a bar?"), "Copper over there, tin over here. One of each at the smithy furnace makes a bronze bar.",
     run(() => { QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.'); })];
   if (name === 'Dunmore' && s === 7) {
-    if (cnt('Bronze bar') >= 1) return [me('I have a bronze bar for Brenna\'s oven hinge.'), 'A bronze bar? Leave it with me.',
-      run(() => { removeItem('Bronze bar'); }), '*clang* *clang* ...There. Good as new. Better, if I am honest.', me('That was quick.'),
-      'Keep this hammer. Every smith needs one, and you look like you might become one.', run(() => { giveTool('Hammer', HAMMER_ICON); QUEST.hw = 8; questStep('Go back to Brenna.'); })];
-    return [me('Brenna\'s oven door needs fixing.'), 'No bar, no hinge. Copper and tin, smelted at the furnace behind me.'];
+    if (cnt('Bronze bar') >= 1) return [me("Got a bronze bar for Brenna's oven hinge."), "Bronze bar, eh? Leave it with me.",
+      run(() => { removeItem('Bronze bar'); }), '*clang* *clang* ...There. Good as new. Better, if I\'m honest.', me("That was quick!"),
+      "Keep this hammer. Every smith needs one, and you've got the look of one.", run(() => { giveTool('Hammer', HAMMER_ICON); QUEST.hw = 8; questStep('Go back to Brenna.'); })];
+    return [me("Brenna's oven door needs fixing."), "No bar, no hinge. Copper and tin — smelt 'em at the furnace back there."];
   }
   return null;
 }
@@ -1513,7 +1513,7 @@ const MET = (() => { try { return JSON.parse(localStorage.getItem('itapMet')) ||
 // A script is a list of steps: a string is the NPC talking, { me } is you talking, { opts } is a choice of what to say,
 // { run } does something (hands over an item, moves a quest on) and carries straight on. A line can be a function, worked out when shown.
 // In an option, [label, steps, true] comes back to the same choice afterwards, so you can ask more than one question.
-const GREETINGS = ['Hello there.', 'Hi!', 'Good day.', 'How are you?', 'Hello.'];
+const GREETINGS = ['Hello there!', 'Hi!', 'Morning!', 'How are you doing?', 'Hey there.', 'Alright?', 'Afternoon!'];
 let dlgQ = [], dlgCur = null, dlgTalkT = 0;
 function openDialog(npc){
   let script = questTalk(npc.name);
@@ -1525,7 +1525,7 @@ function openDialog(npc){
       lines = set; MET[npc.name] = n + 1; try { localStorage.setItem('itapMet', JSON.stringify(MET)); } catch (e) {}
     }
     script = [{ me: GREETINGS[Math.floor(Math.random() * GREETINGS.length)] }, ...lines];
-    if (npc.choice) script.push(npc.choice.question, { opts: [['Yes, let me see what you have.', [{ run: () => { endDialog(); openShop(); } }]], ['No, thank you.', ['Suit yourself. Come back any time.']]] });
+    if (npc.choice) script.push(npc.choice.question, { opts: [['Sure, show me.', [{ run: () => { endDialog(); openShop(); } }]], ['Not right now, thanks.', ["Suit yourself. You know where I am."]]] });
   }
   dlg = npc; dlgQ = script.slice(); dlgTalkT = performance.now();
   setAct({ k: 'talk', n: npc.name, t: Date.now() });   // others see who you are talking to, so the NPC can face whoever spoke last
@@ -2481,91 +2481,91 @@ const sk = n => levelOf(SKILL_XP[n]);
 const VILLAGERS = [
   { name: 'Brenna', title: 'the baker', look: { gender: 'female', skin: 0xe8b48a, hair: 'long', hairCol: 0x7a4a22, shirt: 0xe8e0c0, pants: 0x6a4a3a },
     talks: [
-      ['Oh! A new face. Come in, come in, mind the flour.', 'I am Brenna. I bake for the whole village, whether they pay me or not.', 'Mostly not, if I am honest. Tobin owes me for a month of rolls.'],
-      ['Up before the sun again. The ovens do not light themselves.', 'If you are heading into the woods, take a crust. Hungry people make bad choices.'],
-      ['Have you met old Wenna on the green? She knows everything that happens here, and twice as much that does not.'],
-      ['People think baking is gentle work. Try kneading forty loaves before breakfast.'] ],
-    barks: ['Fresh bread!', 'Who keeps taking my rolling pin?', 'Mmm, smell that.'] },
+      ['Oh! A new face! Come in, come in — mind the flour, it gets everywhere.', "I'm Brenna. I bake for the whole village, whether they pay me or not.", "Mostly not, if I'm honest. Tobin's owed me for a month of rolls."],
+      ["Up before the sun again. Ovens don't light themselves, more's the pity.", "Heading into the woods? Take a crust. Hungry folk make daft choices."],
+      ["Have you met Wenna, out on the green? She knows everything that goes on here. And twice as much that doesn't."],
+      ["Folk think baking's gentle work. Try kneading forty loaves before breakfast, then tell me that."] ],
+    barks: ['Fresh bread!', "Who's had my rolling pin?", 'Mmm, smell that.'] },
   { name: 'Tobin', title: 'the woodcutter', look: { gender: 'male', skin: 0xd9a070, hair: 'short', hairCol: 0x2a1a10, shirt: 0x3a7a3a, pants: 0x4a3a2a },
     talks: [
-      ['Hm? Oh. Hello. Sorry, I was resting my eyes.', 'Tobin. I cut wood. Well, I teach the young ones to cut wood, which is the same thing but louder.'],
-      [() => `Woodcutting ${sk('Woodcutting')}, is it? ` + (sk('Woodcutting') < 15 ? 'Stick to the young trees for now. The oaks will laugh at you until level 15.' : 'Good arms. The oaks south of the hall are yours.'), 'Swing from the hips, not the shoulders.'],
-      ['Do not tell Brenna I said so, but I have been paying her in kindling. She has not noticed.'],
-      ['A good axe is only as good as your grip.', 'And a good grip is only as good as your lunch.'] ],
-    barks: ['*yawns*', 'Five more minutes...', 'Timber...'] },
+      ["Hm? Oh... hello. Sorry. I was just... resting my eyes.", "Tobin. I cut wood. Well... I teach the young ones to cut wood. Same thing, really. Just louder."],
+      [() => `Woodcutting ${sk('Woodcutting')}, eh? ` + (sk('Woodcutting') < 15 ? "Stick to the young trees for now... the oaks'll just laugh at you till you're 15." : "Good arms on you. The oaks south of the hall are all yours."), "Swing from the hips... not the shoulders. Saves your back."],
+      ["Don't tell Brenna, but... I've been paying her in kindling. She hasn't noticed. I think."],
+      ["A good axe is only as good as your grip...", "...and a good grip's only as good as your lunch. Speaking of which..."] ],
+    barks: ['*yawns*', 'Five more minutes...', 'Timber... probably.'] },
   { name: 'Ysolde', title: 'the angler', look: { gender: 'female', skin: 0xf0c8a0, hair: 'topknot', hairCol: 0x1a1a1a, shirt: 0x4a6aa0, pants: 0x3a3a4a },
     talks: [
-      ['Shh. You will scare the fish. They can hear you through the walls, you know.', 'They cannot really. But you never know.'],
-      [() => `Fishing ${sk('Fishing')}. ` + (sk('Fishing') < 5 ? 'Still learning which end of the rod goes in the water, then.' : 'You have the patience for it, I can tell.'), 'The shrimp come up near the bank in the morning.'],
-      ['Fenwick swears he caught a fish as long as a horse. He did not. I was there. It was a boot.'],
-      ['The river has moods. Today it is thinking.'] ],
-    barks: ['Quiet, please.', 'The river is calm today.', '*hums*'] },
+      ["Shh. You'll scare the fish. They can hear you through the walls, you know.", "...They can't, really. But you never know."],
+      [() => `Fishing ${sk('Fishing')}. ` + (sk('Fishing') < 5 ? "Still working out which end of the rod goes in the water, then." : "You've got the patience for it. I can tell."), "Shrimp come up by the bank first thing in the morning."],
+      ["Fenwick swears he caught a fish as long as a horse. He didn't. I was there. It was a boot."],
+      ["The river has moods. Today it's thinking."] ],
+    barks: ['Quiet, please.', "River's calm today.", '*hums*'] },
   { name: 'Dunmore', title: 'the smith', look: { gender: 'male', skin: 0xc08a60, hair: 'short', hairCol: 0x5a5a5a, shirt: 0x6a4a3a, pants: 0x2a2a2a },
     talks: [
-      ['Mind the sparks. And your eyebrows.', 'Dunmore. I keep the forge hot while the master is away. Eleven years, he has been away.'],
-      [() => `Smithing ${sk('Smithing')}. ` + (sk('Smithing') < 4 ? 'Bars first. Daggers after. Swords when you stop burning yourself.' : 'You are getting a feel for the hammer.'), 'Copper and tin, one of each, make a bronze bar.'],
-      ['Strike the bar while it still glows. Cold metal holds a grudge.'],
-      ['Gertrude brings me the best ore in the valley. Do not tell her. Her head is big enough already.'] ],
-    barks: ['*clang*', 'Hot work.', 'Where is my good hammer...'] },
+      ["Mind the sparks. And your eyebrows.", "Dunmore. I keep the forge hot while the master's away. Been away eleven years, mind."],
+      [() => `Smithing ${sk('Smithing')}. ` + (sk('Smithing') < 4 ? "Bars first. Daggers after. Swords when you've stopped burning yourself." : "You're getting the feel of the hammer."), "One copper, one tin. That's your bronze bar."],
+      ["Strike it while it glows. Cold metal holds a grudge."],
+      ["Gertrude brings me the best ore in the valley. Don't tell her. Her head's big enough already."] ],
+    barks: ['*clang*', 'Hot work, this.', "Where's my good hammer got to..."] },
 ];
 // the people outside, each with their own place, manner and things to say
 const TOWNSFOLK = [
   { name: 'Aldric', title: 'the guard', x: 11, z: 16, rad: 1.5, hat: 'helm',
     look: { gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0x8a6a3a, shirt: 0x8a9099, pants: 0x3a3a44 },
     talks: [
-      ['Halt. State your business.', '...Exploring, you say? Fine. Everyone is exploring. Nobody is ever smuggling.', 'Welcome to the village. Keep to the paths and keep your axe pointed at trees.'],
-      ['Quiet day. I like quiet days. Quiet days mean nobody needs a guard.', 'Which is worrying, when you think about it.'],
-      ['Goblins have been seen past the western woods. Probably nothing. Probably.'],
-      ['I once stood here for nine hours without blinking. Pip says it does not count because I was asleep.'] ],
+      ["Halt. State your business.", "...Exploring. Of course. Everyone's exploring. Nobody's ever smuggling.", "Welcome to the village. Keep to the paths, and keep that axe pointed at trees."],
+      ["Quiet day. I like quiet days. Quiet days mean nobody needs a guard.", "Which is worrying, now I think about it."],
+      ["Goblins have been seen past the western woods. Probably nothing.", "...Probably."],
+      ["I once stood here nine hours without blinking. Pip says it doesn't count because I was asleep. Pip is wrong."] ],
     barks: ['All quiet.', 'Move along.', '*straightens helmet*'] },
   { name: 'Wenna', title: 'the old gossip', x: -30, z: 13.8, rad: 0.01, sit: true,
     look: { gender: 'female', skin: 0xe8c39c, hair: 'topknot', hairCol: 0xd8d8d8, shirt: 0x6a5a8a, pants: 0x4a3a5a },
     talks: [
-      ['Come here, dear, sit, sit. Let me look at you.', 'Hm. You will do. I am Wenna. I have lived on this green since before the well was dug.', 'If you want to know anything about anyone, ask me. If you want to keep a secret, do not tell me.'],
-      ['Did you hear? Tobin has been paying Brenna in kindling. She knows. She just likes kindling.'],
-      ['Aldric snores at his post. Everyone knows. We let him think we do not.'],
-      ['Lyra sings the same three songs. They are good songs. But it is the same three.', 'Do not tell her I said so. Actually, do. She could use a fourth.'] ],
-    barks: ['In my day...', 'Ooh, who is that?', 'My knees!'] },
+      ["Come here, dear, sit, sit. Let me have a look at you.", "Hm. You'll do. I'm Wenna. I've lived on this green since before they dug the well.", "Want to know anything about anyone? Ask me. Want to keep a secret? Then don't tell me, dear."],
+      ["Did you hear? Tobin's been paying Brenna in kindling. Oh, she knows. She just likes kindling."],
+      ["Aldric snores at his post. Everyone knows. We let him think we don't."],
+      ["Lyra sings the same three songs. Lovely songs! But it's the same three.", "Don't tell her I said so. Actually... do. She could use a fourth."] ],
+    barks: ['In my day...', "Ooh, who's that?", 'Oh, my knees!'] },
   { name: 'Pip', title: 'the village kid', x: -40, z: 3, rad: 4.5, child: true,
     look: { gender: 'male', skin: 0xf1cba0, hair: 'short', hairCol: 0xc0442a, shirt: 0xd8a030, pants: 0x4a5a8a },
     talks: [
-      ['Are you an ADVENTURER? You look like an adventurer. Have you fought a dragon?', 'No? Have you fought a goose? Geese are worse.'],
-      ['I can run all the way round the well forty times. Watch! ...Okay I will do it later.'],
-      ['When I grow up I am going to be a guard like Aldric, except awake.'],
-      ['Mara gave me a sweet for not touching the pickaxes. I touched one a little.'] ],
-    barks: ['Wheee!', 'Bet you cannot catch me!', 'Tag, you are it!'] },
+      ["Are you an ADVENTURER?! You look like an adventurer! Have you fought a dragon?!", "No? Have you fought a GOOSE? Geese are worse. Way worse."],
+      ["I can run round the well forty times! Watch! ...Okay, I'll do it later."],
+      ["When I grow up I'm gonna be a guard like Aldric! Except awake."],
+      ["Mara gave me a sweet for not touching the pickaxes! I touched one a little. Shh!"] ],
+    barks: ['Wheee!', "Bet you can't catch me!", "Tag, you're it!"] },
   { name: 'Lyra', title: 'the bard', x: -41.5, z: 2.5, rad: 1.2,
     look: { gender: 'female', skin: 0xc9955f, hair: 'long', hairCol: 0x2a1a10, shirt: 0x2a7a6a, pants: 0x5a2a4a },
     talks: [
-      ['A traveller! At last, an audience that has not heard my songs.', 'I am Lyra. I sing of heroes. You are not one yet, but I am patient.'],
-      ['Oh, the river runs and the axes swing, and the baker bakes, and the smith goes ding.', 'It is a work in progress.'],
-      ['Wenna says I only know three songs. I know four. The fourth is the third one, faster.'],
-      [() => `Total level ${Object.keys(SKILL_XP).reduce((t, n) => t + sk(n), 0)}? I will write you a verse when it reaches fifty.`] ],
-    barks: ['La la laaa...', '*strums*', 'Oh, the river runs...'] },
+      ["A traveller! At last, someone who hasn't heard my songs yet!", "I'm Lyra. I sing of heroes. You're not one yet, but I'm patient."],
+      ["♪ Oh, the river runs and the axes swing, and the baker bakes, and the smith goes ding... ♪", "...It's a work in progress."],
+      ["Wenna says I only know three songs. I know four! The fourth's the third one, just faster."],
+      [() => `Total level ${Object.keys(SKILL_XP).reduce((t, n) => t + sk(n), 0)}? Get to fifty and I'll write you a verse. Promise.`] ],
+    barks: ['La la laaa...', '*strums*', '♪ Oh, the river runs... ♪'] },
   { name: 'Hobb', title: 'the forester', x: -82, z: 11, rad: 2.5, hat: 'hood',
     look: { gender: 'male', skin: 0xd09a70, hair: 'short', hairCol: 0x5a3a1a, shirt: 0x4a6a3a, pants: 0x5a4a2a },
     talks: [
-      ['Careful in these woods. The roots are older than the village and twice as grumpy.', 'Hobb. I look after the trees. Mostly I apologise to them after Tobin\'s students have been through.'],
-      ['Every tree you cut grows back. That is the deal. Take what you need, not what you can.'],
-      ['Something has been stealing my socks. I blame goblins. I blame goblins for most things.'],
-      ['Listen. Hear that? No? Me neither. That is what a healthy forest sounds like.'] ],
-    barks: ['Mind the roots.', 'Hello, old oak.', 'Who goes there?'] },
+      ["Careful in these woods. The roots are older than the village, and twice as grumpy.", "Hobb. I look after the trees. Mostly I apologise to them after Tobin's lot have been through."],
+      ["Every tree you cut grows back. That's the deal. Take what you need, not what you can."],
+      ["Something's been nicking my socks. I blame goblins. I blame goblins for most things, to be fair."],
+      ["Listen. Hear that? No? Me neither. That's what a healthy forest sounds like."] ],
+    barks: ['Mind the roots.', 'Morning, old oak.', 'Who goes there?'] },
   { name: 'Gertrude', title: 'the miner', x: 39, z: 28, rad: 2, hat: 'helm',
     look: { gender: 'female', skin: 0xb07a50, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x7a5a3a, pants: 0x3a3a3a },
     talks: [
-      ['You here to mine or to stand about? Both are fine. One of them pays.', 'Gertrude. Copper on that side, tin on this side. Do not mix them up, I will know.'],
-      [() => `Mining ${sk('Mining')}. ` + (sk('Mining') < 5 ? 'Soft hands. They will harden.' : 'Not bad. Not good either. Keep at it.')],
-      ['Dunmore pretends he does not like my ore. He keeps the best pieces on a shelf. I have seen it.'],
-      ['Rocks grow back, you know. Slowly. Like my patience.'] ],
-    barks: ['*clink*', 'Good rock, this.', 'Copper over there!'] },
+      ["You here to mine or to stand about? Either's fine. Only one of 'em pays.", "Gertrude. Copper on that side, tin on this. Don't mix 'em up — I'll know."],
+      [() => `Mining ${sk('Mining')}. ` + (sk('Mining') < 5 ? "Soft hands. They'll harden." : "Not bad. Not good, either. Keep at it.")],
+      ["Dunmore pretends he doesn't rate my ore. Keeps the best bits on a shelf, he does. I've seen it."],
+      ["Rocks grow back, y'know. Slowly. Like my patience."] ],
+    barks: ['*clink*', 'Good rock, this.', "Copper's over there!"] },
   { name: 'Fenwick', title: 'the old fisherman', x: -33, z: -9.6, rad: 1, hat: 'straw',
     look: { gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0xb8b8b8, shirt: 0x5a6a7a, pants: 0x4a3a2a },
     talks: [
-      ['Ahh, a new angler. Pull up a rock.', 'Fenwick. Forty years on this bank. Caught a fish as long as a horse, once.', 'Ysolde says it was a boot. Ysolde was not wearing her spectacles.'],
-      ['The trick is to think like a fish. Do not think too hard, though. Fish do not.'],
-      ['Some days the river gives, some days it takes. Mostly it takes my bait.'],
-      ['Shrimp by the bank. Bigger things further out. Much bigger. Horse-sized, some of them.'] ],
-    barks: ['Bite, you rascal...', '*casts line*', 'Horse-sized, I tell you.'] },
+      ["Ahh, a new angler! Pull up a rock, pull up a rock.", "Fenwick. Forty years on this bank, man and boy. Caught a fish as long as a horse once, you know.", "Ysolde says it was a boot. Ysolde wasn't wearing her spectacles, was she?"],
+      ["Trick is to think like a fish. Don't think too hard, mind. Fish don't."],
+      ["Some days the river gives, some days it takes. Mostly it takes my bait, the cheeky thing."],
+      ["Shrimp by the bank. Bigger ones further out. Much bigger. Horse-sized, some of 'em. I've seen 'em!"] ],
+    barks: ['Bite, you rascal...', '*casts line*', 'Horse-sized, I tell you!'] },
 ];
 
 const fishSpots = [];
@@ -2969,21 +2969,21 @@ function buildFarm(){
 const FARMERS = [
   { name: 'Bram', title: 'the farmer', rad: 3, hat: 'straw', look: { gender: 'male', skin: 0xd9a070, hair: 'short', hairCol: 0x7a4a22, shirt: 0xc8a060, pants: 0x3a5a8a },
     talks: [
-      ['Mornin\'! You\'ve got the look of someone who has never been chased by a goose.', 'Bram. This is my farm, and those are my girls: Buttercup and Clover. Best cows in the valley.', 'Don\'t tell Hilde I said that. She says the hens are the best. She\'s wrong, but don\'t tell her.'],
-      ['See those cabbages? Grew them myself. Talked to every one of them. A cabbage likes a bit of conversation.'],
-      ['Truffle got into Brenna\'s flour sacks last week. Came out looking like a ghost. Squealed for an hour.'],
-      ['Woolsley the sheep has been looking at me funny. I think he knows I sold his winter coat to Mara.'],
-      ['Hobb says there are goblins in the western woods. If they come for my cabbages, they\'ll meet my pitchfork.'] ],
+      ["Mornin'! You've the look of someone who's never been chased by a goose.", "Bram. This is my farm, and those are my girls — Buttercup and Clover. Best cows in the valley.", "Don't tell Hilde I said that. She reckons the hens are the best. She's wrong, but don't tell her."],
+      ["See them cabbages? Grew 'em myself. Talked to every single one. A cabbage likes a bit of chat."],
+      ["Truffle got into Brenna's flour sacks last week. Came out looking like a ghost. Squealed for an hour."],
+      ["Woolsley's been giving me funny looks. Reckon he knows I sold his winter coat to Mara."],
+      ["Hobb says there's goblins out west. If they come for my cabbages, they'll meet my pitchfork."] ],
     barks: ['Come on, girls!', 'Lovely cabbages.', '*whistles*', 'Who left the gate open?'] },
   { name: 'Hilde', title: 'the farmer\'s wife', rad: 1.6, hat: 'straw', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xd8b058, shirt: 0xe8e0d0, pants: 0x5a7a40 },
     after: (sp) => { const a = sp.userData.chibi.arms; a[0].rotation.x = -0.9; a[1].rotation.x = -0.9; },
     talks: [
-      ['Mind the chickens, they bite. Well, they peck. Same thing, if you ask Pecks.', 'Hilde. I run this farm. Bram thinks he runs it, which is sweet.', 'Four hens: Henrietta, Pecks, Dot and Ginger. Ginger thinks she\'s a rooster. We let her.'],
-      ['Eggs every morning, rain or shine. More reliable than Bram, and they don\'t talk to the cabbages.'],
-      ['If Bram tells you his cows are the best in the valley, smile and nod. It keeps him happy.'],
-      ['Brenna gets her eggs from me. Wenna gets her gossip from me. Everyone gets something from Hilde.'],
-      ['Henrietta laid a double-yolker yesterday. She has been insufferable ever since.'] ],
-    barks: ['Here, chick chick chick!', 'Ginger, get down from there.', 'Eggs! Fresh eggs!', 'Bram!'] },
+      ["Mind the chickens — they bite. Well, peck. Same thing, if you ask Pecks.", "I'm Hilde. I run this farm. Bram thinks he runs it, which is sweet.", "Four hens: Henrietta, Pecks, Dot and Ginger. Ginger thinks she's a rooster. We let her."],
+      ["Eggs every morning, rain or shine. More reliable than Bram, and they don't talk to the cabbages."],
+      ["If Bram tells you his cows are the best in the valley, smile and nod. Keeps him happy."],
+      ["Brenna gets her eggs from me. Wenna gets her gossip from me. Everyone gets something from Hilde."],
+      ["Henrietta laid a double-yolker yesterday. She's been insufferable ever since."] ],
+    barks: ['Here, chick chick chick!', 'Ginger, get down from there!', 'Eggs! Fresh eggs!', 'Bram!'] },
 ];
 // farm animals make a sound now and then: one at a time, every half a minute or so, and only when you are nearby
 let nextAnimalSound = performance.now() + 20000;
@@ -3377,12 +3377,12 @@ function populateVillage(){
   // the fishing spot in the river
   addWorldNpc(-40, 14, { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
     talks: [
-      ['Welcome, traveller! Mind the mud on the green, it has eaten better boots than yours.', 'I am Mara. Axes, pickaxes, hammers: if it helps you work, I sell it.', 'Fair prices. Mostly fair. Fair-ish.'],
-      ['Back again? Business must be good. Or bad. Either way, you need tools.'],
-      ['Pip keeps touching my pickaxes. I keep a sweet in my pocket to bribe him away.'],
-      ['Dunmore buys his hammers from me and then tells everyone he made them himself.'] ],
+      ["Welcome, traveller! Mind the mud on the green — it's eaten better boots than yours.", "I'm Mara. Axes, pickaxes, hammers, nets... if it helps you work, I sell it.", "Fair prices. Mostly fair. Fair-ish."],
+      ["Back again? Business must be good. Or bad. Either way, you'll be needing tools."],
+      ["Pip keeps touching my pickaxes. I keep a sweet in my pocket to bribe him off."],
+      ["Dunmore buys his hammers from me, then tells everyone he made 'em himself."] ],
     barks: ['Tools! Fine tools!', 'Axes, sharp as gossip!', 'Best prices on the green!'],
-    choice: { question: 'Would you like to see my shop?' } });
+    choice: { question: 'Fancy a look at what I\'ve got?' } });
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
   const off = (x, z, r) => offPath(x, z, 1.1 + r);
