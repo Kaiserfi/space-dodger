@@ -70,7 +70,20 @@
   .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
   .npcBub { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 6; max-width: 200px; padding: 4px 9px; background: rgba(250, 244, 228, .94); border: 1px solid #a07a3c; border-radius: 10px; color: #3a2a14; font: italic 13px Georgia, serif; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.35); white-space: nowrap; }
   .chatBub:before { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-top: 6px solid rgba(12, 10, 8, .9); border-bottom: 0; z-index: 1; }
-  #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
+  #shopPanel[hidden] { display: none !important; }
+  #dialog { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); width:min(640px, 94vw); min-height:150px; box-sizing:border-box; padding:12px 16px; z-index:10;
+    display:flex; align-items:center; gap:12px; background:linear-gradient(180deg,#302414,#16100a); border:2px solid #a07a3c; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,220,150,.15);
+    color:#e8efe6; font-family:Georgia,serif; cursor:pointer; user-select:none; -webkit-user-select:none; }
+  #dialog[hidden] { display:none; }
+  .dHead { width:110px; height:110px; flex:none; }
+  .dHead img { width:110px; height:110px; display:block; }
+  .dMid { flex:1; text-align:center; }
+  .dName { color:#f0c35a; font-size:18px; font-weight:bold; margin-bottom:6px; }
+  .dText { font-size:17px; line-height:1.38; }
+  .dCont { margin-top:8px; font-size:14px; color:#9ec0f0; }
+  .dOpts div { font-size:17px; line-height:1.3; padding:4px 8px; margin:2px auto; border-radius:5px; cursor:pointer; max-width:460px; }
+  .dOpts div:hover { background:rgba(240,195,90,.14); color:#ffe08a; }
+  @media (max-width: 560px) { .dHead, .dHead img { width:64px; height:64px; } .dText, .dOpts div { font-size:15px; } .dOpts div { padding:8px; } }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
   #questTrack b { color:#f0c35a; font-weight:normal; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
@@ -138,11 +151,10 @@
   <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Anvil</span><button id="smithClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
   <div id="smithList" style="padding:6px 10px"></div>
 </div>
-<div id="dialog" hidden style="position:fixed;left:50%;bottom:90px;transform:translateX(-50%);width:min(420px,92vw);background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:8px;padding:10px 14px;z-index:10;font:15px Georgia,serif;color:#e8efe6;">
-  <div id="dlgName" style="color:#f0c35a;margin-bottom:4px"></div>
-  <div id="dlgText"></div>
-  <div style="text-align:right;margin-top:8px"><button id="dlgNext" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 12px;cursor:pointer">Continue</button></div>
-  <div id="dlgChoice" hidden style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button id="dlgYes" style="font:inherit;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:5px;padding:4px 14px;cursor:pointer">Yes</button><button id="dlgNo" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:4px 14px;cursor:pointer">No</button></div>
+<div id="dialog" hidden>
+  <div class="dHead" id="dHeadL"></div>
+  <div class="dMid"><div class="dName" id="dlgName"></div><div class="dText" id="dlgText"></div><div class="dOpts" id="dlgOpts"></div><div class="dCont" id="dlgCont">Click here to continue</div></div>
+  <div class="dHead" id="dHeadR"></div>
 </div>
 <div id="chatBox" style="position:fixed;left:12px;bottom:46px;width:min(320px,70vw);z-index:9;font:13px Georgia,serif;color:#e8efe6;">
   <div id="chatLog" style="background:rgba(0,0,0,.55);border-radius:6px 6px 0 0;padding:6px 8px;height:110px;overflow-y:auto;"></div>
@@ -1328,7 +1340,7 @@ applySettings();
 addEventListener('pointerdown', startMusic, { once: true });   // browsers only allow sound after a click
 
 // ----- talking: a line at a time, in the panel at the bottom -----
-let dlg = null, dlgLine = 0;
+let dlg = null;
 // ----- quests -----
 // A Hearty Welcome: Brenna's oven is cold. A walk round the village that hands out each tool as it is needed.
 const QUEST = { hw: 0, qp: 0 };
@@ -1336,36 +1348,60 @@ const HW_STEPS = 9;   // 9 means done
 const cnt = n => countOf(n);
 function giveTool(name, icon){ if (hasItem(name)) return false; addItem(name, 1, icon); return true; }
 function questTalk(name){
-  const s = QUEST.hw;
-  const say = (...l) => l;
+  const s = QUEST.hw, me = t => ({ me: t }), run = f => ({ run: f });
   if (s >= HW_STEPS) return null;
-  if (name === 'Aldric' && s === 0) { QUEST.hw = 1; questStep('Talk to Brenna the baker, in the far west cottage.');
-    return say('Halt. State your business.', '...A newcomer with no tools and no plan. Wonderful.', 'Go and see Brenna the baker, in the far west cottage. Her oven has gone cold and she will not stop talking about it.', 'Help her out, and maybe this village will make something of you.'); }
+  if (name === 'Aldric' && s === 0) return [me('Hello. I am new here.'), 'Halt. State your business.', me('I just told you. I am new here.'),
+    '...A newcomer with no tools and no plan. Wonderful.', 'Go and see Brenna the baker, in the far west cottage. Her oven has gone cold and she will not stop talking about it.',
+    { opts: [['I will go and help her.', ['Good. Maybe this village will make something of you yet.']],
+             ['Why can she not fix it herself?', ['She is a baker, not a woodcutter. Nor a fisherman. Nor a smith. You will see.']]] },
+    run(() => { QUEST.hw = 1; questStep('Talk to Brenna the baker, in the far west cottage.'); })];
   if (name === 'Brenna') {
-    if (s <= 1) { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.');
-      return say('Oh, thank goodness, a helper! My oven has gone stone cold.', 'I need five good logs to get it going again. You will want an axe for that.', 'Mara on the green has a spare one. Tell her I sent you. And mind the flour on your way out.'); }
+    if (s <= 1) return ['Oh! A new face. Come in, come in, mind the flour.', me('Aldric sent me. He said your oven has gone cold.'),
+      'Stone cold, and the whole village is waiting on bread.',
+      { opts: [
+        ['I will help. What do you need?', ['Bless you. I need five good logs to get it going again.', 'You will want an axe for that. Mara on the green has a spare one. Tell her I sent you.',
+          me('Five logs. I can do that.'), 'And mind the flour on your way out.', run(() => { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.'); })]],
+        ['What happened to your oven?', ['The fire went out in the night, and I have no wood left to light it.', 'Tobin usually brings me kindling, but Tobin is usually asleep.'], true],
+        ['Tell me about the village.', ['Small, friendly, nosy. Wenna on the green knows everyone\'s business.', 'Mara sells tools, Dunmore keeps the forge hot, and the farm out east keeps us all fed.'], true],
+        ['Sorry, I am busy right now.', ['Oh. Well, come back when you have a moment. The oven is not going anywhere.']] ] }];
     if (s <= 3) {
-      if (cnt('Logs') >= 5) { for (let i = 0; i < 5; i++) removeItem('Logs'); addXp('Woodcutting', 0); QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.');
-        return say('Five logs! Look at you, all sawdust and pride.', 'The fire is going. Now I need a filling for my pies: three cooked shrimp.', 'Fenwick on the riverbank has a spare net. Catch them, cook them on a fireplace, and bring them to me. Any fireplace in the village will do.'); }
-      return say(`Still ${5 - cnt('Logs')} log${5 - cnt('Logs') === 1 ? '' : 's'} short, dear.`, s === 2 ? 'Mara on the green has an axe for you.' : 'The young trees round the village chop easily. Tobin can tell you more, if he is awake.'); }
+      if (cnt('Logs') >= 5) return [me('I have your five logs.'), 'Five logs! Look at you, all sawdust and pride.',
+        run(() => { for (let i = 0; i < 5; i++) removeItem('Logs'); }), 'There. The fire is going.', 'Now I need a filling for my pies: three cooked shrimp.',
+        me('Where do I get shrimp?'), 'Fenwick on the riverbank has a spare net. Catch them, cook them on a fireplace, and bring them to me.',
+        me('Any fireplace?'), 'Any fireplace in the village will do. Mine included.', run(() => { QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.'); })];
+      return [me('How is the oven?'), () => `Still cold. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}, dear.`, s === 2 ? 'Mara on the green has an axe for you.' : 'The young trees round the village chop easily.'];
+    }
     if (s <= 5) {
-      if (cnt('Shrimp') >= 3) { for (let i = 0; i < 3; i++) removeItem('Shrimp'); QUEST.hw = 6; questStep('Get a pickaxe from Gertrude at the quarry.');
-        return say('Oh, they smell wonderful. You did not burn them all, I am impressed.', 'One more thing. The oven door has come off its hinge. Dunmore the smith can fix it, but he needs a bronze bar.', 'Gertrude at the quarry will lend you a pickaxe. Copper and tin, smelted together. You will see.'); }
-      return say(`I need three cooked shrimp. You have ${cnt('Shrimp')}.`, s === 4 ? 'Fenwick on the riverbank has a spare net.' : 'Cook them on a fireplace: there is one in every cottage, mine included.'); }
-    if (s <= 7) return say('The hinge, dear. Dunmore needs a bronze bar to fix it.', s === 6 ? 'Gertrude at the quarry will lend you a pickaxe.' : 'Mine copper and tin, smelt them at the furnace in the smithy, and give the bar to Dunmore.');
-    if (s === 8) { setTimeout(completeHeartyWelcome, 0);
-      return say('Dunmore came by. The door shuts, the fire roars, and the whole village smells of bread again.', 'You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer.', 'This is for you: a villager\'s cloak, with our oak and river on the back. You are one of us now.'); }
+      if (cnt('Shrimp') >= 3) return [me('Three cooked shrimp, as promised.'), 'Oh, they smell wonderful. You did not burn them all, I am impressed.',
+        run(() => { for (let i = 0; i < 3; i++) removeItem('Shrimp'); }), me('Is that everything?'), 'Almost. The oven door has come off its hinge. Dunmore the smith can fix it, but he needs a bronze bar.',
+        me('And where do I get a bronze bar?'), 'Gertrude at the quarry will lend you a pickaxe. Copper and tin, smelted together. You will see.',
+        run(() => { QUEST.hw = 6; questStep('Get a pickaxe from Gertrude at the quarry.'); })];
+      return [me('I am still working on the shrimp.'), () => `I need three cooked shrimp. You have ${cnt('Shrimp')}.`, s === 4 ? 'Fenwick on the riverbank has a spare net.' : 'Cook them on a fireplace: there is one in every cottage.'];
+    }
+    if (s <= 7) return [me('About the hinge...'), 'Dunmore needs a bronze bar to fix it, dear.', s === 6 ? 'Gertrude at the quarry will lend you a pickaxe.' : 'Mine copper and tin, smelt them at the furnace in the smithy, and give the bar to Dunmore.'];
+    if (s === 8) return [me('Dunmore fixed your oven door.'), 'He did! The door shuts, the fire roars, and the whole village smells of bread again.',
+      'You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer.', me('I had a lot of help.'),
+      'This is for you: a villager\'s cloak, with our oak and river on the back. You are one of us now.', run(completeHeartyWelcome)];
   }
-  if (name === 'Mara' && s === 2) { const gave = giveTool(AXE_NAME, AXE_ICON); QUEST.hw = 3; questStep('Chop 5 logs and bring them to Brenna.');
-    return say(gave ? 'Brenna sent you? Then this one is on the house. Do not tell anyone, I have a reputation.' : 'You already have an axe? Then you are ahead of most.', 'Five logs, was it? The young trees round the green chop easily. Off you go.'); }
-  if (name === 'Fenwick' && s === 4) { const gave = giveTool('Small fishing net', NET_ICON); QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.');
-    return say(gave ? 'Brenna wants shrimp? Here, take my old net. Caught a fish as long as a horse with that net.' : 'You have a net already? Good. Mine has a hole in it anyway.', 'Shrimp come up by the bank. Dip the net, wait, lift. Then cook them, unless you like them wriggling.'); }
-  if (name === 'Gertrude' && s === 6) { const gave = giveTool(PICK_NAME, PICK_ICON); QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.');
-    return say(gave ? 'For Brenna\'s oven? Fine. Take this pickaxe. Bring it back sharp or do not bring it back.' : 'Got your own pickaxe? Good. Saves me a lecture.', 'Copper over there, tin over here. One of each makes a bronze bar at the smithy furnace.'); }
+  if (name === 'Mara' && s === 2) return [me('Brenna sent me. She said you might have an axe.'),
+    () => hasItem(AXE_NAME) ? 'You already have an axe! Then you are ahead of most.' : 'Brenna sent you? Then this one is on the house. Do not tell anyone, I have a reputation.',
+    run(() => { giveTool(AXE_NAME, AXE_ICON); }), me('Thank you!'), 'Five logs, was it? The young trees round the green chop easily. Off you go.',
+    run(() => { QUEST.hw = 3; questStep('Chop 5 logs and bring them to Brenna.'); })];
+  if (name === 'Fenwick' && s === 4) return [me('Brenna needs shrimp. She said you might have a net.'),
+    () => hasItem('Small fishing net') ? 'You have a net already? Good. Mine has a hole in it anyway.' : 'Brenna wants shrimp? Here, take my old net.',
+    run(() => { giveTool('Small fishing net', NET_ICON); }), 'Caught a fish as long as a horse with that net, once.', me('Really?'), 'Ysolde says it was a boot. It was not a boot.',
+    'Shrimp come up by the bank. Dip the net, wait, lift. Then cook them, unless you like them wriggling.',
+    run(() => { QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.'); })];
+  if (name === 'Gertrude' && s === 6) return [me('I need a bronze bar for Brenna\'s oven door.'),
+    () => hasItem(PICK_NAME) ? 'Got your own pickaxe? Good. Saves me a lecture.' : 'For Brenna\'s oven? Fine. Take this pickaxe. Bring it back sharp or do not bring it back.',
+    run(() => { giveTool(PICK_NAME, PICK_ICON); }), me('How do I make a bar?'), 'Copper over there, tin over here. One of each makes a bronze bar at the smithy furnace.',
+    run(() => { QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.'); })];
   if (name === 'Dunmore' && s === 7) {
-    if (cnt('Bronze bar') >= 1) { removeItem('Bronze bar'); giveTool('Hammer', HAMMER_ICON); QUEST.hw = 8; questStep('Go back to Brenna.');
-      return say('A bronze bar for Brenna\'s hinge? Leave it with me.', '*clang* *clang* ...There. Good as new. Better, if I am honest.', 'Keep that hammer. Every smith needs one, and you look like you might become one.'); }
-    return say('No bar, no hinge. Copper and tin, smelted at the furnace behind me.'); }
+    if (cnt('Bronze bar') >= 1) return [me('I have a bronze bar for Brenna\'s oven hinge.'), 'A bronze bar? Leave it with me.',
+      run(() => { removeItem('Bronze bar'); }), '*clang* *clang* ...There. Good as new. Better, if I am honest.', me('That was quick.'),
+      'Keep this hammer. Every smith needs one, and you look like you might become one.', run(() => { giveTool('Hammer', HAMMER_ICON); QUEST.hw = 8; questStep('Go back to Brenna.'); })];
+    return [me('Brenna\'s oven door needs fixing.'), 'No bar, no hinge. Copper and tin, smelted at the furnace behind me.'];
+  }
   return null;
 }
 function questStep(text){ showToast('Quest updated: ' + text); renderStats(); saveNow && saveNow(false); }
@@ -1408,7 +1444,6 @@ function completeHeartyWelcome(){
   renderStats(); saveNow(false);
 }
 let quietLevelUps = false;
-function closeDialogBox(){ dlg = null; document.getElementById('dialog').hidden = true; document.getElementById('dlgChoice').hidden = true; document.getElementById('dlgNext').hidden = false; }
 // the quest-complete fanfare: a rising pickup, "ta-ta-ta TAAA, da-da", then a held chord with bell sparkles
 function questJingle(){
   const ctx = audio(); if (!ctx) return; const t0 = ctx.currentTime + 0.05;
@@ -1438,49 +1473,99 @@ function questJingle(){
 // villagers remember how often you have talked to them: the first chats run in order, then they pick something to say.
 // A line can be a function, so it can mention your skills.
 const MET = (() => { try { return JSON.parse(localStorage.getItem('itapMet')) || {}; } catch (e) { return {}; } })();
+// ----- conversations: one box that switches between whoever is speaking -----
+// A script is a list of steps: a string is the NPC talking, { me } is you talking, { opts } is a choice of what to say,
+// { run } does something (hands over an item, moves a quest on) and carries straight on. A line can be a function, worked out when shown.
+// In an option, [label, steps, true] comes back to the same choice afterwards, so you can ask more than one question.
+const GREETINGS = ['Hello there.', 'Hi!', 'Good day.', 'How are you?', 'Hello.'];
+let dlgQ = [], dlgCur = null, dlgTalkT = 0;
 function openDialog(npc){
-  const ql = questTalk(npc.name);
-  if (ql) { npc.lines = ql; dlg = npc; dlgLine = 0; showDialog(); return; }
-  if (npc.talks) {
-    const n = MET[npc.name] || 0;
-    const set = n < npc.talks.length ? npc.talks[n] : npc.talks[1 + Math.floor(Math.random() * Math.max(1, npc.talks.length - 1))] || npc.talks[0];
-    npc.lines = set.map(l => typeof l === 'function' ? l() : l);
-    MET[npc.name] = n + 1; try { localStorage.setItem('itapMet', JSON.stringify(MET)); } catch (e) {}
+  let script = questTalk(npc.name);
+  if (!script) {
+    let lines = npc.lines || [];
+    if (npc.talks) {
+      const n = MET[npc.name] || 0;
+      const set = n < npc.talks.length ? npc.talks[n] : npc.talks[1 + Math.floor(Math.random() * Math.max(1, npc.talks.length - 1))] || npc.talks[0];
+      lines = set; MET[npc.name] = n + 1; try { localStorage.setItem('itapMet', JSON.stringify(MET)); } catch (e) {}
+    }
+    script = [{ me: GREETINGS[Math.floor(Math.random() * GREETINGS.length)] }, ...lines];
+    if (npc.choice) script.push(npc.choice.question, { opts: [['Yes, let me see what you have.', [{ run: () => { endDialog(); openShop(); } }]], ['No, thank you.', ['Suit yourself. Come back any time.']]] });
   }
-  dlg = npc; dlgLine = 0; showDialog();
+  dlg = npc; dlgQ = script.slice(); dlgTalkT = performance.now();
+  setAct({ k: 'talk', n: npc.name, t: Date.now() });   // others see who you are talking to, so the NPC can face whoever spoke last
+  nextStep();
 }
-function showDialog(){
-  document.getElementById('dlgName').textContent = dlg.name + (dlg.title ? ', ' + dlg.title : '');
-  document.getElementById('dlgText').textContent = dlg.lines[dlgLine];
-  document.getElementById('dlgNext').hidden = false;
-  document.getElementById('dlgChoice').hidden = true;
+function nextStep(){
+  while (dlg) {
+    const st = dlgQ.shift();
+    if (st === undefined) { endDialog(); return; }
+    if (st && st.run) { st.run(); continue; }
+    dlgCur = st; renderStep(); return;
+  }
+}
+function headImg(look, hat, facing){ return `<img src="${chatHead(look, hat, facing)}" alt="">`; }
+function renderStep(){
+  const st = dlgCur, L = document.getElementById('dHeadL'), R = document.getElementById('dHeadR');
+  const name = document.getElementById('dlgName'), text = document.getElementById('dlgText'), opts = document.getElementById('dlgOpts'), cont = document.getElementById('dlgCont');
+  opts.innerHTML = ''; L.innerHTML = ''; R.innerHTML = '';
+  if (st.opts) {
+    name.textContent = 'Select an option'; text.textContent = ''; cont.style.display = 'none';
+    opts.innerHTML = st.opts.map((o, i) => `<div data-o="${i}">${o[0]}</div>`).join('');
+  } else if (st.me !== undefined) {
+    name.textContent = ONLINE.name || 'You'; text.textContent = typeof st.me === 'function' ? st.me() : st.me; cont.style.display = '';
+    R.innerHTML = headImg(look, null, -0.45);
+  } else {
+    name.textContent = dlg.name; text.textContent = typeof st === 'function' ? st() : st; cont.style.display = '';
+    L.innerHTML = headImg(dlg.look || {}, dlg.hat, 0.45);
+  }
   document.getElementById('dialog').hidden = false;
 }
-function showChoice(){
-  document.getElementById('dlgText').textContent = dlg.choice.question;
-  document.getElementById('dlgNext').hidden = true;
-  document.getElementById('dlgChoice').hidden = false;
+function pickOption(i){
+  const st = dlgCur; if (!st || !st.opts || !st.opts[i]) return;
+  const [label, steps, back] = st.opts[i];
+  dlgQ = [{ me: label }, ...(steps || []), ...(back ? [st] : []), ...dlgQ];
+  nextStep();
 }
-function closeDialog(){
-  dlg = null;
+function endDialog(){
+  dlg = null; dlgQ = []; dlgCur = null;
   document.getElementById('dialog').hidden = true;
-  document.getElementById('dlgChoice').hidden = true;
-  document.getElementById('dlgNext').hidden = false;
+  if (ONLINE.act && ONLINE.act.k === 'talk') setAct(null);
 }
-function nextLine(){
-  if (!dlg) return;
-  dlgLine++;
-  if (dlgLine < dlg.lines.length) showDialog();
-  else if (dlg.choice) showChoice();
-  else closeDialog();
+const closeDialog = endDialog, closeDialogBox = endDialog;   // older names for the same thing
+document.getElementById('dialog').addEventListener('click', e => {
+  const o = e.target.closest('[data-o]');
+  if (o) { pickOption(+o.dataset.o); return; }
+  if (dlgCur && !dlgCur.opts) nextStep();
+});
+addEventListener('keydown', e => {
+  if (!dlg || (document.activeElement && document.activeElement.id === 'chatInput')) return;
+  if (e.key === ' ') { e.preventDefault(); if (dlgCur && !dlgCur.opts) nextStep(); }
+  else if (/^[1-9]$/.test(e.key) && dlgCur && dlgCur.opts) pickOption(+e.key - 1);
+});
+// chat heads: the speaker's own model, drawn once into a small picture and kept
+const headCache = {};
+let headRenderer = null;
+function chatHead(look, hat, facing){
+  const key = JSON.stringify([look, hat || '', facing]);
+  if (headCache[key]) return headCache[key];
+  const S = 220;
+  if (!headRenderer) { headRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); headRenderer.setSize(S, S); headRenderer.toneMapping = THREE.ACESFilmicToneMapping; headRenderer.outputColorSpace = THREE.SRGBColorSpace; }
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight(0xfff4e0, 0x504030, 1.4));
+  const key2 = new THREE.DirectionalLight(0xffe8c8, 1.6); key2.position.set(2, 3, 4); sc.add(key2);
+  const fig = makeChibi({ gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, ...look });
+  if (hat) wearHat(fig, hat);
+  fig.scale.setScalar(1); fig.rotation.y = facing || 0; poseChibi(fig, 'idle', 0); fig.userData.chibi.body.position.y = 0; sc.add(fig);
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+  if (hat) { cam.position.set(0, 2.15, 4.1); cam.lookAt(0, 1.98, 0); } else { cam.position.set(0, 2.05, 3.4); cam.lookAt(0, 1.85, 0); }
+  headRenderer.render(sc, cam);
+  return headCache[key] = headRenderer.domElement.toDataURL();
 }
-document.getElementById('dlgNext').addEventListener('click', nextLine);
-document.getElementById('dlgYes').addEventListener('click', () => { closeDialog(); openShop(); });
-document.getElementById('dlgNo').addEventListener('click', closeDialog);
-// walking away mid-conversation ends it
+// while you talk, you face whoever you are talking to
+function updateDialog(){ if (dlg && hero && !walkTarget) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, dlg.x, dlg.z); }
 function checkDialogDistance(){
   if (!dlg || !hero) return;
-  if (Math.hypot(hero.position.x - dlg.x, hero.position.z - dlg.z) > 4.5) closeDialog();
+  if (Math.hypot(hero.position.x - dlg.x, hero.position.z - dlg.z) > 5.5) endDialog();
 }
 
 // ----- chat: type a line and press Enter; it goes in the log, and shows in yellow above the adventurer -----
@@ -2567,10 +2652,22 @@ function addWander(sp, rec, frames, o){
   WANDER.push({ sp, rec, frames, lx: o.lx, lz: o.lz, rad: o.rad, box: o.box, k: o.k, ox: o.ox, oz: o.oz,
     tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1, yaw: 0, parentYaw: o.parentYaw || 0 });
 }
+// who is talking to this NPC: you, or another player; if more than one, whoever started talking most recently
+function talkerOf(rec){
+  let best = null;
+  if (dlg === rec && hero) best = { x: hero.position.x, z: hero.position.z, t: dlgTalkT };
+  const now = performance.now();
+  for (const id in remote) { const r = remote[id];
+    if (r.act && r.act.k === 'talk' && r.act.n === rec.name && now - r.actAt < ACT_TIME.talk && (!best || r.actAt > best.t))
+      best = { x: r.sprite.position.x, z: r.sprite.position.z, t: r.actAt }; }
+  return best;
+}
 function updateWanderers(){
   for (const w of WANDER) {
     const sp = w.sp, x = sp.position.x, z = sp.position.z;
     let moving = false;
+    const talker = talkerOf(w.rec);   // someone is talking to them: stand still and face whoever spoke to them last
+    if (talker) w.pause = Math.max(w.pause, 40);
     if (w.pause > 0) w.pause--;
     else {
       const dx = w.tx - x, dz = w.tz - z, dist = Math.hypot(dx, dz);
@@ -2583,12 +2680,14 @@ function updateWanderers(){
     }
     // face the way they walk; standing, they turn to look at the hero when the hero comes close
     const wx = w.ox + sp.position.x * w.k, wz = w.oz + sp.position.z * w.k;
-    if (moving) w.yaw = Math.atan2(w.dx, w.dz);
+    if (talker) w.yaw = yawTo(wx, wz, talker.x, talker.z) - (w.parentYaw || 0);
+    else if (moving) w.yaw = Math.atan2(w.dx, w.dz);
     else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z) - (w.parentYaw || 0);
     turnChibi(sp, w.yaw || 0);
     poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90);
     if (w.rec.after) w.rec.after(sp, moving, w.tick);
-    if (w.rec.name === 'Wenna') { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.45); c2.body.position.y = 0.02; c2.body.rotation.x = -0.05; c2.arms.forEach(a => a.rotation.x = -0.5); sp.rotation.y = 0; }
+    if (w.rec.name === 'Wenna') { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.45); c2.body.position.y = 0.02; c2.body.rotation.x = -0.05; c2.arms.forEach(a => a.rotation.x = -0.5); sp.rotation.y = 0;
+      if (talker) c2.head.rotation.y = Math.max(-1, Math.min(1, Math.atan2(Math.sin(yawTo(wx, wz, talker.x, talker.z)), Math.cos(yawTo(wx, wz, talker.x, talker.z))))); }   // seated, she turns her head
     w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
   }
 }
@@ -2599,7 +2698,7 @@ function addNpc(g, h, lx, lz, npc){
   sp.position.set(lx, 0, lz);
   g.add(sp);
   const p = h.toWorld(lx, lz);
-  const rec = { kind: 'npc', name: npc.name, title: npc.title, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], x: p.x, z: p.z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', name: npc.name, title: npc.title, look: npc.look, hat: npc.hat, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], x: p.x, z: p.z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
@@ -2633,7 +2732,7 @@ function addWorldNpc(x, z, npc){
   const sp = makeChibi(npc.look);
   sp.position.set(x, 0, z);
   scene.add(sp);
-  const rec = { kind: 'npc', name: npc.name, title: npc.title, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', name: npc.name, title: npc.title, look: npc.look, hat: npc.hat, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
@@ -3178,8 +3277,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600 };
+const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking' };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -3248,7 +3347,8 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    } else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -3301,6 +3401,7 @@ function frame(){
   updateBarks();
   updateAnimals();
   checkDialogDistance();
+  updateDialog();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
   updateDoor();
   turnWithKeys();
