@@ -329,6 +329,9 @@ for (let i = 0; i < gp.count; i++) {
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
 }
 groundGeo.computeVertexNormals();
+// past the edge of the map is an empty black void, until more land is added there
+const voidPlane = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }));
+voidPlane.position.y = -3; scene.add(voidPlane);
 // tint the grass with gentle patches of light and dark green
 {
   const cols = new Float32Array(gp.count * 3), c = new THREE.Color(), a = new THREE.Color(0x4f9a3c), b = new THREE.Color(0x7fae46), d = new THREE.Color(0x3c7a34);
@@ -3329,6 +3332,7 @@ function buildGrass(){
       vec4 m = texture2D(mask, (root - mBox.xy) / mBox.zw);
       float allow = smoothstep(0.35, 0.75, m.r);
       if (abs(root.y + 14.0) < 2.8) allow = 0.0;
+      if (abs(root.x) > 119.5 || abs(root.y) > 119.5) allow = 0.0;   // nothing grows past the edge of the map
       float fade = smoothstep(R, R * 0.72, length(rel));
       float tall = mix(0.38, 0.62, m.g) * off.z * allow * fade;
       float h = position.y;
