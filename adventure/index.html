@@ -1605,16 +1605,55 @@ function toggleDoor(rec){
   if (!rec.open && i < 0) solidBoxes.push(rec.box);
 }
 // a villager stands inside a house; clicking them walks over and opens their dialogue
+// villagers wander a little around their spot: inside their house, or round the green for Mara
+const WANDER = [];
+function npcFrames(look){
+  return [0, 1, 0, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
+}
+function pickWanderTarget(w){
+  for (let i = 0; i < 12; i++) {
+    const tx = w.lx + (Math.random() * 2 - 1) * w.rad, tz = w.lz + (Math.random() * 2 - 1) * w.rad;
+    if (tx < w.box.x0 || tx > w.box.x1 || tz < w.box.z0 || tz > w.box.z1) continue;
+    if (hardHit(w.ox + tx * w.k, w.oz + tz * w.k)) continue;
+    w.tx = tx; w.tz = tz; return;
+  }
+  w.tx = w.sp.position.x; w.tz = w.sp.position.z;   // nowhere better: stay put
+}
+function addWander(sp, rec, frames, o){
+  WANDER.push({ sp, rec, frames, lx: o.lx, lz: o.lz, rad: o.rad, box: o.box, k: o.k, ox: o.ox, oz: o.oz,
+    tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1 });
+}
+function updateWanderers(){
+  for (const w of WANDER) {
+    const sp = w.sp, x = sp.position.x, z = sp.position.z;
+    let moving = false;
+    if (w.pause > 0) w.pause--;
+    else {
+      const dx = w.tx - x, dz = w.tz - z, dist = Math.hypot(dx, dz);
+      if (dist < 0.03) { pickWanderTarget(w); w.pause = 150 + Math.random() * 240; }   // arrived: rest, then pick somewhere else
+      else {
+        const step = Math.min(dist, 0.02), nx = x + dx / dist * step, nz = z + dz / dist * step;
+        if (hardHit(w.ox + nx * w.k, w.oz + nz * w.k)) { w.tx = x; w.tz = z; }   // something in the way
+        else { sp.position.set(nx, 0, nz); moving = true; w.face = dx < 0 ? -1 : 1; w.tick++; }
+      }
+    }
+    const idx = moving ? Math.floor(w.tick / 10) % 4 : 0;
+    if (sp.material.map !== w.frames[idx]) sp.material.map = w.frames[idx];
+    w.frames.forEach(t => { t.repeat.x = w.face; t.offset.x = w.face < 0 ? 1 : 0; });   // face the way they walk
+    w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
+  }
+}
 function addNpc(g, h, lx, lz, npc){
-  const tex = new THREE.CanvasTexture(adventurerCanvas(npc.look));
-  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.5 }));
+  const frames = npcFrames(npc.look);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
   sp.center.set(0.5, 0); sp.scale.set(2.1, 2.8, 1); sp.position.set(lx, 0, lz); sp.renderOrder = 10;
   g.add(sp);
   const p = h.toWorld(lx, lz);
   const rec = { kind: 'npc', name: npc.name, lines: npc.lines, x: p.x, z: p.z, s: 0.7, state: 'standing' };
   sp.userData = { action: 'Talk', name: npc.name, rec };
   trees.push(sp);
+  const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
+  addWander(sp, rec, frames, { lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
 }
 // the smithy's furnace and anvil, inside its walls
 function furnishSmithy(g, h){
@@ -1645,14 +1684,14 @@ function roadPath(pts, w = 1.6){
 }
 // a villager who stands out in the open, with a choice at the end of her talk
 function addWorldNpc(x, z, npc){
-  const tex = new THREE.CanvasTexture(adventurerCanvas(npc.look));
-  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.5 }));
+  const frames = npcFrames(npc.look);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
   sp.center.set(0.5, 0); sp.scale.set(3, 4, 1); sp.position.set(x, 0, z); sp.renderOrder = 10;
   scene.add(sp);
   const rec = { kind: 'npc', name: npc.name, lines: npc.lines, choice: npc.choice, x, z, s: 0.7, state: 'standing' };
   sp.userData = { action: 'Talk', name: npc.name, rec };
   trees.push(sp);
+  addWander(sp, rec, frames, { lx: x, lz: z, rad: 2.5, box: { x0: x - 2.5, x1: x + 2.5, z0: z - 2.5, z1: z + 2.5 }, k: 1, ox: 0, oz: 0 });
 }
 function populateVillage(){
   // the village green, in the open ground west of the hall
@@ -1986,6 +2025,7 @@ function frame(){
   updateHouses();
   updateFish();
   updateOnline();
+  updateWanderers();
   checkDialogDistance();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
   updateDoor();
