@@ -175,7 +175,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 12 && z > -10 && z < 52) || (x > 28 && x < 62 && z > 12 && z < 56);   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -10 && z < 60);   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
 }
 groundGeo.computeVertexNormals();
@@ -1658,7 +1658,7 @@ function roadBetween(x1, z1, x2, z2, w = 1.4){
   ROADS.push([x1, z1, x2, z2]);
   const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz);
   const r = new THREE.Mesh(new THREE.PlaneGeometry(w, len).rotateX(-Math.PI / 2), mat(0xa48a5e));
-  r.position.set((x1 + x2) / 2, 0.3, (z1 + z2) / 2); r.rotation.y = Math.atan2(dx, dz);   // 0.3 is above the highest hill, so no part of the road is buried
+  r.position.set((x1 + x2) / 2, 0.03, (z1 + z2) / 2);   // lies on the flat ground, so it replaces the grass r.rotation.y = Math.atan2(dx, dz);   // 0.3 is above the highest hill, so no part of the road is buried
   town.add(r);
 }
 // if the adventurer has ended up inside a solid box (a door shutting on them, say), slide them to the nearest clear spot
@@ -1754,7 +1754,7 @@ function roadPath(pts, w = 1.6){
   for (let i = 0; i < pts.length - 1; i++) roadBetween(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w);
   pts.forEach(([x, z]) => {
     const c = new THREE.Mesh(new THREE.CircleGeometry(w / 2, 12).rotateX(-Math.PI / 2), mat(0xa48a5e));
-    c.position.set(x, 0.3, z); town.add(c);
+    c.position.set(x, 0.03, z); town.add(c);
   });
 }
 // a villager who stands out in the open, with a choice at the end of her talk
