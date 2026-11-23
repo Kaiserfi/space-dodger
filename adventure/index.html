@@ -65,6 +65,7 @@
   .muteBtn { width:30px; height:30px; flex:none; padding:0; background:#1d150b; border:1px solid #5b4324; border-radius:5px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .muteBtn svg { width:18px; height:18px; }
   .muteBtn.muted { border-color:#d64b3c; }
+  .grassOpts { display:flex; gap:4px; } .grassOpts button { font:12px Georgia,serif; color:#e8efe6; background:#1d150b; border:1px solid #5b4324; border-radius:5px; padding:4px 8px; cursor:pointer; } .grassOpts button.on { color:#f0c35a; border-color:#f0c35a; }
   #online[hidden] { display: none !important; }
   .chatBub { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 6; max-width: 240px; padding: 5px 9px; margin-top: -9px; background: rgba(12, 10, 8, .9); border: 1px solid #5b4324; border-radius: 8px; color: #ffe14d; font: 14px Georgia, serif; line-height: 1.3; text-align: center; word-wrap: break-word; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
   .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
@@ -142,6 +143,7 @@
   <div class="bagHead">Settings</div>
   <div class="setRow"><button class="muteBtn" id="muteMusic" title="Mute music"></button><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100"></div>
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
+  <div class="setRow"><label style="width:auto;flex:1">Grass</label><div class="grassOpts" id="grassOpts"><button data-g="off">Off</button><button data-g="low">Low</button><button data-g="high">High</button></div></div>
 </div>
 <div id="gearPanel" hidden>
   <div class="bagHead">Gear</div>
@@ -1298,7 +1300,7 @@ document.getElementById('tabGear').addEventListener('click', () => { togglePanel
 // ----- village music: a soft loop made from synthesised notes (no sound files) -----
 const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
 // the volume settings, saved in this browser
-const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false };
+const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false, grass: (matchMedia('(pointer: coarse)').matches ? 'low' : 'high') };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
 const musicLevel = () => SETTINGS.musicMute ? 0 : SETTINGS.music / 100;
 const MUSIC_BEAT = 60 / 76 / 2;                         // an eighth note at 76 beats a minute
@@ -1352,8 +1354,10 @@ function applySettings(){
     b.innerHTML = SPEAKER(m); b.classList.toggle('muted', m); b.title = m ? 'Unmute' : 'Mute';
     document.getElementById('vol' + id).value = SETTINGS[k];
   }
+  document.querySelectorAll('#grassOpts button').forEach(b => b.classList.toggle('on', b.dataset.g === SETTINGS.grass));
   try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
+document.getElementById('grassOpts').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; SETTINGS.grass = b.dataset.g; applySettings(); if (window.buildGrass) buildGrass(); });
 for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
   document.getElementById('vol' + id).addEventListener('input', e => { SETTINGS[k] = +e.target.value; SETTINGS[k + 'Mute'] = false; applySettings(); });
   document.getElementById('mute' + id).addEventListener('click', () => { SETTINGS[k + 'Mute'] = !SETTINGS[k + 'Mute']; applySettings(); });
@@ -2619,7 +2623,9 @@ const cobbleTex = (() => {
   }
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 })();
+const COBBLES = [];
 function cobbleDisc(x, z, rad){
+  COBBLES.push([x, z, rad]);
   const t = cobbleTex.clone(); t.needsUpdate = true; t.repeat.set(rad / 1.5, rad / 1.5);
   const m = new THREE.Mesh(new THREE.CircleGeometry(rad, 40).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   m.position.set(x, 0.045, z); town.add(m);
@@ -2998,6 +3004,96 @@ function animalSound(kind, vol = 1){
   if (kind === 'pig') { voice(0, 0.2, 150, 120, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); voice(0.3, 0.26, 130, 105, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); }
   if (kind === 'chicken') { [0, 0.17, 0.36, 0.5].forEach((s0, i) => voice(s0, 0.07, 600 + i * 20, 760, [[1100, 6, 1.4], [2300, 7, 0.5]])); voice(0.78, 0.38, 520, 880, [[900, 5, 1.3], [1900, 6, 0.7]]); }
 }
+// ----- real grass: instanced blades that sway in the wind and bend away from anyone walking through -----
+// A fixed set of blades always surrounds the camera: each blade wraps round the square it lives in, so the field never ends.
+// A mask painted over the map keeps grass off paths, floors, the green, the river and the farm field, and shortens it round the village.
+let grass = null;
+const GRASS_Q = { low: { n: 16000, r: 20 }, high: { n: 48000, r: 30 } };
+const GM = { x0: -124, x1: 74, z0: -20, z1: 66, ppu: 2 };
+let grassMask = null;
+function grassMaskTexture(){
+  if (grassMask) return grassMask;
+  const W = (GM.x1 - GM.x0) * GM.ppu, H = (GM.z1 - GM.z0) * GM.ppu, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const X = x => (x - GM.x0) * GM.ppu, Z = z => (z - GM.z0) * GM.ppu;
+  // red: where grass may grow; green: how tall (the village is kept trimmed, the wilds grow long)
+  g.fillStyle = 'rgb(255,255,0)'; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgb(255,150,0)'; g.fillRect(X(-100), Z(-12), (62 + 100) * GM.ppu, 74 * GM.ppu);
+  g.fillStyle = '#000';
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const pth of PATHS) { g.lineWidth = (pth.w + 0.9) * GM.ppu; g.beginPath(); pth.pts.forEach(([x, z], i) => i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))); g.stroke(); }
+  for (const [x, z, r] of COBBLES) { g.beginPath(); g.arc(X(x), Z(z), (r + 0.3) * GM.ppu, 0, 7); g.fill(); }
+  for (const b of solidBoxes) if (b.x1 - b.x0 < 60) g.fillRect(X(b.x0 - 0.3), Z(b.z0 - 0.3), (b.x1 - b.x0 + 0.6) * GM.ppu, (b.z1 - b.z0 + 0.6) * GM.ppu);
+  for (const h of houses) g.fillRect(X(h.x - h.hw - 0.5), Z(h.z - h.hd - 0.5), (h.hw * 2 + 1) * GM.ppu, (h.hd * 2 + 1) * GM.ppu);
+  g.fillRect(X(HALL.x - 7.5 * HS), Z(HALL.z - 6.5 * HS), 15 * HS * GM.ppu, 13 * HS * GM.ppu);
+  g.fillRect(X(47.5), Z(3.5), 11 * GM.ppu, 8 * GM.ppu);   // the farm field
+  g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
+  const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return grassMask = t;
+}
+function buildGrass(){
+  if (grass) { scene.remove(grass.mesh); grass.mesh.geometry.dispose(); grass.mesh.material.dispose(); grass = null; }
+  const q = GRASS_Q[SETTINGS.grass]; if (!q) return;
+  const N = q.n, R = q.r;
+  const blade = [-0.05,0,0, 0.05,0,0, -0.04,0.33,0, 0.04,0.33,0, -0.025,0.66,0, 0.025,0.66,0, 0,1,0];
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(blade, 3)); geo.setIndex([0,1,2, 2,1,3, 2,3,4, 4,3,5, 4,5,6]);
+  const off = new Float32Array(N * 4);
+  for (let i = 0; i < N; i++) off.set([(Math.random() * 2 - 1) * R, (Math.random() * 2 - 1) * R, 0.75 + Math.random() * 0.5, Math.random() * 6.283], i * 4);
+  geo.setAttribute('off', new THREE.InstancedBufferAttribute(off, 4)); geo.instanceCount = N;
+  const pushers = []; for (let i = 0; i < 12; i++) pushers.push(new THREE.Vector3(9999, 0, 9999));
+  const uni = { time: { value: 0 }, center: { value: new THREE.Vector2() }, R: { value: R }, mask: { value: grassMaskTexture() },
+    mBox: { value: new THREE.Vector4(GM.x0, GM.z0, GM.x1 - GM.x0, GM.z1 - GM.z0) }, push: { value: pushers },
+    sun: { value: new THREE.Vector3(0.5, 0.75, 0.35).normalize() } };
+  const mat2 = new THREE.ShaderMaterial({ uniforms: uni, side: THREE.DoubleSide, fog: false, vertexShader: `
+    attribute vec4 off; uniform float time, R; uniform vec2 center; uniform sampler2D mask; uniform vec4 mBox; uniform vec3 push[12];
+    varying vec3 vCol; varying float vFog;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec2 rel = mod(off.xy - center + R, 2.0 * R) - R;   // wrap round the camera
+      vec2 root = center + rel;
+      vec2 cell = floor(root * 3.0);   // jitter by world position, so blades do not visibly slide as the square moves
+      root += (vec2(hash(cell), hash(cell + 7.1)) - 0.5) * 0.25;
+      vec4 m = texture2D(mask, (root - mBox.xy) / mBox.zw);
+      float allow = smoothstep(0.35, 0.75, m.r);
+      if (abs(root.y + 14.0) < 2.8) allow = 0.0;
+      float fade = smoothstep(R, R * 0.72, length(rel));
+      float tall = mix(0.38, 0.62, m.g) * off.z * allow * fade;
+      float h = position.y;
+      float ca = cos(off.w), sa = sin(off.w);
+      vec3 p = vec3(position.x * ca, h * tall, position.x * sa);
+      float gust = sin(root.x * 0.15 + time * 1.3) * 0.5 + sin(root.y * 0.2 + time * 0.9) * 0.3 + sin((root.x + root.y) * 0.6 + time * 3.0) * 0.12;
+      vec2 bend = vec2(0.9, 0.4) * gust * 0.3;
+      for (int i = 0; i < 12; i++) { vec2 aw = root - push[i].xz; float dd = length(aw); bend += normalize(aw + 0.0001) * smoothstep(1.2, 0.15, dd) * 0.9; }
+      float k = h * h;
+      p.xz += bend * k * tall; p.y -= min(length(bend), 1.2) * k * tall * 0.45;
+      float n = sin(root.x * 0.11 + cos(root.y * 0.07) * 2.0) * 0.5 + sin(root.y * 0.13 - root.x * 0.05) * 0.5;
+      vec3 base = mix(vec3(0.31, 0.6, 0.24), n > 0.0 ? vec3(0.5, 0.68, 0.27) : vec3(0.24, 0.48, 0.2), abs(n) * 0.7) * (0.85 + hash(cell + 3.3) * 0.25);
+      vCol = pow(base * (0.5 + 0.55 * h), vec3(2.2));   // to linear light, like the rest of the scene
+      vec4 wp = vec4(p + vec3(root.x, 0.0, root.y), 1.0);
+      vec4 mv = viewMatrix * wp; vFog = smoothstep(50.0, 120.0, -mv.z);
+      gl_Position = projectionMatrix * mv;
+    }`, fragmentShader: `varying vec3 vCol; varying float vFog; void main(){ gl_FragColor = vec4(mix(vCol, pow(vec3(0.81, 0.9, 0.92), vec3(2.2)), vFog), 1.0);
+#include <colorspace_fragment>
+}` });
+  const mesh = new THREE.Mesh(geo, mat2); mesh.frustumCulled = false; mesh.userData.shadowSet = true; scene.add(mesh);
+  grass = { mesh, uni, t0: performance.now() };
+}
+window.buildGrass = buildGrass;
+const grassV = new THREE.Vector3();
+function updateGrass(){
+  if (!grass) return;
+  const u = grass.uni; u.time.value = (performance.now() - grass.t0) / 1000;
+  u.center.value.set(target.x, target.z);
+  // who pushes the grass aside: you, the nearest other players, villagers and animals
+  const list = [];
+  if (hero) list.push(hero.position);
+  for (const id in remote) list.push(remote[id].sprite.position);
+  for (const b of BARKERS) list.push(b.sp.getWorldPosition(new THREE.Vector3()));
+  for (const a of ANIMALS) list.push(a.g.position);
+  const c = hero ? hero.position : target;
+  list.sort((a, b) => a.distanceToSquared(c) - b.distanceToSquared(c));
+  for (let i = 0; i < 12; i++) { const v = list[i]; if (v) u.push.value[i].set(v.x, 0, v.z); else u.push.value[i].set(9999, 0, 9999); }
+}
 // remarks villagers say out loud now and then when you are nearby
 const BARKERS = [], NPC_SPOTS = [];
 let nextBark = performance.now() + 5000;
@@ -3088,6 +3184,7 @@ function populateVillage(){
   addFishSpot(-36, -13.4);
   scatterOaks();
   paintPaths();
+  setTimeout(buildGrass, 0);   // once the farm, props and paths are all placed
   decoratePaths();
 }
 // random oaks through the village: a seeded spread, kept clear of buildings, roads, the hall, the well and the river
@@ -3479,6 +3576,7 @@ function frame(){
   updateWanderers();
   updateBarks();
   updateAnimals();
+  updateGrass();
   checkDialogDistance();
   updateDialog();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
