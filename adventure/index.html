@@ -1395,7 +1395,7 @@ function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
   const head = 0xcd7f32, handle = 0x7a4d22;   // bronze heads on both tools
   const line = (x0, y0, x1, y1, c) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i <= n; i++) rect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1, c); };
   const headDark = 0x8a5220;
-  // the axe has a broad blade. The pickaxe is full size: a long two-pixel handle with a curved bronze head across its end
+  // Tools are drawn at a real size for the 24x32 character (see CLAUDE.md). The pickaxe: a long two-pixel handle with a curved bronze head across its end
   const H = tool === 'pick'
     ? { up: () => { line(6, 11, 3, 2, handle); line(7, 11, 4, 2, handle);   // wound back over the shoulder
                     line(0, 4, 3, 1, head); line(4, 1, 8, 1, head); line(0, 5, 3, 2, headDark); line(4, 2, 7, 2, headDark); },
@@ -1403,8 +1403,12 @@ function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
                      line(19, 0, 22, 2, head); line(22, 3, 23, 8, head); line(18, 1, 21, 3, headDark); },
         down: () => { line(20, 15, 21, 24, handle); line(21, 15, 22, 24, handle);   // the strike: the point bites low
                       line(16, 24, 23, 24, head); line(16, 25, 15, 27, head); line(17, 25, 23, 25, headDark); rect(23, 23, 1, 1, head); } }
-    : { up: () => rect(2, 6, 3, 3, head), down: () => rect(22, 11, 2, 4, head), mid: () => rect(21, 10, 2, 3, head) };
-  const pick = tool === 'pick';
+    : { up: () => { line(6, 11, 3, 2, handle); line(7, 11, 4, 2, handle);   // the axe: the same long handle, with a broad flared blade
+                    rect(0, 1, 4, 4, head); rect(0, 5, 2, 1, head); rect(0, 0, 2, 1, head); line(0, 4, 3, 4, headDark); rect(4, 2, 1, 2, headDark); },
+        mid: () => { line(19, 13, 22, 4, handle); line(20, 13, 23, 4, handle);
+                     rect(19, 1, 5, 4, head); rect(18, 0, 2, 1, head); rect(18, 5, 2, 1, head); line(19, 4, 23, 4, headDark); },
+        down: () => { line(20, 15, 21, 25, handle); line(21, 15, 22, 25, handle);
+                      rect(18, 21, 4, 5, head); rect(17, 20, 1, 2, head); rect(17, 25, 1, 2, head); line(18, 25, 21, 25, headDark); } };
   if (a.hair === 'long') rect(7, 4, 4, 13, a.hairCol);
   // the far arm and leg sit behind the body
   rect(9, 14, 3, 6, a.shirt); rect(9, 20 + dyL, 3, 8, a.pants); rect(9, 28 + dyL, 4, 3, boots);
@@ -1424,10 +1428,10 @@ function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
   L.fillStyle = '#1a1a1a'; L.fillRect(16, 6, 2, 2);    // eye
   L.fillStyle = '#a0604a'; L.fillRect(15, 10, 2, 1);   // mouth
   // the near arm holds the axe and swings it level across the front: back, strike, recover
-  // (the pickaxe's long handle is drawn first, so the hand sits over it)
-  if (pose === 'up') { rect(8, 11, 5, 3, a.shirt); if (pick) H.up(); rect(6, 11, 3, 3, a.skin); if (!pick) { rect(5, 10, 1, 1, handle); rect(4, 9, 1, 1, handle); H.up(); } }
-  else if (pose === 'down') { rect(13, 13, 7, 3, a.shirt); if (pick) H.down(); rect(19, 13, 3, 3, a.skin); if (!pick) { rect(21, 14, 2, 1, handle); H.down(); } }
-  else { rect(13, 12, 6, 3, a.shirt); if (pick) H.mid(); rect(18, 12, 3, 3, a.skin); if (!pick) { rect(20, 13, 2, 1, handle); H.mid(); } }
+  // tools are full size: the tool is drawn first, so the hand sits over its handle
+  if (pose === 'up') { rect(8, 11, 5, 3, a.shirt); H.up(); rect(6, 11, 3, 3, a.skin); }
+  else if (pose === 'down') { rect(13, 13, 7, 3, a.shirt); H.down(); rect(19, 13, 3, 3, a.skin); }
+  else { rect(13, 12, 6, 3, a.shirt); H.mid(); rect(18, 12, 3, 3, a.skin); }
   return finishSprite(L, step);
 }
 
