@@ -860,17 +860,32 @@ function walkStart(point, then, replan = false){
   walkTarget = new THREE.Vector3(path[1].x, 0, path[1].z);
   walkQueue = path.slice(2).map(q => new THREE.Vector3(q.x, 0, q.z));
 }
-function creak(){
+// door creaks, like a floorboard: wood rubbing in tiny stick-slip catches, rung through a few woody tones.
+// Opening rises, closing falls. The catches are worked out once and kept.
+const creakBufs = {};
+function creakBuffer(ctx, open){
+  const key = open ? 'o' : 'c'; if (creakBufs[key]) return creakBufs[key];
+  const d = open ? 0.42 : 0.34, r0 = open ? 150 : 250, r1 = open ? 260 : 140, n = Math.floor(d * ctx.sampleRate);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate), x = buf.getChannelData(0);
+  let t = 0, seed = open ? 3 : 8; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (;;) { const k = t / d, rate = r0 + (r1 - r0) * k + 8 * Math.sin(k * 11); t += (1 / rate) * (0.85 + 0.3 * rnd());
+    const i = Math.floor(t * ctx.sampleRate); if (i >= n) break; x[i] += 0.6 + 0.4 * rnd(); }
+  for (let i = 0; i < n; i++) x[i] += (rnd() * 2 - 1) * 0.02;
+  return creakBufs[key] = buf;
+}
+function creak(open = true){
   try {
-    const c = audio(); if (!c) return;
-    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
-    o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.4);
-    g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-    o.connect(g); g.connect(sfxOut(c)); o.start(t); o.stop(t + 0.5);
+    sfx((ctx, t, out) => {
+      const src = ctx.createBufferSource(); src.buffer = creakBuffer(ctx, open); src.playbackRate.value = wobble();
+      const d = src.buffer.duration / src.playbackRate.value, env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, t); env.gain.linearRampToValueAtTime(1.6, t + d * 0.18); env.gain.setValueAtTime(1.6, t + d * 0.75); env.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      for (const [f, q, g] of [[760, 5, 1], [1450, 6, 0.7], [2600, 7, 0.35]]) { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const gg = ctx.createGain(); gg.gain.value = g; src.connect(bp); bp.connect(gg); gg.connect(env); }
+      env.connect(out); out.gain.value = 0.9; src.start(t); src.stop(t + d + 0.02);
+    });
   } catch (e) {}
 }
-function openDoor(){ if (doorOpen) return; doorOpen = true; doorTargetAngle = Math.PI / 2; creak(); }
-function closeDoor(){ if (!doorOpen) return; doorOpen = false; doorTargetAngle = 0; creak(); }
+function openDoor(){ if (doorOpen) return; doorOpen = true; doorTargetAngle = Math.PI / 2; creak(true); }
+function closeDoor(){ if (!doorOpen) return; doorOpen = false; doorTargetAngle = 0; creak(false); }
 // walk to the door's near side, open it, walk through, then it shuts again a few seconds later
 function useDoor(){
   if (!hero) return;
@@ -2759,6 +2774,7 @@ function toggleDoor(rec){
   rec.open = !rec.open;
   if (rec.open === false) unstick();   // never shut a door on the adventurer
   rec.pivot.rotation.y = rec.open ? -Math.PI / 2 : 0;
+  creak(rec.open);
   rec.leaf.userData.action = rec.open ? 'Close' : 'Open';
   const i = solidBoxes.indexOf(rec.box);
   if (rec.open && i >= 0) solidBoxes.splice(i, 1);
