@@ -1363,5 +1363,6 @@ function drawBoard() {
 
 (function loop(){ if (state === 'hub' && AC && !musicOn) playTrack('hub'); if (state.startsWith('snake')) snakeUpdate(); else if (state.startsWith('crawler')) crawlerUpdate(); else update(); draw(); requestAnimationFrame(loop); })();
 </script>
+<script src="update-check.js"></script>
 </body>
 </html>

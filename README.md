@@ -5,6 +5,8 @@ A 90s-style arcade shooter that runs right in your browser. Blast asteroids, cha
 ## Arcade menu
 The game opens on an **arcade menu** with a banner for each game. Choose one with ← / → (or tap the arrows) and press **SPACE** or tap the banner. From a game, **Esc** or the `< ARCADE` link goes back to the menu.
 
+When a newer version of the site is published, open pages notice within a minute and show a banner offering to refresh (ITAP Adventure saves your progress first). This lives in `update-check.js`.
+
 To add a game, add an entry to `GAMES` in `index.html` with its banner theme, title and a `start()` function.
 
 ## 🐍 Snake
