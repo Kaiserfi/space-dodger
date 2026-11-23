@@ -6,7 +6,8 @@
 <title>ITAP Adventure</title>
 <style>
   :root { color-scheme: dark; }
-  body { margin:0; background:#0d1410; color:#e8efe6; font-family: Georgia, serif; overflow:hidden; height:100vh; }
+  html, body { margin:0; height:100%; }
+  body { background:#0d1410; color:#e8efe6; font-family: Georgia, serif; overflow:hidden; height:100vh; height:100dvh; }
   canvas { display:block; touch-action:none; }
   #hint { position:fixed; left:12px; bottom:10px; font-size:13px; background:rgba(0,0,0,.5); padding:6px 10px; border-radius:6px; }
   #lookBtn { position:fixed; right:12px; top:12px; font-family:inherit; font-size:13px; color:#e8efe6; background:rgba(0,0,0,.6); border:1px solid #5b4324; border-radius:6px; padding:6px 10px; cursor:pointer; }
@@ -108,7 +109,7 @@
   </div>
 </div>
 <button id="logoutBtn" style="position:fixed;left:12px;top:92px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
-<div id="hint">Drag to turn the camera. Scroll or pinch to zoom.</div>
+<div id="hint">Tap to walk. Two fingers pinch to zoom and slide to turn. Mouse: middle-drag to turn, scroll to zoom.</div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
 <div id="creator" hidden>
@@ -1339,10 +1340,41 @@ const ndc = new THREE.Vector2();
 let walkTarget = null, walkThen = null, walkTick = 0;
 const WALK_SPEED = 0.09;
 let pressX = 0, pressY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { pressX = e.clientX; pressY = e.clientY; });
+// touch: two fingers pinch to zoom and slide together to turn the camera; a tap with one finger still walks
+const touches = new Map();   // pointer id -> { x, y }
+let twoFingers = false, pinchD = 0, pinchX = 0, pinchY = 0;
+renderer.domElement.addEventListener('pointerdown', e => {
+  pressX = e.clientX; pressY = e.clientY;
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size >= 2) {
+      twoFingers = true;   // this is a camera gesture, not a walk
+      const [a, b] = [...touches.values()];
+      pinchD = Math.hypot(a.x - b.x, a.y - b.y); pinchX = (a.x + b.x) / 2; pinchY = (a.y + b.y) / 2;
+    }
+  }
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size < 2) return;
+  const [a, b] = [...touches.values()];
+  const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  if (pinchD > 0 && d > 0) dist = Math.min(60, Math.max(4, dist * (pinchD / d)));   // spread the fingers to come closer
+  yaw -= (mx - pinchX) * 0.008;   // slide them together to turn
+  pitch = clampPitch(pitch - (my - pinchY) * 0.005);
+  pinchD = d; pinchX = mx; pinchY = my;
+});
+function touchEnd(e){
+  if (e.pointerType !== 'touch') return;
+  touches.delete(e.pointerId);
+  if (touches.size === 0) setTimeout(() => { twoFingers = false; }, 0);   // the lift-off of the last finger is not a tap
+}
+renderer.domElement.addEventListener('pointerup', touchEnd);
+renderer.domElement.addEventListener('pointercancel', touchEnd);
 renderer.domElement.addEventListener('pointerup', e => {
   // a short click (not a drag) sets where to walk
-  if (e.button !== 0 || !creator.hidden || Math.hypot(e.clientX - pressX, e.clientY - pressY) > 6) return;
+  if (e.button !== 0 || !creator.hidden || twoFingers || Math.hypot(e.clientX - pressX, e.clientY - pressY) > 6) return;
   const r = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
@@ -1411,10 +1443,15 @@ addEventListener('pointermove', e => {
   pitch = clampPitch(pitch - dy * 0.005);
 });
 renderer.domElement.addEventListener('wheel', e => { dist = Math.min(60, Math.max(4, dist + e.deltaY * 0.02)); e.preventDefault(); }, { passive: false });
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+// fit the view to the screen. Phones report the new size late after a rotation, so it is checked again after a moment
+function fitView(){
+  const w = Math.round(innerWidth), h = Math.round(innerHeight);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h, true);
+}
+addEventListener('resize', fitView);
+addEventListener('orientationchange', () => { fitView(); setTimeout(fitView, 250); setTimeout(fitView, 700); });
+if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 // hovering the door says what a click does, as in the classic game
 const tip = document.getElementById('tip');
 renderer.domElement.addEventListener('pointermove', e => {
