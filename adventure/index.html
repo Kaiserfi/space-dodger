@@ -384,13 +384,39 @@ function keep(x, z){
   });
   const gate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.6, 1.4), mat(0x4a2e16)); gate.position.set(x + 4.05, 0.8, z); town.add(gate);
 }
+// the village well: a round stone wall with dark water inside, two posts holding a winch with a rope and bucket, and a shingled roof
 function well(x, z){
   const g = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.75, 0.9, 8), mat(0x8a8a90)); base.position.set(0, 0.45, 0); g.add(base);
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 0.12), mat(0x6b4a2a)); post.position.set(-0.6, 1.3, 0); g.add(post);
-  const roofW = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.6, 4), mat(0x7a2e2e)); roofW.position.set(0, 2.3, 0); roofW.rotation.y = Math.PI / 4; g.add(roofW);
+  const stone = texMat(wallStone, 4, 1, 0xb8b2a6), wood = mat(0x6b4a2a), darkWood = mat(0x4a3018);
+  // the stone wall: an outer and inner face, a capstone ring on top, and dark water a little way down
+  const outer = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 0.85, 16, 1, true), stone); outer.position.y = 0.425; g.add(outer);
+  const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.85, 16, 1, true), texMat(wallStone, 3, 1, 0x6a645a)); inner.material.side = THREE.BackSide; inner.position.y = 0.425; g.add(inner);
+  const cap = new THREE.Mesh(new THREE.RingGeometry(0.72, 1.02, 16).rotateX(-Math.PI / 2), mat(0x9a948a)); cap.position.y = 0.86; g.add(cap);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.87, 0.09, 6, 16).rotateX(Math.PI / 2), mat(0x8a847a)); rim.position.y = 0.88; g.add(rim);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(0.74, 16).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x1f4a66, roughness: 0.1, metalness: 0.3, emissive: 0x06141e })); water.position.y = 0.35; g.add(water);
+  // the posts, the crossbeam and the winch with its crank
+  for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.9, 0.14), wood); post.position.set(sx * 0.88, 1.5, 0); g.add(post); }
+  const winch = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1.6, 10).rotateZ(Math.PI / 2), darkWood); winch.position.y = 1.75; g.add(winch);
+  const crankArm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), darkWood); crankArm.position.set(1.0, 1.62, 0); g.add(crankArm);
+  const crank = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.22, 6).rotateZ(Math.PI / 2), darkWood); crank.position.set(1.1, 1.48, 0); g.add(crank);
+  // the rope wound on the winch, hanging down to a bucket that sits on the rim
+  const coil = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.4, 10).rotateZ(Math.PI / 2), mat(0xc8b07a)); coil.position.y = 1.75; g.add(coil);
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 5), mat(0xc8b07a)); rope.position.set(0, 1.37, 0.14); g.add(rope);
+  const bucket = new THREE.Group(); bucket.position.set(0, 0.95, 0.14); g.add(bucket);
+  const pail = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.3, 10), mat(0x8a5a2a)); pail.position.y = 0.04; bucket.add(pail);
+  for (const y of [-0.06, 0.14]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(y > 0 ? 0.2 : 0.17, 0.015, 4, 12).rotateX(Math.PI / 2), mat(0x3a3a40)); hoop.position.y = y; bucket.add(hoop); }
+  const bail = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.012, 4, 12, Math.PI), mat(0x3a3a40)); bail.position.y = 0.19; bucket.add(bail);
+  // a peaked roof of two shingled slopes on a ridge beam
+  const roofMatW = new THREE.MeshStandardMaterial({ map: roofTex, color: 0xb04a3a, flatShading: true, side: THREE.DoubleSide });
+  for (const sz of [-1, 1]) {
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 0.95), roofMatW);
+    slope.position.set(0, 2.68, sz * 0.36); slope.rotation.x = sz * 0.62; g.add(slope);
+  }
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.1), darkWood); ridge.position.y = 2.98; g.add(ridge);
+  for (const sx of [-1, 1]) { const gable = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), wood); gable.position.set(sx * 0.88, 2.65, 0); g.add(gable); }
   g.scale.setScalar(HALL_SCALE);   // the same scale as the spawn hall
-  g.position.set(x, 0, z); town.add(g);
+  g.position.set(x, 0, z); g.rotation.y = 0.5; town.add(g);
 }
 // market stalls
 function stall(x, z, col){
@@ -644,10 +670,10 @@ function updateDoor(){
   // while the adventurer is inside, the stone turns see-through so they can be seen
   if (hero) {
     const inside = Math.abs(hero.position.x - HALL.x) < 7 * HS && Math.abs(hero.position.z - HALL.z) < 6 * HS;
-    hero.material.depthTest = true;   // the faded walls let you see through; the solid door still hides the character
     roofMesh.visible = !inside;   // the roof lifts away while you are inside, and comes back outside
     for (const m of hallWallMats) {
-      m.opacity += (1 - m.opacity) * 0.12;   // walls stay solid; the roof lifts away instead
+      const want = inside ? 0.35 : 1;   // inside, the walls turn see-through so you can see yourself; outside they are solid
+      m.opacity += (want - m.opacity) * 0.12;
       m.transparent = m.opacity < 0.99;
       m.depthWrite = !m.transparent;
     }
@@ -766,11 +792,6 @@ function fallSound(){
 }
 
 // which arm pose a point in the swing shows: wind up (first 40%), strike (40-55%), recover (the rest)
-function swingPose(p){
-  if (p < 0.4) return 'up';
-  if (p < 0.55) return 'down';
-  return 'mid';
-}
 
 // ----- chopping: click a tree to walk to it, chop for a few seconds, and it falls, leaves a stump, and grows back -----
 const CHOP_FRAMES = 180;          // about 3 seconds of chopping
@@ -1137,7 +1158,8 @@ function updateTrees(){
     rec.g.rotation.z = Math.sin(chop.t * 0.5) * 0.025;   // the node shakes under each blow
     const phase = (chop.t % 45) / 45;              // one full swing every 45 frames
     const facing = screenX(rec.x, rec.z) < screenX(hero.position.x, hero.position.z) ? -1 : 1;   // face the node as the camera sees it
-    setHeroFrame(0, facing, swingPose(phase), rec.kind === 'rock' ? 'pick' : 'axe');   // the arm winds up, strikes, and recovers
+    heroFacing = facing;
+    setHeroSwing(phase, rec.kind === 'rock' ? 'pick' : 'axe', yawTo(hero.position.x, hero.position.z, rec.x, rec.z));   // face the node: the arms wind up, strike and recover
     if (chop.t % 45 === 25) { if (rec.kind === 'rock') clinkSound(); else chopSound(); }   // the blow lands as the tool comes down
     if (chop.t >= CHOP_FRAMES) {
       // the node is claimed on the server first: if someone else got there, nothing falls
@@ -1291,7 +1313,7 @@ function makeRock(x, z, s = 1, ore = 'copper'){
 
 
 const equipped = { head: null, body: null, legs: null, weapon: null, shield: null };   // what is worn in each slot
-// ----- the adventurer: a 16x16 pixel-art sprite that always faces the camera (classic-style 2D sprites in a 3D world) -----
+// ----- the adventurer -----
 const START = new THREE.Vector3(HALL.x, 0, HALL.z + 2.4 * HALL_SCALE);   // the spawn point: inside the hall, just south of the centre pillar
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 // shade a colour: amt > 0 lightens, amt < 0 darkens
@@ -1300,175 +1322,181 @@ function shade(rgb, amt){
   return `rgb(${f(rgb[0])},${f(rgb[1])},${f(rgb[2])})`;
 }
 const rgbOf = n => [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-// the adventurer as a 24x32 sprite: shapes are drawn flat, then shading and an outline are added per pixel
-const W24 = 24, H32 = 32;
-function adventurerCanvas(a, step = 0, pose = null){
-  // a walk cycle: one leg lifts and swings forward while the opposite arm swings forward
-  const dyL = step === 1 ? -2 : 0, dyR = step === 3 ? -2 : 0;
-  const aL = step === 1 ? -1 : step === 3 ? 1 : 0, aR = -aL;   // arm swing, opposite to the legs
-  const male = a.gender === 'male';
-  const layer = document.createElement('canvas'); layer.width = W24; layer.height = H32;
-  const L = layer.getContext('2d');
-  const rect = (x, y, w, h, c) => { L.fillStyle = hex(c); L.fillRect(x, y, w, h); };
-  const boots = 0x3a2a1a, belt = 0x5a3a1a;
-  // back hair (long) sits behind everything
-  if (a.hair === 'long') rect(5, 4, 14, 14, a.hairCol);
-  // legs, boots and the belt / skirt
-  if (male) {
-    rect(7, 20 + dyL, 4, 9, a.pants); rect(13, 20 + dyR, 4, 9, a.pants);
-    rect(6, 28 + dyL, 5, 3, boots); rect(13, 28 + dyR, 5, 3, boots);
-    rect(6, 19, 12, 2, belt);
+// ----- the adventurers: chibi toy figures (big round heads, shiny eyes, smooth toon shading and a dark outline) -----
+// Every character, the hero, villagers and other players, is built by makeChibi and moved by poseChibi.
+const CHIBI_SCALE = 1.35;   // the model is built about 2.7 tall; this makes it about 3.6, the height of the old sprites
+const toonRamp = (() => { const t = new THREE.DataTexture(new Uint8Array([90, 170, 255]), 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const toonCache = {}, geoCache = {};
+const toonMat = c => toonCache[c] || (toonCache[c] = new THREE.MeshToonMaterial({ color: c, gradientMap: toonRamp }));
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x1a1410, side: THREE.BackSide });
+const geo = (key, make) => geoCache[key] || (geoCache[key] = make());
+const gRound = (r, seg = 24) => geo('s' + r + '|' + seg, () => new THREE.SphereGeometry(r, seg, Math.round(seg * 3 / 4)));
+const gCapsule = (r, l) => geo('c' + r + '|' + l, () => new THREE.CapsuleGeometry(r, l, 6, 14));
+function chibiPart(parent, g, col, x, y, z, outline = true){
+  const m = new THREE.Mesh(g, toonMat(col)); m.position.set(x, y, z); m.castShadow = true; m.userData.shadowSet = true; parent.add(m);
+  if (outline) { const o = new THREE.Mesh(g, outlineMat); o.scale.setScalar(1.07); o.userData.shadowSet = true; m.add(o); }
+  return m;
+}
+const flatMat = {};
+const basic = (c, op = 1) => flatMat[c + '|' + op] || (flatMat[c + '|' + op] = new THREE.MeshBasicMaterial({ color: c, transparent: op < 1, opacity: op }));
+// the tools, held in the right hand: the handle runs from the hand along -y, and the working end faces -z,
+// which is the way the arm travels as it swings down (so the axe edge and the pick point lead the blow)
+function makeTool(kind){
+  const t = new THREE.Group();
+  chibiPart(t, geo('handle', () => new THREE.CylinderGeometry(0.045, 0.055, 1.35, 6)), 0x7a4d22, 0, -0.5, 0);
+  if (kind === 'pick') {
+    chibiPart(t, geo('pickHead', () => new THREE.BoxGeometry(0.12, 0.12, 0.7)), 0xcd7f32, 0, -1.12, 0);
+    for (const s of [-1, 1]) { const tip = chibiPart(t, geo('pickTip', () => new THREE.ConeGeometry(0.065, 0.3, 6)), 0xcd7f32, 0, -1.16, s * 0.48); tip.rotation.x = s * (Math.PI / 2 + 0.3); }
   } else {
-    L.fillStyle = hex(a.pants); L.beginPath(); L.moveTo(6, 17); L.lineTo(18, 17); L.lineTo(20, 24); L.lineTo(4, 24); L.closePath(); L.fill();
-    rect(8, 24 + dyL, 3, 6, a.skin); rect(13, 24 + dyR, 3, 6, a.skin);
-    rect(7, 28 + dyL, 4, 3, boots); rect(13, 28 + dyR, 4, 3, boots);
+    chibiPart(t, geo('axeCheek', () => new THREE.BoxGeometry(0.1, 0.28, 0.2)), 0x9a5e22, 0, -1.08, -0.06);
+    const blade = chibiPart(t, geo('axeBlade', () => new THREE.CylinderGeometry(0.26, 0.26, 0.08, 16, 1, false, 0, Math.PI)), 0xcd7f32, 0, -1.08, -0.16);
+    blade.rotation.set(0, 0, Math.PI / 2); blade.rotation.y = Math.PI / 2; blade.scale.set(1, 1, 1.1);   // a half disc: the curved edge faces -z
   }
-  // torso and arms
-  if (male) { rect(5, 12, 14, 8, a.shirt); rect(3, 13 + aL, 3, 8, a.shirt); if (!pose) rect(18, 13 + aR, 3, 8, a.shirt); }
-  else { rect(7, 12, 10, 8, a.shirt); rect(4, 13 + aL, 3, 7, a.shirt); if (!pose) rect(17, 13 + aR, 3, 7, a.shirt); }
-  rect(3, 20 + aL, 3, 3, a.skin); if (!pose) rect(18, 20 + aR, 3, 3, a.skin);      // hands
-  if (pose) {
-    // the right arm holds the axe while chopping: 'up' winds back, 'down' strikes, 'mid' recovers
-    const sx = male ? 18 : 17;
-    if (pose === 'up') { rect(sx, 6, 3, 7, a.shirt); rect(sx, 4, 3, 3, a.skin); rect(sx + 2, 0, 1, 5, 0x7a4d22); rect(sx + 1, 0, 3, 2, 0xa9b2bc); }
-    else if (pose === 'down') { rect(sx, 14, 3, 6, a.shirt); rect(sx, 19, 3, 3, a.skin); rect(sx + 1, 22, 1, 6, 0x7a4d22); rect(sx, 27, 3, 3, 0xa9b2bc); }
-    else { rect(sx, 11, 3, 6, a.shirt); rect(sx, 16, 3, 3, a.skin); rect(sx + 1, 17, 1, 2, 0x7a4d22); rect(sx + 2, 19, 1, 2, 0x7a4d22); rect(sx + 3, 21, 1, 2, 0x7a4d22); rect(sx + 3, 21, 2, 3, 0xa9b2bc); }
-  }
-  // neck and head
-  rect(10, 10, 4, 3, a.skin);
-  L.fillStyle = hex(a.skin); L.beginPath(); L.ellipse(12, 6.5, 5.5, 6, 0, 0, Math.PI * 2); L.fill();
-  // hair on top, and the side pieces
-  L.fillStyle = hex(a.hairCol); L.beginPath(); L.ellipse(12, 4.8, 6.2, 4.6, 0, Math.PI, 0); L.fill();
-  if (a.hair === 'long') { rect(5, 5, 2, 9, a.hairCol); rect(17, 5, 2, 9, a.hairCol); }
-  if (a.hair === 'topknot') rect(10, 0, 4, 3, a.hairCol);
-  // the worn gear, held in the hands: a shield on the left arm, a weapon in the right hand
-  if (equipped.shield) { rect(0, 12 + aL, 4, 8, 0xcd7f32); rect(1, 15 + aL, 2, 1, 0x7a4d22); }
-  if (equipped.weapon === 'Bronze sword') { rect(19, 8 + aR, 1, 12, 0xcd7f32); rect(17, 20 + aR, 5, 1, 0x7a4d22); rect(19, 21 + aR, 1, 2, 0x5a3a1a); }
-  else if (equipped.weapon === 'Bronze dagger') { rect(19, 14 + aR, 1, 6, 0xcd7f32); rect(17, 20 + aR, 5, 1, 0x7a4d22); rect(19, 21 + aR, 1, 2, 0x5a3a1a); }
-  // eyes and mouth, drawn before the shading
-  L.fillStyle = '#1a1a1a'; L.fillRect(9, 7, 2, 2); L.fillRect(14, 7, 2, 2); L.fillStyle = '#a0604a'; L.fillRect(11, 10, 2, 1);
-  return finishSprite(L, step);
+  t.visible = false;
+  return t;
 }
-
-function finishSprite(L, step){
-  // shade every coloured pixel using its neighbours: light on the left edge, dark on the right and bottom
-  const src = L.getImageData(0, 0, W24, H32), d = src.data;
-  const opaque = (x, y) => x >= 0 && y >= 0 && x < W24 && y < H32 && d[(y * W24 + x) * 4 + 3] > 0;
-  const out = document.createElement('canvas'); out.width = W24; out.height = H32;
-  const O = out.getContext('2d'), img = O.createImageData(W24, H32), o = img.data;
-  for (let y = 0; y < H32; y++) for (let x = 0; x < W24; x++) {
-    const i = (y * W24 + x) * 4;
-    if (!opaque(x, y)) continue;
-    const base = rgbOf(((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]));
-    let amt = 0;
-    if (!opaque(x - 1, y)) amt += 0.22;            // left edge catches the light
-    if (!opaque(x + 1, y)) amt -= 0.18;            // right edge in shadow
-    if (!opaque(x, y + 1)) amt -= 0.16;            // underside in shadow
-    if (y < 8 && opaque(x, y - 1) === false) amt += 0.1;  // top of the head
-    const c = base.map(v => Math.max(0, Math.min(255, Math.round(v + (amt > 0 ? (255 - v) * amt : v * amt)))));
-    o[i] = c[0]; o[i + 1] = c[1]; o[i + 2] = c[2]; o[i + 3] = 255;
+function makeChibi(o){
+  const g = new THREE.Group(), body = new THREE.Group(), female = o.gender === 'female';
+  g.add(body);
+  const legs = [], arms = [];
+  for (const x of [-0.2, 0.2]) {
+    const leg = new THREE.Group(); leg.position.set(x, 0.62, 0); body.add(leg); legs.push(leg);
+    chibiPart(leg, gCapsule(0.15, 0.3), o.pants, 0, -0.25, 0);
+    chibiPart(leg, gRound(0.19, 16), 0x5a3a22, 0, -0.5, 0.06).scale.set(1, 0.65, 1.3);   // boots
   }
-  O.putImageData(img, 0, 0);
-  // the body bobs up a pixel on the middle frames of the walk
-  const bob = (step === 1 || step === 3) ? 1 : 0;
-  // dark outline around the whole figure
-  O.fillStyle = '#1a1a1a';
-  for (let y = 0; y < H32; y++) for (let x = 0; x < W24; x++) {
-    if (opaque(x, y)) continue;
-    if (opaque(x - 1, y) || opaque(x + 1, y) || opaque(x, y - 1) || opaque(x, y + 1)) O.fillRect(x, y, 1, 1);
+  chibiPart(body, gCapsule(female ? 0.36 : 0.38, 0.35), o.shirt, 0, 1.0, 0).scale.set(1, 1, 0.85);
+  if (female) chibiPart(body, geo('skirt', () => new THREE.CylinderGeometry(0.34, 0.5, 0.4, 20)), o.pants, 0, 0.75, 0);
+  else {
+    // the trousers come right up to the belt: a rounded hip piece covers the bottom of the shirt
+    chibiPart(body, geo('hips', () => new THREE.SphereGeometry(0.41, 20, 12, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5)), o.pants, 0, 0.82, 0).scale.set(1, 1, 0.9);
+    chibiPart(body, geo('belt', () => new THREE.CylinderGeometry(0.385, 0.385, 0.1, 20)), 0x5a3a1a, 0, 0.8, 0, false);
   }
-  if (!bob) return out;
-  const bobbed = document.createElement('canvas'); bobbed.width = W24; bobbed.height = H32;
-  bobbed.getContext('2d').drawImage(out, 0, -1);
-  return bobbed;
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Group(); arm.position.set(s * 0.42, 1.25, 0); body.add(arm); arms.push(arm);
+    chibiPart(arm, gCapsule(0.11, 0.3), o.shirt, 0, -0.2, 0);
+    chibiPart(arm, gRound(0.14, 14), o.skin, 0, -0.45, 0);
+  }
+  // the head: big eyes with a shine, rosy cheeks and a smile
+  const head = new THREE.Group(); head.position.set(0, 1.95, 0); body.add(head);
+  chibiPart(head, gRound(0.62), o.skin, 0, 0, 0).scale.set(1.05, 0.95, 1);
+  const eyes = [];
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(gRound(0.12, 16), basic(0x1e1a2a)); eye.scale.set(0.8, 1.15, 0.5); eye.position.set(s * 0.22, 0.02, 0.56); head.add(eye); eyes.push(eye);
+    const shine = new THREE.Mesh(gRound(0.04, 8), basic(0xffffff)); shine.position.set(s * 0.22 + 0.03, 0.08, 0.62); head.add(shine); eyes.push(shine);
+    const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek);
+  }
+  const smile = new THREE.Mesh(geo('smile', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), basic(0x5a2a2a)); smile.rotation.z = Math.PI; smile.position.set(0, -0.14, 0.6); head.add(smile);
+  // hair: a rounded cap tipped forward over the brow, and a patch behind the ears down to the nape so no scalp shows
+  chibiPart(head, geo('cap', () => new THREE.SphereGeometry(0.66, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.5)), o.hairCol, 0, 0.04, -0.03).rotation.x = -0.35;
+  const nape = chibiPart(head, geo('nape', () => new THREE.SphereGeometry(0.655, 24, 12, Math.PI * 1.14, Math.PI * 0.72, Math.PI * 0.2, Math.PI * 0.55)), o.hairCol, 0, 0.02, -0.02, false);
+  nape.material = nape.material.clone(); nape.material.side = THREE.DoubleSide;
+  if (o.hair === 'long') chibiPart(head, gRound(0.56, 28), o.hairCol, 0, -0.26, -0.2).scale.set(1.22, 1.22, 0.78);   // one smooth fall behind the head
+  if (o.hair === 'topknot') chibiPart(head, gRound(0.2, 14), o.hairCol, 0, 0.7, -0.15);
+  // tools and worn gear
+  const tools = { axe: makeTool('axe'), pick: makeTool('pick') };
+  for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
+  const gear = new THREE.Group(); body.add(gear);
+  g.scale.setScalar(CHIBI_SCALE);
+  g.userData.chibi = { body, legs, arms, head, eyes, tools, gear, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
+  return g;
 }
-
-// the adventurer seen from the side, facing right (the sprite is mirrored to face left).
-// It is used only while chopping, so the character turns toward the tree.
-function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
-  const dyL = step === 1 ? -2 : 0, dyR = step === 3 ? -2 : 0;
-  const male = a.gender === 'male';
-  const layer = document.createElement('canvas'); layer.width = W24; layer.height = H32;
-  const L = layer.getContext('2d');
-  const rect = (x, y, w, h, c) => { L.fillStyle = hex(c); L.fillRect(x, y, w, h); };
-  const boots = 0x3a2a1a, belt = 0x5a3a1a;
-  const head = 0xcd7f32, handle = 0x7a4d22;   // bronze heads on both tools
-  const line = (x0, y0, x1, y1, c) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i <= n; i++) rect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1, c); };
-  const headDark = 0x8a5220;
-  // Tools are drawn at a real size for the 24x32 character (see CLAUDE.md). The pickaxe: a long two-pixel handle with a curved bronze head across its end
-  const H = tool === 'pick'
-    ? { up: () => { line(6, 11, 3, 2, handle); line(7, 11, 4, 2, handle);   // wound back over the shoulder
-                    line(0, 4, 3, 1, head); line(4, 1, 8, 1, head); line(0, 5, 3, 2, headDark); line(4, 2, 7, 2, headDark); },
-        mid: () => { line(19, 13, 22, 4, handle); line(20, 13, 23, 4, handle);   // reaching forward and up
-                     line(19, 0, 22, 2, head); line(22, 3, 23, 8, head); line(18, 1, 21, 3, headDark); },
-        down: () => { line(20, 15, 21, 24, handle); line(21, 15, 22, 24, handle);   // the strike: the point bites low
-                      line(16, 24, 23, 24, head); line(16, 25, 15, 27, head); line(17, 25, 23, 25, headDark); rect(23, 23, 1, 1, head); } }
-    : { up: () => { line(6, 11, 3, 2, handle); line(7, 11, 4, 2, handle);   // the axe: the same long handle, with a broad flared blade
-                    rect(0, 1, 4, 4, head); rect(0, 5, 2, 1, head); rect(0, 0, 2, 1, head); line(0, 4, 3, 4, headDark); rect(4, 2, 1, 2, headDark); },
-        // in the swing and the strike the blade juts forward off the handle, its flared cutting edge facing the tree
-        mid: () => { line(19, 13, 19, 3, handle); line(20, 13, 20, 3, handle);
-                     rect(21, 2, 2, 4, head); rect(23, 1, 1, 6, head); rect(21, 5, 2, 1, headDark); rect(19, 2, 2, 1, headDark); },
-        down: () => { line(19, 15, 19, 25, handle); line(20, 15, 20, 25, handle);
-                      rect(21, 20, 2, 4, head); rect(23, 19, 1, 6, head); rect(21, 23, 2, 1, headDark); rect(19, 26, 2, 1, headDark); } };
-  if (a.hair === 'long') rect(7, 4, 4, 13, a.hairCol);
-  // the far arm and leg sit behind the body
-  rect(9, 14, 3, 6, a.shirt); rect(9, 20 + dyL, 3, 8, a.pants); rect(9, 28 + dyL, 4, 3, boots);
-  // the near leg
-  rect(12, 20 + dyR, 4, 9, a.pants); rect(12, 28 + dyR, 5, 3, boots);
-  // torso, with a belt or a skirt
-  rect(8, 12, 10, 8, a.shirt);
-  if (male) rect(8, 19, 10, 2, belt);
-  else { L.fillStyle = hex(a.pants); L.beginPath(); L.moveTo(7, 17); L.lineTo(19, 17); L.lineTo(20, 24); L.lineTo(6, 24); L.closePath(); L.fill(); }
-  // neck and head in profile, with the hair at the back
-  rect(12, 10, 4, 3, a.skin);
-  L.fillStyle = hex(a.skin); L.beginPath(); L.ellipse(13.5, 6.5, 5, 6, 0, 0, Math.PI * 2); L.fill();
-  L.fillStyle = hex(a.hairCol); L.beginPath(); L.ellipse(13.5, 4.8, 5.8, 4.6, 0, Math.PI, 0); L.fill();
-  rect(8, 5, 3, a.hair === 'long' ? 8 : 3, a.hairCol);   // long hair falls to the shoulders; short hair stays at the back of the head
-  if (a.hair === 'topknot') rect(12, 0, 4, 3, a.hairCol);
-  rect(18, 7, 1, 2, a.skin);                          // nose
-  L.fillStyle = '#1a1a1a'; L.fillRect(16, 6, 2, 2);    // eye
-  L.fillStyle = '#a0604a'; L.fillRect(15, 10, 2, 1);   // mouth
-  // the near arm holds the axe and swings it level across the front: back, strike, recover
-  // tools are full size: the tool is drawn first, so the hand sits over its handle
-  if (pose === 'up') { rect(8, 11, 5, 3, a.shirt); H.up(); rect(6, 11, 3, 3, a.skin); }
-  else if (pose === 'down') { rect(13, 13, 7, 3, a.shirt); H.down(); rect(19, 13, 3, 3, a.skin); }
-  else { rect(13, 12, 6, 3, a.shirt); H.mid(); rect(18, 12, 3, 3, a.skin); }
-  return finishSprite(L, step);
+// the sword, dagger and shield the hero wears, from the Gear tab
+function dressChibi(g, eq){
+  const c = g.userData.chibi; c.gear.clear();
+  for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
+  if (eq.weapon) {
+    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -Math.PI / 2;   // held point forward
+    const len = eq.weapon === 'Bronze sword' ? 0.9 : 0.45;
+    chibiPart(w, geo('grip', () => new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6)), 0x5a3a1a, 0, 0, 0);
+    chibiPart(w, geo('guard', () => new THREE.BoxGeometry(0.32, 0.06, 0.08)), 0x7a4d22, 0, -0.12, 0);
+    chibiPart(w, geo('blade' + len, () => new THREE.BoxGeometry(0.1, len, 0.03)), 0xcd7f32, 0, -0.14 - len / 2, 0);
+    c.arms[1].add(w);
+  }
+  if (eq.shield) {
+    const sh = chibiPart(c.arms[0], geo('shield', () => new THREE.CylinderGeometry(0.34, 0.34, 0.07, 16)), 0xcd7f32, -0.12, -0.3, 0);
+    sh.rotation.z = Math.PI / 2; sh.userData.isGear = true;
+    chibiPart(sh, geo('boss', () => new THREE.CylinderGeometry(0.1, 0.1, 0.06, 10)), 0x7a4d22, 0, -0.05, 0, false);
+  }
 }
+const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const lerp = (a, b, k) => a + (b - a) * k;
+// one swing of an axe or pickaxe, p from 0 to 1: wind up over the shoulder (to 0.4), strike (by 0.55, when the blow sounds), recover
+function swingArm(p, tool){
+  const rest = -0.55, up = -3.25, hit = tool === 'pick' ? -0.75 : -1.35;
+  if (p < 0.4) return lerp(rest, up, ease(p / 0.4));
+  if (p < 0.55) { const k = (p - 0.4) / 0.15; return lerp(up, hit, k * k); }
+  return lerp(hit, rest, ease((p - 0.55) / 0.45));
+}
+// pose a character: mode is 'idle', 'walk' or 'swing'; t is the time in seconds (or the swing's 0-1 phase); tool is 'axe' or 'pick'
+function poseChibi(g, mode, t, tool = 'axe'){
+  const c = g.userData.chibi; if (!c) return;
+  const now = performance.now() / 1000;
+  c.tools.axe.visible = mode === 'swing' && tool === 'axe';
+  c.tools.pick.visible = mode === 'swing' && tool === 'pick';
+  c.gear.visible = mode !== 'swing';
+  for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = mode !== 'swing'; });
+  const [L, R] = c.legs, [AL, AR] = c.arms;
+  c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
+  AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
+  if (mode === 'walk') {
+    const s = Math.sin(t * 9);
+    L.rotation.x = s * 0.6; R.rotation.x = -s * 0.6;
+    AL.rotation.x = -s * 0.55; AR.rotation.x = s * 0.55;
+    c.body.position.y = Math.abs(Math.cos(t * 9)) * 0.07;   // a little hop in each step
+    c.head.rotation.z = s * 0.05;
+  } else if (mode === 'swing') {
+    const arm = swingArm(t, tool);
+    AR.rotation.set(arm, 0, -0.08); AL.rotation.set(arm + 0.12, 0, 0.32);   // both hands on the handle
+    const lean = t > 0.4 && t < 0.75 ? Math.sin((t - 0.4) / 0.35 * Math.PI) * 0.22 : (t < 0.4 ? -ease(t / 0.4) * 0.1 : 0);
+    c.body.rotation.x = lean;   // rock back on the wind-up, lean into the blow
+    L.rotation.x = -lean * 0.8; R.rotation.x = lean * 0.4;
+  } else {
+    const b = Math.sin(now * 2 + c.seed);   // breathing and a gentle sway
+    c.body.position.y = b * 0.012; c.head.rotation.z = Math.sin(now * 0.7 + c.seed) * 0.04;
+    AL.rotation.z = -0.2 - b * 0.03; AR.rotation.z = 0.2 + b * 0.03;
+    L.rotation.x = R.rotation.x = 0;
+  }
+  // blink every few seconds
+  c.blink -= 1 / 60;
+  const closed = c.blink < 0.12;
+  if (c.blink < 0) c.blink = 2 + Math.random() * 4;
+  c.eyes.forEach((e, i) => { if (i % 2 === 0) e.scale.y = closed ? 0.15 : 1.15; else e.visible = !closed; });
+}
+// turn a character smoothly to face a heading (radians, 0 = +z)
+function turnChibi(g, yaw){
+  let d = yaw - g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
+  g.rotation.y += d * 0.25;
+}
+const yawTo = (fx, fz, tx, tz) => Math.atan2(tx - fx, tz - fz);
 
 let hero = null, heroShadow = null, heroFrame = -1, heroFacing = 1;
-// Sprites ignore a negative scale, so a left-facing sprite is mirrored by flipping its texture instead
-function applyFlip(){
-  const t = hero.material.map;
-  t.wrapS = THREE.RepeatWrapping; t.repeat.x = heroFacing; t.offset.x = heroFacing < 0 ? 1 : 0;
-}
+// the hero's animation: walking, idle or swinging a tool, and which way they face
+const heroAnim = { mode: 'idle', phase: 0, tool: 'axe', yaw: 0 };
+// kept for the old callers: a pose means the swing, anything else is walking or standing
 function setHeroFrame(frame, facing, pose = null, tool = 'axe'){
   if (!hero) return;
-  const key = frame + '|' + (pose || '') + '|' + tool;
-  if (key !== heroFrame) {
-    heroFrame = key;
-    hero.material.map.dispose();
-    hero.material.map = new THREE.CanvasTexture((pose ? adventurerSide(look, frame, pose, tool) : adventurerCanvas(look, frame)));
-    hero.material.map.magFilter = THREE.NearestFilter; hero.material.map.minFilter = THREE.NearestFilter; hero.material.map.colorSpace = THREE.SRGBColorSpace;
-    hero.material.needsUpdate = true;
-    applyFlip();
-  }
-  if (facing !== heroFacing) { heroFacing = facing; applyFlip(); }
+  heroFacing = facing;
+  if (!pose) heroAnim.mode = walkTarget ? 'walk' : 'idle';
+  if (heroFrame === '') { heroFrame = 0; dressChibi(hero, equipped); }   // the gear changed
+}
+function setHeroSwing(phase, tool, yaw){ heroAnim.mode = 'swing'; heroAnim.phase = phase; heroAnim.tool = tool; heroAnim.yaw = yaw; }
+function updateHeroAnim(){
+  if (!hero) return;
+  if (heroFrame === '') { heroFrame = 0; dressChibi(hero, equipped); }
+  turnChibi(hero, heroAnim.yaw);
+  poseChibi(hero, heroAnim.mode, heroAnim.mode === 'swing' ? heroAnim.phase : (heroAnim.mode === 'walk' ? walkTick / 60 : 0), heroAnim.tool);
 }
 function rebuildHero(){
-  const tex = new THREE.CanvasTexture(adventurerCanvas(look));
-  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
-  if (hero) { scene.remove(hero); hero.material.map.dispose(); hero.material.dispose(); }
-  hero = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.5 }));
-  hero.center.set(0.5, 0);                    // the feet stand on the tile
-  hero.scale.set(3.0, 4.0, 1);
-  applyFlip();
-  hero.renderOrder = 10;             // drawn after the walls, so it can show through them
+  if (hero) scene.remove(hero);
+  hero = makeChibi(look);
+  dressChibi(hero, equipped);
   hero.position.copy(START);
+  hero.rotation.y = heroAnim.yaw = 0;   // facing the camera's side of the hall
   scene.add(hero);
-  if (!heroShadow) {                          // a soft shadow so the sprite sits on the ground
+  if (!heroShadow) {                          // a soft contact shadow under the feet, on top of the sun's shadow
     heroShadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
+    heroShadow.userData.shadowSet = true;
     scene.add(heroShadow);
   }
   heroShadow.position.set(START.x, 0.06, START.z);
@@ -1596,7 +1624,8 @@ function updateWalk(){
   heroShadow.position.set(hero.position.x, 0.06, hero.position.z);
   walkTick++;
   const frame = Math.floor(walkTick / 6) % 4;      // four frames, a new one every six ticks
-  setHeroFrame(frame, dx < 0 ? -1 : 1);
+  heroAnim.yaw = Math.atan2(dx, dz);
+  setHeroFrame(frame, screenX(walkTarget.x, walkTarget.z) < screenX(hero.position.x, hero.position.z) ? -1 : 1);
 }
 
 // ----- camera: arrow keys or middle-mouse drag rotate it around the character; the wheel zooms; it always follows the character -----
@@ -1948,9 +1977,6 @@ function toggleDoor(rec){
 // a villager stands inside a house; clicking them walks over and opens their dialogue
 // villagers wander a little around their spot: inside their house, or round the green for Mara
 const WANDER = [];
-function npcFrames(look){
-  return [0, 1, 0, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
-}
 function pickWanderTarget(w){
   for (let i = 0; i < 12; i++) {
     const tx = w.lx + (Math.random() * 2 - 1) * w.rad, tz = w.lz + (Math.random() * 2 - 1) * w.rad;
@@ -1962,7 +1988,7 @@ function pickWanderTarget(w){
 }
 function addWander(sp, rec, frames, o){
   WANDER.push({ sp, rec, frames, lx: o.lx, lz: o.lz, rad: o.rad, box: o.box, k: o.k, ox: o.ox, oz: o.oz,
-    tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1 });
+    tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1, yaw: 0, parentYaw: o.parentYaw || 0 });
 }
 function updateWanderers(){
   for (const w of WANDER) {
@@ -1975,26 +2001,30 @@ function updateWanderers(){
       else {
         const step = Math.min(dist, 0.02), nx = x + dx / dist * step, nz = z + dz / dist * step;
         if (hardHit(w.ox + nx * w.k, w.oz + nz * w.k)) { w.tx = x; w.tz = z; }   // something in the way
-        else { sp.position.set(nx, 0, nz); moving = true; w.face = dx < 0 ? -1 : 1; w.tick++; }
+        else { sp.position.set(nx, 0, nz); moving = true; w.dx = dx; w.dz = dz; w.tick++; }
       }
     }
-    const idx = moving ? Math.floor(w.tick / 10) % 4 : 0;
-    if (sp.material.map !== w.frames[idx]) sp.material.map = w.frames[idx];
-    w.frames.forEach(t => { t.repeat.x = w.face; t.offset.x = w.face < 0 ? 1 : 0; });   // face the way they walk
+    // face the way they walk; standing, they turn to look at the hero when the hero comes close
+    const wx = w.ox + sp.position.x * w.k, wz = w.oz + sp.position.z * w.k;
+    if (moving) w.yaw = Math.atan2(w.dx, w.dz);
+    else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z) - (w.parentYaw || 0);
+    turnChibi(sp, w.yaw || 0);
+    poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90);
     w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
   }
 }
 function addNpc(g, h, lx, lz, npc){
-  const frames = npcFrames(npc.look);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
-  sp.center.set(0.5, 0); sp.scale.set(2.1, 2.8, 1); sp.position.set(lx, 0, lz); sp.renderOrder = 10;
+  const frames = null;
+  const sp = makeChibi({ ...npc.look, pants: npc.look.pants || 0x3a3a3a });
+  sp.scale.setScalar(CHIBI_SCALE / h.k);   // the house group is scaled up, so the villager is scaled back to its normal size
+  sp.position.set(lx, 0, lz);
   g.add(sp);
   const p = h.toWorld(lx, lz);
   const rec = { kind: 'npc', name: npc.name, lines: npc.lines, x: p.x, z: p.z, s: 0.7, state: 'standing' };
-  sp.userData = { action: 'Talk', name: npc.name, rec };
+  Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
   const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
-  addWander(sp, rec, frames, { lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
+  addWander(sp, rec, frames, { parentYaw: g.rotation.y, lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
 }
 // the smithy's furnace and anvil, inside its walls
 function furnishSmithy(g, h){
@@ -2018,12 +2048,12 @@ function furnishSmithy(g, h){
 }
 // a villager who stands out in the open, with a choice at the end of her talk
 function addWorldNpc(x, z, npc){
-  const frames = npcFrames(npc.look);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
-  sp.center.set(0.5, 0); sp.scale.set(3, 4, 1); sp.position.set(x, 0, z); sp.renderOrder = 10;
+  const frames = null;
+  const sp = makeChibi(npc.look);
+  sp.position.set(x, 0, z);
   scene.add(sp);
   const rec = { kind: 'npc', name: npc.name, lines: npc.lines, choice: npc.choice, x, z, s: 0.7, state: 'standing' };
-  sp.userData = { action: 'Talk', name: npc.name, rec };
+  Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
   addWander(sp, rec, frames, { lx: x, lz: z, rad: 2.5, box: { x0: x - 2.5, x1: x + 2.5, z0: z - 2.5, z1: z + 2.5 }, k: 1, ox: 0, oz: 0 });
 }
@@ -2081,10 +2111,10 @@ function scatterOaks(){
   };
   const clear = (x, z) => {
     if (x < -100 || x > 52 || z < -8 || z > 58) return false;
-    if (solidBoxes.some(b => x > b.x0 - 2.5 && x < b.x1 + 2.5 && z > b.z0 - 2.5 && z < b.z1 + 2.5)) return false;   // houses, nodes, the well
-    if (x > 2 && x < 32 && z > -9 && z < 15) return false;      // the hall and its doorway
-    if (ROADS.some(r => segDist(x, z, r) < 2.8)) return false;   // roads
-    if (oakSpots.some(o => Math.hypot(o[0] - x, o[1] - z) < 4)) return false;   // oaks keep a little room between them
+    if (solidBoxes.some(b => x > b.x0 - 5 && x < b.x1 + 5 && z > b.z0 - 5 && z < b.z1 + 5)) return false;   // houses, nodes and the well: a canopy's width plus room to walk round
+    if (x > -1 && x < 34 && z > -12 && z < 18) return false;     // the hall and its doorway, with room round the walls
+    if (ROADS.some(r => segDist(x, z, r) < 3.5)) return false;   // roads
+    if (oakSpots.some(o => Math.hypot(o[0] - x, o[1] - z) < 6)) return false;   // trees keep room between them
     return true;
   };
   // three oaks in a small grove south-west of the spawn hall, in the open ground between the hall road and the turned house
@@ -2246,22 +2276,21 @@ function setRemote(id, p){
     if (ONLINE.announce && !(joinSeen[id] && Date.now() - joinSeen[id] < 600000)) addSystemLine(`${p.n || 'A player'} has joined the village.`);
     joinSeen[id] = Date.now();
     const lookJson = JSON.stringify(p.l || {});
-    const frames = [0, 1, 2, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(p.l || look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
-    sprite.center.set(0.5, 0); sprite.scale.set(3, 4, 1); sprite.renderOrder = 9;
+    const sprite = makeChibi({ ...look, ...(p.l || {}) });   // their figure, in their look
     scene.add(sprite);
     const label = document.createElement('div');
     label.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#fff;font:13px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;white-space:nowrap;display:none;';
     const bubbleEl = document.createElement('div');
     bubbleEl.className = 'chatBub'; bubbleEl.style.display = 'none';
     document.body.append(label, bubbleEl);
-    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: p.c ? p.c.k : 0, bubbleTimer: 0, name: '', seen: 0, swing: makeSwing(p.l || look), act: null, actJson: 'null', actAt: 0, verb: '' };
+    r = remote[id] = { sprite, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: p.c ? p.c.k : 0, bubbleTimer: 0, name: '', seen: 0, yaw: 0, act: null, actJson: 'null', actAt: 0, verb: '' };
     sprite.position.set(p.x, 0, p.z);
   }
   if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
     r.lookJson = JSON.stringify(p.l || {});
-    r.frames.forEach((t, f) => { t.image = adventurerCanvas(p.l || look, f); t.needsUpdate = true; });
-    refreshSwing(r, p.l || look);
+    const fresh = makeChibi({ ...look, ...(p.l || {}) });
+    fresh.position.copy(r.sprite.position); fresh.rotation.y = r.sprite.rotation.y;
+    scene.remove(r.sprite); scene.add(fresh); r.sprite = fresh;
   }
   r.name = p.n || 'Traveller';
   r.label.textContent = r.name;
@@ -2279,21 +2308,9 @@ function setRemote(id, p){
 function removeRemote(id){
   const r = remote[id]; if (!r) return;
   joinSeen[id] = Date.now();
-  scene.remove(r.sprite); r.sprite.material.dispose();
-  r.frames.forEach(t => t.dispose());
-  r.swing.axe.concat(r.swing.pick).forEach(t => t.dispose());
+  scene.remove(r.sprite);
   r.label.remove(); r.bubbleEl.remove();
   delete remote[id];
-}
-// the side-view swing frames for a look, with the axe and with the pickaxe
-const SWING_POSES = ['up', 'down', 'mid'];
-function makeSwing(a){
-  const out = {};
-  for (const tool of ['axe', 'pick']) out[tool] = SWING_POSES.map(pose => { const t = new THREE.CanvasTexture(adventurerSide({ ...look, ...a }, 0, pose, tool)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
-  return out;
-}
-function refreshSwing(r, a){
-  for (const tool of ['axe', 'pick']) SWING_POSES.forEach((pose, i) => { r.swing[tool][i].image = adventurerSide({ ...look, ...a }, 0, pose, tool); r.swing[tool][i].needsUpdate = true; });
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
@@ -2362,19 +2379,13 @@ function updateOnline(){
     const act = r.act && t - r.actAt < ACT_TIME[r.act.k] ? r.act : null;
     const verb = act ? ACT_LABEL[act.k] : '';
     if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
-    let face = r.face;
+    if (moving) r.yaw = Math.atan2(nx - x, nz - z);   // face the way they walk
     if (act && (act.k === 'chop' || act.k === 'mine')) {
       const node = nodeRecByKey(act.n);
-      if (node) face = screenX(node.x, node.z) < screenX(nx, nz) ? -1 : 1;   // face the tree or rock
-      const pose = swingPose(((t - r.actAt) / 750) % 1);
-      const tex = r.swing[act.k === 'mine' ? 'pick' : 'axe'][SWING_POSES.indexOf(pose)];
-      if (r.sprite.material.map !== tex) r.sprite.material.map = tex;
-    } else {
-      const f = moving ? Math.floor(r.tick / 6) % 4 : 0;
-      if (r.sprite.material.map !== r.frames[f]) r.sprite.material.map = r.frames[f];
-    }
-    r.frames.forEach(tex => { tex.repeat.x = face; tex.offset.x = face < 0 ? 1 : 0; });   // face left or right
-    r.swing.axe.concat(r.swing.pick).forEach(tex => { tex.repeat.x = face; tex.offset.x = face < 0 ? 1 : 0; });
+      if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
+      poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
+    } else poseChibi(r.sprite, moving ? 'walk' : 'idle', r.tick / 60);
+    turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
     r.label.style.left = sx + 'px'; r.label.style.top = sy + 'px'; r.label.style.display = 'block';
@@ -2412,6 +2423,7 @@ function updateMotes(now){
 }
 function frame(){
   updateWalk();
+  updateHeroAnim();
   updateTrees();
   updateDebris();
   updateHouses();
