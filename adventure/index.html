@@ -265,7 +265,21 @@ groundGeo.computeVertexNormals();
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
 }
-const groundMesh = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+// a fine grass texture: blades and speckles that the patch colours tint
+const grassTex = (() => {
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d');
+  const r = (() => { let q = 19; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  g.fillStyle = '#c8d8b0'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 5000; i++) {
+    const x = r() * S, y = r() * S, l = 2 + r() * 5, v = r();
+    g.strokeStyle = v < 0.5 ? `rgba(60,90,40,${0.2 + r() * 0.3})` : `rgba(240,255,210,${0.15 + r() * 0.3})`; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 2, y - l); g.stroke();
+  }
+  for (let i = 0; i < 12; i++) { const x = r() * S, y = r() * S, gr = g.createRadialGradient(x, y, 0, x, y, 20 + r() * 30);
+    gr.addColorStop(0, `rgba(${r() < 0.5 ? '90,120,50' : '230,240,190'},.25)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(60, 60); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+})();
+const groundMesh = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ map: grassTex, color: 0xffffff, vertexColors: true, roughness: 1, metalness: 0 }));
 town.add(groundMesh);
 // the river ripples: a moving wave pattern with sparkles where the sun catches it
 const riverTex = (() => {
@@ -1794,110 +1808,98 @@ function addFishSpot(x, z){
   hit.userData = { action: 'Fish', name: 'Fishing spot', rec }; trees.push(hit);
   fishSpots.push(rec);
 }
-// a road as a flat strip between two points
+// ----- the paths: worn dirt tracks, drawn with textures made in code -----
 const ROADS = [];   // every road segment, so the scattered trees keep clear of them
-function roadBetween(x1, z1, x2, z2, w = 1.4){
-  ROADS.push([x1, z1, x2, z2]);
-  const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz);
-  const r = new THREE.Mesh(new THREE.PlaneGeometry(w, len).rotateX(-Math.PI / 2), mat(0xa48a5e));
-  r.position.set((x1 + x2) / 2, 0.03, (z1 + z2) / 2);   // lies on the flat ground, so it replaces the grass r.rotation.y = Math.atan2(dx, dz);   // 0.3 is above the highest hill, so no part of the road is buried
-  town.add(r);
-}
-// if the adventurer has ended up inside a solid box (a door shutting on them, say), slide them to the nearest clear spot
-function unstick(){
-  if (!hero || !hardHit(hero.position.x, hero.position.z)) return;
-  for (let r = 0.25; r <= 4; r += 0.25) for (let a = 0; a < 16; a++) {
-    const x = hero.position.x + Math.cos(a * Math.PI / 8) * r, z = hero.position.z + Math.sin(a * Math.PI / 8) * r;
-    if (!hardHit(x, z)) { hero.position.set(x, 0, z); heroShadow.position.set(x, 0.06, z); return; }
+// a tiling dirt texture: packed earth, darker wheel ruts, grit and pebbles, fading softly to grass at the edges
+const dirtTex = (() => {
+  const W = 128, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const r = (() => { let q = 11; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  g.fillStyle = '#9c7f55'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 2200; i++) { const v = r(); g.fillStyle = v < 0.5 ? `rgba(70,50,28,${0.1 + r() * 0.2})` : `rgba(200,175,130,${0.1 + r() * 0.2})`; g.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2); }
+  for (const x of [W * 0.3, W * 0.7]) { const gr = g.createLinearGradient(x - 10, 0, x + 10, 0); gr.addColorStop(0, 'rgba(60,42,22,0)'); gr.addColorStop(0.5, 'rgba(60,42,22,.28)'); gr.addColorStop(1, 'rgba(60,42,22,0)'); g.fillStyle = gr; g.fillRect(x - 10, 0, 20, H); }   // wheel ruts
+  for (let i = 0; i < 40; i++) { const x = r() * W, y = r() * H, rad = 1.5 + r() * 3;
+    g.fillStyle = 'rgba(40,30,20,.35)'; g.beginPath(); g.ellipse(x + 1, y + 1, rad, rad * 0.8, 0, 0, 7); g.fill();
+    const c = 120 + r() * 70; g.fillStyle = `rgb(${c},${c * 0.95},${c * 0.88})`; g.beginPath(); g.ellipse(x, y, rad, rad * 0.8, r() * 3, 0, 7); g.fill(); }   // pebbles
+  // fade the sides so the path blends into the grass
+  const img = g.getImageData(0, 0, W, H), d = img.data;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const u = Math.abs(x / (W - 1) - 0.5) * 2, wob = Math.sin(y * 0.11) * 0.05 + Math.sin(y * 0.37 + 1) * 0.03;
+    d[(y * W + x) * 4 + 3] = 255 * Math.max(0, Math.min(1, (1 - u + wob) / 0.22));
   }
-}
-// open or close a house door: a swing on its hinge, and the doorway is walkable only while it is open
-function toggleDoor(rec){
-  rec.open = !rec.open;
-  if (rec.open === false) unstick();   // never shut a door on the adventurer
-  rec.pivot.rotation.y = rec.open ? -Math.PI / 2 : 0;
-  rec.leaf.userData.action = rec.open ? 'Close' : 'Open';
-  const i = solidBoxes.indexOf(rec.box);
-  if (rec.open && i >= 0) solidBoxes.splice(i, 1);
-  if (!rec.open && i < 0) solidBoxes.push(rec.box);
-}
-// a villager stands inside a house; clicking them walks over and opens their dialogue
-// villagers wander a little around their spot: inside their house, or round the green for Mara
-const WANDER = [];
-function npcFrames(look){
-  return [0, 1, 0, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
-}
-function pickWanderTarget(w){
-  for (let i = 0; i < 12; i++) {
-    const tx = w.lx + (Math.random() * 2 - 1) * w.rad, tz = w.lz + (Math.random() * 2 - 1) * w.rad;
-    if (tx < w.box.x0 || tx > w.box.x1 || tz < w.box.z0 || tz > w.box.z1) continue;
-    if (hardHit(w.ox + tx * w.k, w.oz + tz * w.k)) continue;
-    w.tx = tx; w.tz = tz; return;
-  }
-  w.tx = w.sp.position.x; w.tz = w.sp.position.z;   // nowhere better: stay put
-}
-function addWander(sp, rec, frames, o){
-  WANDER.push({ sp, rec, frames, lx: o.lx, lz: o.lz, rad: o.rad, box: o.box, k: o.k, ox: o.ox, oz: o.oz,
-    tx: o.lx, tz: o.lz, pause: 60 + Math.random() * 120, tick: 0, face: 1 });
-}
-function updateWanderers(){
-  for (const w of WANDER) {
-    const sp = w.sp, x = sp.position.x, z = sp.position.z;
-    let moving = false;
-    if (w.pause > 0) w.pause--;
-    else {
-      const dx = w.tx - x, dz = w.tz - z, dist = Math.hypot(dx, dz);
-      if (dist < 0.03) { pickWanderTarget(w); w.pause = 150 + Math.random() * 240; }   // arrived: rest, then pick somewhere else
-      else {
-        const step = Math.min(dist, 0.02), nx = x + dx / dist * step, nz = z + dz / dist * step;
-        if (hardHit(w.ox + nx * w.k, w.oz + nz * w.k)) { w.tx = x; w.tz = z; }   // something in the way
-        else { sp.position.set(nx, 0, nz); moving = true; w.face = dx < 0 ? -1 : 1; w.tick++; }
-      }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+})();
+const dirtMat = new THREE.MeshStandardMaterial({ map: dirtTex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+// cobblestones, for the village green round the well and the door steps
+const cobbleTex = (() => {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d');
+  const r = (() => { let q = 5; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  g.fillStyle = '#4e4638'; g.fillRect(0, 0, S, S);
+  for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
+    const x = col * 16 + (row % 2) * 8 + 8, y = row * 16 + 8, c = 120 + r() * 50;
+    for (const dx of [-S, 0, S]) {
+      g.fillStyle = `rgb(${c},${c * 0.96},${c * 0.9})`; g.beginPath(); g.ellipse(x + dx + (r() - 0.5) * 2, y, 6.5 + r(), 6 + r(), r(), 0, 7); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.ellipse(x + dx - 2, y - 2, 3, 2.4, 0, 0, 7); g.fill();
     }
-    const idx = moving ? Math.floor(w.tick / 10) % 4 : 0;
-    if (sp.material.map !== w.frames[idx]) sp.material.map = w.frames[idx];
-    w.frames.forEach(t => { t.repeat.x = w.face; t.offset.x = w.face < 0 ? 1 : 0; });   // face the way they walk
-    w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+})();
+function cobbleDisc(x, z, rad){
+  const t = cobbleTex.clone(); t.needsUpdate = true; t.repeat.set(rad / 1.5, rad / 1.5);
+  const m = new THREE.Mesh(new THREE.CircleGeometry(rad, 40).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  m.position.set(x, 0.045, z); town.add(m);
+}
+// a smooth dirt path through the given points: a curved ribbon of the dirt texture, with a round patch at each end
+const pathEdgeSpots = [];
+function roadPath(pts, w = 2.2){
+  const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
+  const len = curve.getLength(), n = Math.max(2, Math.ceil(len / 0.6));
+  const sp = curve.getSpacedPoints(n), pos = [], uv = [], idx = [];
+  let along = 0;
+  for (let i = 0; i <= n; i++) {
+    const a = sp[Math.max(0, i - 1)], b = sp[Math.min(n, i + 1)];
+    const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+    if (i) along += sp[i].distanceTo(sp[i - 1]);
+    const hw = w / 2 * (1 + Math.sin(along * 0.7) * 0.08);   // the width wanders a little
+    pos.push(sp[i].x + nx * hw, 0.04, sp[i].z + nz * hw, sp[i].x - nx * hw, 0.04, sp[i].z - nz * hw);
+    uv.push(0, along / 4, 1, along / 4);
+    if (i < n) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    if (i % 3 === 0) pathEdgeSpots.push([sp[i].x, sp[i].z, nx, nz, w]);
+    if (i) ROADS.push([sp[i - 1].x, sp[i - 1].z, sp[i].x, sp[i].z]);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+  geo.computeVertexNormals();
+  if (geo.attributes.normal.getY(0) < 0) { for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]; geo.setIndex(idx); geo.computeVertexNormals(); }
+  const m = new THREE.Mesh(geo, dirtMat); m.renderOrder = 1; town.add(m);
+  for (const e of [pts[0], pts[pts.length - 1]]) {   // soft round ends, so joins and doorsteps look worn in
+    const c = new THREE.Mesh(new THREE.CircleGeometry(w * 0.62, 20).rotateX(-Math.PI / 2), dirtMat);
+    c.position.set(e[0], 0.042, e[1]); c.renderOrder = 1; town.add(c);
   }
 }
-function addNpc(g, h, lx, lz, npc){
-  const frames = npcFrames(npc.look);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
-  sp.center.set(0.5, 0); sp.scale.set(2.1, 2.8, 1); sp.position.set(lx, 0, lz); sp.renderOrder = 10;
-  g.add(sp);
-  const p = h.toWorld(lx, lz);
-  const rec = { kind: 'npc', name: npc.name, lines: npc.lines, x: p.x, z: p.z, s: 0.7, state: 'standing' };
-  sp.userData = { action: 'Talk', name: npc.name, rec };
-  trees.push(sp);
-  const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
-  addWander(sp, rec, frames, { lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
-}
-// the smithy's furnace and anvil, inside its walls
-function furnishSmithy(g, h){
-  const S = HOUSE_SIZE;
-  const f = new THREE.Group(); f.scale.setScalar(S); g.add(f);   // the furnishings are drawn at the house's own units, then scaled
-  const fx = -1.6, fz = -1.8, ax = 1.4, az = -0.4;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.0), texMat(wallStone, 1, 1, 0xa0a0a0)); body.position.set(fx, 0.8, fz); f.add(body);
-  const fire = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.05), fireMat); fire.position.set(fx, 0.6, fz + 0.52); f.add(fire);
-  const fp = h.toWorld(fx * S, fz * S);
-  body.userData = { action: 'Smelt', name: 'Furnace', rec: { kind: 'furnace', x: fp.x, z: fp.z, s: 1, state: 'standing' } };
-  trees.push(body);
-  solidBoxes.push({ x0: fp.x - 1, x1: fp.x + 1, z0: fp.z - 1, z1: fp.z + 1 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), ironDark); base.position.set(ax, 0.2, az); f.add(base);
-  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.4), ironDark); waist.position.set(ax, 0.5, az); f.add(waist);
-  const face = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.5), steelTop); face.position.set(ax, 0.7, az); f.add(face);
-  const apt = h.toWorld(ax * S, az * S);
-  base.userData = { action: 'Smith', name: 'Anvil', rec: { kind: 'anvil', x: apt.x, z: apt.z, s: 1, state: 'standing' } };
-  trees.push(base);
-  solidBoxes.push({ x0: apt.x - 1, x1: apt.x + 1, z0: apt.z - 1, z1: apt.z + 1 });
-  addNpc(g, h, 0.6 * S, 1.0 * S, VILLAGERS[3]);
-}
-function roadPath(pts, w = 1.6){
-  for (let i = 0; i < pts.length - 1; i++) roadBetween(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w);
-  pts.forEach(([x, z]) => {
-    const c = new THREE.Mesh(new THREE.CircleGeometry(w / 2, 12).rotateX(-Math.PI / 2), mat(0xa48a5e));
-    c.position.set(x, 0.03, z); town.add(c);
+// little stones and wildflowers along the path edges
+function decoratePaths(){
+  const r = (() => { let q = 77; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  const stones = [], flowers = [];
+  for (const [x, z, nx, nz, w] of pathEdgeSpots) for (const side of [1, -1]) {
+    const o = w / 2 + 0.15 + r() * 0.6, px = x + nx * o * side + (r() - 0.5) * 0.6, pz = z + nz * o * side + (r() - 0.5) * 0.6;
+    if (solidBoxes.some(b => px > b.x0 - 0.3 && px < b.x1 + 0.3 && pz > b.z0 - 0.3 && pz < b.z1 + 0.3)) continue;
+    if (Math.abs(pz + 14) < 3.2) continue;   // not in the river
+    const v = r(); if (v < 0.35) stones.push([px, pz]); else if (v < 0.6) flowers.push([px, pz]);
+  }
+  const dummy = new THREE.Object3D();
+  const st = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), mat(0x9a948a), stones.length);
+  stones.forEach(([x, z], i) => { dummy.position.set(x, 0.06, z); dummy.rotation.set(r() * 3, r() * 3, r() * 3); dummy.scale.set(1 + r(), 0.6 + r() * 0.4, 1 + r()); dummy.updateMatrix(); st.setMatrixAt(i, dummy.matrix); st.setColorAt(i, new THREE.Color().setHSL(0.08, 0.08, 0.45 + r() * 0.25)); });
+  town.add(st);
+  const petals = [0xf4e04d, 0xffffff, 0xe86aa6, 0x9b7be0, 0xf08a4b];
+  const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.11, 0), new THREE.MeshStandardMaterial({ roughness: 0.8, emissive: 0x111111 }), flowers.length);
+  const stem = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.02, 0.02, 0.35, 3), mat(0x3f7a2e), flowers.length);
+  flowers.forEach(([x, z], i) => {
+    dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+    dummy.position.set(x, 0.18, z); dummy.updateMatrix(); stem.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, 0.38, z); dummy.updateMatrix(); fl.setMatrixAt(i, dummy.matrix); fl.setColorAt(i, new THREE.Color(petals[Math.floor(r() * petals.length)]));
   });
+  town.add(fl, stem);
 }
 // a villager who stands out in the open, with a choice at the end of her talk
 function addWorldNpc(x, z, npc){
@@ -1923,19 +1925,27 @@ function populateVillage(){
   const smithyHouse = house(38, 46, 6, 5, 0x8a6a4a, 0x5a3a2a, 0, furnishSmithy);   // the smithy, its own building
   // the roads: one network from the village green, each house reached by its front door
   const G = hub;
-  const Dh1 = [h1.door.x, h1.door.z], Dh2 = [h2.door.x, h2.door.z], Dh3 = [h3.door.x, h3.door.z], Dh4 = [h4.door.x, h4.door.z], Dsm = [smithyHouse.door.x, smithyHouse.door.z];
-  roadPath([G, Dh1]);                                                  // the far west house
-  roadPath([G, Dh3]);                                                  // the north house
-  roadPath([G, [-44, 20], Dh2]);                                       // the south-west house, from its front
-  roadPath([G, [-30, 20], Dh4]);                                       // the turned house
-  roadPath([[14.5, 12], [24, 14], [24, 56], Dsm]);                     // the smithy, out to the south-east
-  roadPath([G, [-14, 14], [4, 14], [14.5, 12]]);                       // east to the hall door
-  roadPath([G, [-84, 6]]);                                             // west to the woods
-  roadPath([G, [-30, -8], [-36, -10.6]]);                              // north to the fishing bank
+  const D = h => [h.door.x, h.door.z];
+  // a short straight run out from each door, so every path meets its doorway head on
+  const out = (h, n = 3) => { const dx = h.door.x - h.x, dz = h.door.z - h.z, L = Math.hypot(dx, dz) || 1;
+    const fx = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) : 0, fz = fx ? 0 : Math.sign(dz);   // the door faces along one axis
+    return [h.door.x + fx * n, h.door.z + fz * n]; };
+  cobbleDisc(G[0], G[1], 5);                                           // the cobbled green round the well
+  for (const h of [h1, h2, h3, h4, smithyHouse]) cobbleDisc(h.door.x, h.door.z, 1.3);   // a stone step at every door
+  roadPath([G, [-48, 7], out(h1), D(h1)]);                             // the far west house
+  roadPath([G, [-28, 5], out(h3), D(h3)]);                             // the north house
+  roadPath([G, [-42, 20], [-42, 44], [-46, 47], out(h2), D(h2)]);      // the south-west house, between the two southern houses
+  roadPath([G, [-26, 18], [-18, 28], out(h4), D(h4)]);                 // the turned house, round its east side
+  roadPath([[-46, 47], [-40, 52], [-28, 53], [-18, 48], out(h4)]);      // a back lane joining the two southern houses
+  roadPath([out(h1), [-62, 9], [-72, 7], [-84, 6]]);                   // west past the first house to the woods
+  roadPath([G, [-24, 12], [-6, 14], [6, 13], [14.5, 12]]);              // east to the hall door
+  roadPath([[14.5, 12], [22, 16], [26, 30], [26, 54], [30, 58], out(smithyHouse), D(smithyHouse)]);   // the smithy, out to the south-east
+  roadPath([[22, 16], [34, 18], [44, 22]]);                            // the quarry
+  roadPath([out(smithyHouse), [49, 58], [51, 48]]);                    // round the smithy to the tin rocks
+  roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
   // the quarry, out to the south-east beyond the hall
-  roadPath([[24, 14], [44, 22]]);
   [[46, 22, 'copper'], [50, 26, 'copper'], [54, 20, 'copper'], [56, 30, 'copper'], [44, 34, 'tin'], [48, 38, 'tin'], [53, 36, 'tin'], [57, 42, 'tin']]
     .forEach(([x, z, ore]) => makeRock(x, z, 1.2, ore));
   // the fishing spot in the river
@@ -1944,6 +1954,7 @@ function populateVillage(){
     choice: { question: 'Would you like to see my shop?' } });
   addFishSpot(-36, -13.4);
   scatterOaks();
+  decoratePaths();
 }
 // random oaks through the village: a seeded spread, kept clear of buildings, roads, the hall, the well and the river
 function scatterOaks(){
