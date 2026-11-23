@@ -54,6 +54,13 @@
   .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
   .chatBub:before { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-top: 6px solid rgba(12, 10, 8, .9); border-bottom: 0; z-index: 1; }
   #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
+  /* polish: warm parchment-and-gold panels, soft shadows, a vignette */
+  body:after { content:''; position:fixed; inset:0; pointer-events:none; z-index:4; background:radial-gradient(ellipse at center, transparent 55%, rgba(10,8,4,.38) 100%); }
+  #statsPanel, #bagPanel, #gearPanel, #shopPanel, #smithPanel, #dialog { background:linear-gradient(180deg, rgba(48,36,20,.96), rgba(22,16,9,.96)) !important; border-color:#a07a3c !important; box-shadow:0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,220,150,.15); backdrop-filter:blur(4px); }
+  .tabIcon, #musicBtn, #backArcade, #logoutBtn, #lookBtn { background:linear-gradient(180deg, rgba(58,42,22,.92), rgba(26,18,10,.92)) !important; border-color:#a07a3c !important; box-shadow:0 3px 10px rgba(0,0,0,.45); transition:transform .12s, border-color .12s; }
+  .tabIcon:hover, #musicBtn:hover, #backArcade:hover, #logoutBtn:hover, #lookBtn:hover { transform:translateY(-1px); border-color:#f0c35a !important; }
+  #hint, #toast, #chatLog { backdrop-filter:blur(3px); box-shadow:0 3px 10px rgba(0,0,0,.35); }
+  .bagHead, #dlgName, .crBox h2 { letter-spacing:.5px; text-shadow:0 1px 0 #000; }
 </style>
 </head>
 <body>
@@ -120,10 +127,17 @@
   </div>
 </div>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ----- the look options -----
 const LOOK = [
@@ -143,11 +157,44 @@ const saveLook = () => { try { localStorage.setItem('lowpolyLook', JSON.stringif
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fd3e8);
-scene.fog = new THREE.Fog(0x9fd3e8, 45, 100);
+const HORIZON = 0xcfe6ea;
+scene.background = new THREE.Color(HORIZON);
+scene.fog = new THREE.Fog(HORIZON, 50, 120);
+// a gradient sky dome with a soft sun glow
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x3d7fc9) }, mid: { value: new THREE.Color(0x8cc4e6) }, bot: { value: new THREE.Color(HORIZON) }, sunDir: { value: new THREE.Vector3(12, 22, 8).normalize() } },
+  vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform vec3 top, mid, bot, sunDir; varying vec3 vP;
+    void main(){ float h = vP.y; vec3 c = h > 0.25 ? mix(mid, top, smoothstep(0.25, 0.9, h)) : mix(bot, mid, smoothstep(-0.05, 0.25, h));
+      float s = max(dot(vP, sunDir), 0.0); c += vec3(1.0, 0.85, 0.6) * (pow(s, 64.0) * 0.9 + pow(s, 6.0) * 0.18);
+      gl_FragColor = vec4(c, 1.0); }`,
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(180, 32, 16), skyMat);
+scene.add(sky);
+// soft puffy clouds drifting overhead
+const clouds = new THREE.Group(); scene.add(clouds);
+{
+  const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdde8f0, emissiveIntensity: 0.35, flatShading: true, roughness: 1, fog: false });
+  const cr = (() => { let q = 3; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  for (let i = 0; i < 14; i++) {
+    const c = new THREE.Group();
+    for (let j = 0; j < 4 + cr() * 3; j++) {
+      const b = new THREE.Mesh(new THREE.IcosahedronGeometry(3 + cr() * 3, 0), cm);
+      b.position.set(j * 4 - 6 + cr() * 2, cr() * 2, cr() * 3); b.scale.y = 0.55; c.add(b);
+    }
+    const a = cr() * Math.PI * 2, r = 70 + cr() * 60;
+    c.position.set(Math.cos(a) * r, 45 + cr() * 15, Math.sin(a) * r); c.rotation.y = cr() * 3;
+    clouds.add(c);
+  }
+}
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
 let yaw = 0.6, pitch = 0.95, dist = 30;
 const target = new THREE.Vector3(0, 1, 0);
@@ -158,10 +205,25 @@ function placeCamera(){
     target.z + dist * Math.cos(yaw) * Math.sin(pitch));
   camera.lookAt(target);
 }
-scene.add(new THREE.HemisphereLight(0xffffff, 0x3a5a2a, 1.1));
-const sun = new THREE.DirectionalLight(0xfff1d6, 1.4);
+scene.add(new THREE.HemisphereLight(0xdff0ff, 0x4a5a2a, 0.9));
+const sun = new THREE.DirectionalLight(0xffe7c2, 2.1);
 sun.position.set(12, 22, 8);
-scene.add(sun);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 90 });
+scene.add(sun, sun.target);
+// keep the shadow area centred on the player and give new meshes shadows
+const SUN_OFF = new THREE.Vector3(18, 33, 12);
+let shadowScan = 0;
+function updateSun(){
+  sun.position.copy(target).add(SUN_OFF); sun.target.position.copy(target);
+  if (performance.now() > shadowScan) {
+    shadowScan = performance.now() + 1500;
+    scene.traverse(o => { if (o.isMesh && !o.userData.shadowSet && o !== sky && o.parent !== clouds) {
+      o.userData.shadowSet = true; o.castShadow = o !== groundMesh && o !== river; o.receiveShadow = true; } });
+  }
+}
 
 const mat = c => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.9, metalness: 0 });
 const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
@@ -179,8 +241,30 @@ for (let i = 0; i < gp.count; i++) {
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
 }
 groundGeo.computeVertexNormals();
-town.add(new THREE.Mesh(groundGeo, mat(0x4f8a3a)));
-const river = new THREE.Mesh(new THREE.PlaneGeometry(240, 4.2).rotateX(-Math.PI / 2), mat(0x3a7fb0));
+// tint the grass with gentle patches of light and dark green
+{
+  const cols = new Float32Array(gp.count * 3), c = new THREE.Color(), a = new THREE.Color(0x4f9a3c), b = new THREE.Color(0x7fae46), d = new THREE.Color(0x3c7a34);
+  for (let i = 0; i < gp.count; i++) {
+    const x = gp.getX(i), z = gp.getZ(i);
+    const n = Math.sin(x * 0.11 + Math.cos(z * 0.07) * 2) * 0.5 + Math.sin(z * 0.13 - x * 0.05) * 0.5;
+    const f = Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
+    c.copy(a).lerp(n > 0 ? b : d, Math.abs(n) * 0.7).multiplyScalar(0.94 + f * 0.1);
+    cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+  }
+  groundGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+}
+const groundMesh = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+town.add(groundMesh);
+// the river ripples: a moving wave pattern with sparkles where the sun catches it
+const riverTex = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+  g.fillStyle = '#2f78ad'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 60; i++) { g.strokeStyle = `rgba(${170 + Math.random() * 80},${220 + Math.random() * 35},255,${0.15 + Math.random() * 0.35})`; g.lineWidth = 1 + Math.random() * 1.5;
+    const x = Math.random() * 128, y = Math.random() * 128, w = 8 + Math.random() * 18; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y - 3, x + w, y); g.stroke(); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 1); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const river = new THREE.Mesh(new THREE.PlaneGeometry(240, 4.2).rotateX(-Math.PI / 2),
+  new THREE.MeshStandardMaterial({ map: riverTex, color: 0xbfe4ff, roughness: 0.15, metalness: 0.2, emissive: 0x0a2a44, emissiveIntensity: 0.4 }));
 river.position.set(0, -0.12, -14); town.add(river);
 function path(x, z, w, l, rot){
   const p = new THREE.Mesh(new THREE.PlaneGeometry(w, l).rotateX(-Math.PI / 2), mat(0xa48a5e));
@@ -1449,6 +1533,7 @@ function fitView(){
   const w = Math.round(vv ? vv.width : innerWidth), h = Math.round(vv ? vv.height : innerHeight);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setSize(w, h, true);
+  composer.setSize(w, h); bloom.setSize(w, h);
 }
 addEventListener('resize', fitView);
 // a rotation can lose finger lift-offs, so forget any touches still being tracked
@@ -2113,6 +2198,34 @@ function updateOnline(){
     r.bubbleEl.style.left = ((bv.x + 1) / 2 * innerWidth) + 'px'; r.bubbleEl.style.top = ((-bv.y + 1) / 2 * innerHeight) + 'px';
   }
 }
+// post-processing: a gentle glow on bright things like the fire and the sun
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(devicePixelRatio, 2));
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.85);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+// floating pollen and fireflies drifting around the player
+const MOTES = 160;
+const moteGeo = new THREE.BufferGeometry();
+const moteBase = new Float32Array(MOTES * 3), motePos = new Float32Array(MOTES * 3);
+for (let i = 0; i < MOTES; i++) { moteBase[i * 3] = (Math.random() - 0.5) * 50; moteBase[i * 3 + 1] = 0.5 + Math.random() * 6; moteBase[i * 3 + 2] = (Math.random() - 0.5) * 50; }
+moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+const moteTex = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 32; const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,250,210,1)'); gr.addColorStop(1, 'rgba(255,250,210,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(cv); })();
+const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: moteTex, size: 0.35, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xfff2b0 }));
+motes.frustumCulled = false; scene.add(motes);
+function updateMotes(now){
+  const t = now * 0.001;
+  for (let i = 0; i < MOTES; i++) {
+    const bx = moteBase[i * 3], bz = moteBase[i * 3 + 2];
+    let x = bx + Math.sin(t * 0.3 + i) * 1.5, z = bz + Math.cos(t * 0.25 + i * 1.7) * 1.5;
+    x = ((x - target.x + 25) % 50 + 50) % 50 - 25 + target.x; z = ((z - target.z + 25) % 50 + 50) % 50 - 25 + target.z;
+    motePos[i * 3] = x; motePos[i * 3 + 1] = moteBase[i * 3 + 1] + Math.sin(t * 0.8 + i * 3.1) * 0.4; motePos[i * 3 + 2] = z;
+  }
+  moteGeo.attributes.position.needsUpdate = true;
+}
 function frame(){
   updateWalk();
   updateTrees();
@@ -2129,7 +2242,13 @@ function frame(){
   placeCamera();
   placeCreator();
   placeHeroChat();
-  renderer.render(scene, camera);
+  updateSun();
+  const now = performance.now();
+  riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
+  clouds.rotation.y = now * 0.000006;
+  sky.position.copy(camera.position);
+  updateMotes(now);
+  composer.render();
   requestAnimationFrame(frame);
 }
 const joinName = () => { const n = document.getElementById('nameInput').value.trim().slice(0, 12); if (n) enterVillage(n); };
