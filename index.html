@@ -793,13 +793,18 @@ function crawlerStepChains(c) {
   c.chains.forEach(ch => ch.segs.forEach(p => occ.add(crKey(p.x, p.y))));
   const blocked = (x, y) => x < 0 || x >= CR.COLS || y < 0 || y >= CR.ROWS || c.mush.has(crKey(x, y)) || occ.has(crKey(x, y));
   for (const ch of c.chains) {
-    const h = ch.segs[0], nx = h.x + ch.dir;
+    const h = ch.segs[0], dir0 = ch.dir, nx = h.x + dir0;
     let np = null;
     if (!blocked(nx, h.y)) np = {x: nx, y: h.y};
     else {                                         // hit a wall or mushroom: drop a row (or climb if you can't) and reverse
-      ch.dir = -ch.dir;
+      ch.dir = -dir0;
       if (!blocked(h.x, h.y + 1)) np = {x: h.x, y: h.y + 1};
       else if (!blocked(h.x, h.y - 1)) np = {x: h.x, y: h.y - 1};
+      else {                                       // boxed in by mushrooms and its own body: chew through one (ahead, then down, then up)
+        const chew = (x, y) => { const k = crKey(x, y); if (x >= 0 && x < CR.COLS && c.mush.has(k)) { c.mush.delete(k); return {x, y}; } return null; };
+        np = chew(nx, h.y) || chew(h.x, h.y + 1) || chew(h.x, h.y - 1);
+        if (np && np.x === nx) ch.dir = dir0;
+      }
     }
     if (np) { ch.segs.unshift(np); ch.segs.pop(); }   // the body follows the head
   }
