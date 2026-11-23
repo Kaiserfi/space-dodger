@@ -883,7 +883,7 @@ const solidBoxes = [
 // the centre pillar blocks movement too
 solidBoxes.push(box(-0.5, 0.5, -0.5, 0.5));
 // the river is solid water: the route goes round the town, not through it
-solidBoxes.push({ x0: -120, x1: 120, z0: -16.2, z1: -11.8 });
+solidBoxes.push({ x0: -120, x1: 120, z0: -16.9, z1: -11.1 });
 // materials for the smithy
 const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1.2, flatShading: true });
 const stoneDark = mat(0x5a5650), ironDark = mat(0x3a3f46), steelTop = mat(0x6a7078);
@@ -1168,7 +1168,7 @@ function levelUpSound(){
   }
 }
 function cancelChop(){
-  stopSmelting(); stopCooking(); stopSmithing();
+  stopSmelting(); stopCooking(); stopSmithing(); stopFishing();
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
@@ -1184,6 +1184,7 @@ function clickNode(rec){
   cancelChop();
   if (rec.kind === 'anvil' && !hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (rec.kind === 'monster') { startFight(rec); return; }
+  if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
   if (rec.kind === 'range' && !hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
@@ -1203,7 +1204,7 @@ function clickNode(rec){
     .filter(p => !blocked(p.x, p.z))
     .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
   if (!spots.length) return;
-  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else if (rec.kind === 'range') cook(rec); else if (rec.kind === 'animal') petAnimal(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
+  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(rec); else if (rec.kind === 'door') toggleDoor(rec); else if (rec.kind === 'range') cook(rec); else if (rec.kind === 'animal') petAnimal(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
 }
 // one copper ore and one tin ore make one bronze bar
 function removeItem(name){
@@ -2352,7 +2353,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -2724,14 +2725,33 @@ function splashSound(){ sfx((ctx, t, out) => { out.gain.value = 0.55;   // a sof
   nz(ctx, out, t, 0.5, 'lowpass', 380, 380, 0.7, 0.45, 0.15, 0.3);
   for (const [d, f, v] of [[0.3, 900, 0.1], [0.42, 1200, 0.07]]) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(f + 600, t + d); o.frequency.exponentialRampToValueAtTime(f, t + d + 0.05);
     g.gain.setValueAtTime(v, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.1); o.connect(g); g.connect(out); o.start(t + d); o.stop(t + d + 0.12); } }); }
-function catchFish(){
-  showToast('You dip your net in the water...');
-  setAct({ k: 'fish', t: Date.now() }); setTimeout(() => setAct(null), 2000);
-  splashSound();
-  setTimeout(() => {
-    if (addItem('Raw shrimp', 1, SHRIMP_ICON)) { addXp('Fishing', 10); showToast('You catch a raw shrimp.  +10 Fishing XP'); }
-    else showToast('Your bag is full.');
-  }, 1800);
+// fishing takes time: each dip of the net takes a few seconds and may come up empty; it carries on by itself
+// until your bag is full. Clicking the spot again while fishing does nothing, and walking away stops it.
+let fishing = null;
+const FISH_MS = 3000;
+function catchFish(rec){
+  if (fishing) return;
+  if (bag.length >= BAG_SIZE && !hasItem('Raw shrimp')) { showToast('Your bag is full.'); return; }
+  fishing = { rec: rec || trees.find(t => t.userData.rec && t.userData.rec.kind === 'fish').userData.rec, t0: performance.now() };
+  showToast('You dip your net in the water...'); splashSound();
+  setAct({ k: 'fish', t: Date.now() });
+  document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
+}
+function stopFishing(msg){ if (!fishing) return; fishing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'fish') setAct(null); if (msg) showToast(msg); }
+function updateFishing(){
+  if (!fishing) return;
+  const k = (performance.now() - fishing.t0) / FISH_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, fishing.rec.x, fishing.rec.z);
+  heroAnim.mode = 'work';
+  if (k < 1) return;
+  // a catch is more likely the better you are at fishing
+  if (Math.random() < Math.min(0.9, 0.45 + levelOf(SKILL_XP.Fishing) * 0.02)) {
+    if (!addItem('Raw shrimp', 1, SHRIMP_ICON)) { stopFishing('Your bag is full.'); return; }
+    addXp('Fishing', 10); showToast(`You catch a raw shrimp (${countOf('Raw shrimp')}).  +10 Fishing XP`);
+  }
+  if (bag.length >= BAG_SIZE && !hasItem('Raw shrimp')) { stopFishing('Your bag is full.'); return; }
+  fishing.t0 = performance.now(); splashSound(); setAct({ k: 'fish', t: Date.now() });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
@@ -2742,7 +2762,7 @@ function addFishSpot(x, z){
   ring.position.set(x, 0.1, z); town.add(ring);
   const hit = new THREE.Mesh(new THREE.CircleGeometry(1.4, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.set(x, 0.1, z); town.add(hit);
-  const rec = { kind: 'fish', x, z, s: 1.2, state: 'standing', ring };
+  const rec = { kind: 'fish', x, z, s: 1.6, state: 'standing', ring };
   hit.userData = { action: 'Fish', name: 'Fishing spot', rec }; trees.push(hit);
   fishSpots.push(rec);
 }
@@ -3825,7 +3845,7 @@ function removeRemote(id){
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
 const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -3895,7 +3915,7 @@ function updateOnline(){
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
     } else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
-    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -3937,6 +3957,7 @@ function frame(){
   updateSmelt();
   updateCook();
   updateSmith();
+  updateFishing();
   updateQuest();
   updateHeroAnim();
   updateTrees();
