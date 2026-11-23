@@ -49,6 +49,9 @@
   .gearRow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #3a2a16; }
   .gearRow b { color:#f0c35a; font-weight:normal; }
   #online[hidden] { display: none !important; }
+  .chatBub { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 6; max-width: 240px; padding: 5px 9px; margin-top: -9px; background: rgba(12, 10, 8, .9); border: 1px solid #5b4324; border-radius: 8px; color: #ffe14d; font: 14px Georgia, serif; line-height: 1.3; text-align: center; word-wrap: break-word; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .chatBub:after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top: 7px solid #5b4324; border-bottom: 0; }
+  .chatBub:before { content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-top: 6px solid rgba(12, 10, 8, .9); border-bottom: 0; z-index: 1; }
   #dlgChoice[hidden], #shopPanel[hidden] { display: none !important; }
 </style>
 </head>
@@ -91,7 +94,7 @@
   <div id="chatLog" style="background:rgba(0,0,0,.55);border-radius:6px 6px 0 0;padding:6px 8px;height:110px;overflow-y:auto;"></div>
   <input id="chatInput" maxlength="120" placeholder="Press Enter to chat" style="width:100%;box-sizing:border-box;font:13px Georgia,serif;background:rgba(20,16,10,.9);color:#e8efe6;border:1px solid #5b4324;border-radius:0 0 6px 6px;padding:6px 8px;outline:none;">
 </div>
-<div id="heroChat" style="position:fixed;left:0;top:0;transform:translate(-50%,-100%);display:none;pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;max-width:260px;text-align:center;"></div>
+<div id="heroChat" class="chatBub" style="display:none"></div>
 <a id="backArcade" href="../" style="position:fixed;left:12px;top:52px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;text-decoration:none;">&lt; Arcade</a>
 <div id="online" style="position:fixed;inset:0;z-index:30;background:rgba(5,10,6,.88);display:flex;align-items:center;justify-content:center;">
   <div style="background:rgba(30,24,16,.97);border:2px solid #f0c35a;border-radius:10px;padding:18px 20px;width:min(320px,88vw);text-align:center;color:#e8efe6;font:15px Georgia,serif;">
@@ -897,7 +900,7 @@ function sayAbove(text){
 const heroChatV = new THREE.Vector3();
 function placeHeroChat(){
   if (heroChat.style.display !== 'block' || !hero) return;
-  heroChatV.copy(hero.position).add(new THREE.Vector3(0, 4.9, 0)).project(camera);
+  heroChatV.copy(hero.position).add(new THREE.Vector3(0, 4.2, 0)).project(camera);
   heroChat.style.left = ((heroChatV.x + 1) / 2 * innerWidth) + 'px';
   heroChat.style.top = ((-heroChatV.y + 1) / 2 * innerHeight) + 'px';
 }
@@ -1896,7 +1899,7 @@ function setRemote(id, p){
     const label = document.createElement('div');
     label.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#fff;font:13px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;white-space:nowrap;display:none;';
     const bubbleEl = document.createElement('div');
-    bubbleEl.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;max-width:260px;text-align:center;display:none;';
+    bubbleEl.className = 'chatBub'; bubbleEl.style.display = 'none';
     document.body.append(label, bubbleEl);
     r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: null, bubbleTimer: 0, name: '', seen: 0, swing: makeSwing(p.l || look), act: null, actJson: 'null', actAt: 0, verb: '' };
     sprite.position.set(p.x, 0, p.z);
@@ -2019,7 +2022,8 @@ function updateOnline(){
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
     r.label.style.left = sx + 'px'; r.label.style.top = sy + 'px'; r.label.style.display = 'block';
-    r.bubbleEl.style.left = sx + 'px'; r.bubbleEl.style.top = (sy - 22) + 'px';
+    const bv = new THREE.Vector3(nx, 4.9, nz).project(camera);   // snapped above the name tag
+    r.bubbleEl.style.left = ((bv.x + 1) / 2 * innerWidth) + 'px'; r.bubbleEl.style.top = ((-bv.y + 1) / 2 * innerHeight) + 'px';
   }
 }
 function frame(){
