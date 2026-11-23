@@ -29,6 +29,29 @@
         ".write": "newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 10000000 && (!data.exists() || newData.child('score').val() > data.child('score').val())",
         ".validate": "newData.hasChildren(['name', 'score']) && newData.child('name').isString() && newData.child('name').val().length <= 12"
       }
+    },
+    "adventure": {
+      "players": {
+        ".read": true,
+        "$id": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['n', 'x', 'z']) && newData.child('n').isString() && newData.child('n').val().length <= 12 && newData.child('x').isNumber() && newData.child('z').isNumber()"
+        }
+      },
+      "nodes": {
+        ".read": true,
+        "$key": {
+          ".write": "!data.exists() || data.child('until').val() <= now",
+          ".validate": "newData.hasChildren(['until']) && newData.child('until').isNumber() && newData.child('until').val() <= now + 60000"
+        }
+      },
+      "saves": {
+        ".read": true,
+        "$id": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['bag', 'xp']) && newData.child('xp').hasChildren()"
+        }
+      }
     }
   }
 }

@@ -40,7 +40,9 @@ A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 - **Chat:** press Enter to type. Your line shows above your character in yellow.
 - **Music:** a village loop, toggled with the button in the top left.
 
-Progress is not saved yet, and the village is single-player for now.
+The village is multiplayer. You choose a name the first time, and you see the other adventurers walking around with their names above them. Trees and rocks are shared: a tree or rock someone takes is gone for everyone until it grows back. Your bag, skills and gear are saved under your browser's player id.
+
+Online features need the `adventure` section of `database.rules.json` published in Firebase.
 
 ## How to play
 Open `index.html` in any browser (or play the GitHub Pages link).

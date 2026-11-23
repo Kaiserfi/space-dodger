@@ -48,6 +48,7 @@
   .gearList { padding:6px 10px 8px; }
   .gearRow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #3a2a16; }
   .gearRow b { color:#f0c35a; font-weight:normal; }
+  #online[hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -86,6 +87,17 @@
 </div>
 <div id="heroChat" style="position:fixed;left:0;top:0;transform:translate(-50%,-100%);display:none;pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;max-width:260px;text-align:center;"></div>
 <a id="backArcade" href="../" style="position:fixed;left:12px;top:52px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;text-decoration:none;">&lt; Arcade</a>
+<div id="online" style="position:fixed;inset:0;z-index:30;background:rgba(5,10,6,.88);display:flex;align-items:center;justify-content:center;">
+  <div style="background:rgba(30,24,16,.97);border:2px solid #f0c35a;border-radius:10px;padding:18px 20px;width:min(320px,88vw);text-align:center;color:#e8efe6;font:15px Georgia,serif;">
+    <div style="color:#f0c35a;font-size:18px;margin-bottom:8px">ITAP Adventure</div>
+    <div id="onlineStatus" style="min-height:20px;font-size:13px;color:#c9b27a;margin-bottom:10px">Connecting...</div>
+    <div id="nameBox" hidden>
+      <input id="nameInput" maxlength="12" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:7px;font:15px Georgia,serif;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;">
+      <button id="joinBtn" style="margin-top:10px;width:100%;font:15px Georgia,serif;padding:7px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Enter the village</button>
+    </div>
+    <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
+  </div>
+</div>
 <div id="hint">Drag to turn the camera. Scroll or pinch to zoom.</div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
@@ -556,7 +568,7 @@ function makeTree(x, z, s = 1, oak = false){
   const box = { x0: x - h, x1: x + h, z0: z - h, z1: z + h };   // the trunk blocks walking
   const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * s, 0.36 * s, 0.5 * s, 7), mat(0x6b4a2a));
   stump.position.set(x, 0.25 * s, z); stump.visible = false; town.add(stump);
-  const rec = { kind: 'tree', g, x, z, s, box, stump, state: 'standing', t: 0, dir: 1, level: oak ? 15 : 1, xp: oak ? 40 : 25 };   // oaks need Woodcutting 15
+  const rec = { kind: 'tree', key: nodeKey(x, z), until: 0, g, x, z, s, box, stump, state: 'standing', t: 0, dir: 1, level: oak ? 15 : 1, xp: oak ? 40 : 25 };   // oaks need Woodcutting 15
   g.userData.rec = rec; treeRecs.push(rec);
   trees.push(g); town.add(g); solidBoxes.push(box);
   return g;
@@ -833,7 +845,7 @@ chatInput.addEventListener('keydown', e => {
   e.stopPropagation();
   if (e.key === 'Enter') {
     const text = chatInput.value.trim();
-    if (text) { addChatLine('You', text, '#ffe14d'); sayAbove(text); }
+    if (text) { addChatLine(ONLINE.name || 'You', text, '#ffe14d'); sayAbove(text); sendChat(text); }
     chatInput.value = ''; chatInput.blur();
   } else if (e.key === 'Escape') chatInput.blur();
 });
@@ -845,17 +857,9 @@ addEventListener('keydown', e => {   // Enter starts typing, when the creator is
 const screenV = new THREE.Vector3();
 function screenX(x, z){ screenV.set(x, 1, z).project(camera); return screenV.x; }
 function updateTrees(){
-  // trees whose time is up grow back from a sapling
-  for (let i = felledTrees.length - 1; i >= 0; i--) {
-    const f = felledTrees[i];
-    if (--f.wait > 0) continue;
-    felledTrees.splice(i, 1);
-    const rec = f.rec;
-    rec.g.visible = true; rec.g.rotation.z = 0; rec.g.scale.setScalar(0.05);
-    rec.stump.visible = false; solidBoxes.push(rec.box); trees.push(rec.g);
-    rec.state = 'growing'; rec.t = 0;
-  }
+  const now = Date.now();
   for (const rec of treeRecs) {
+    if (rec.state === 'felled' && (!rec.until || rec.until <= now)) regrowNode(rec);   // the shared timer is up: grow back
     if (rec.state === 'growing') {
       rec.t++;
       const k = Math.min(1, rec.t / 60), e = 1 - Math.pow(1 - k, 3);
@@ -865,17 +869,7 @@ function updateTrees(){
       rec.t++;
       const k = Math.min(1, rec.t / 40);
       rec.g.rotation.z = rec.dir * (Math.PI / 2) * k * k;
-      if (k >= 1) {
-        rec.state = 'felled';
-        rec.g.visible = false; rec.g.rotation.z = 0;
-        solidBoxes.splice(solidBoxes.indexOf(rec.box), 1);
-        trees.splice(trees.indexOf(rec.g), 1);
-        rec.stump.visible = true;
-        fallSound();
-        felledTrees.push({ rec, wait: REGROW_FRAMES });
-        if (addItem('Logs', 1, LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some logs.  +${rec.xp} Woodcutting XP`); }
-        else showToast('Your bag is full.');
-      }
+      if (k >= 1) { hideNode(rec); fallSound(); giveLogs(rec); }
     }
   }
   if (chop.rec) {
@@ -888,25 +882,48 @@ function updateTrees(){
     setHeroFrame(0, facing, swingPose(phase), rec.kind === 'rock' ? 'pick' : 'axe');   // the arm winds up, strikes, and recovers
     if (chop.t % 45 === 25) { if (rec.kind === 'rock') clinkSound(); else chopSound(); }   // the blow lands as the tool comes down
     if (chop.t >= CHOP_FRAMES) {
-      chop.rec = null; rec.g.rotation.z = 0;
-      if (rec.kind === 'rock') mineDone(rec);
-      else {
-        rec.state = 'falling'; rec.t = 0;
-        rec.dir = hero.position.x < rec.x ? -1 : 1;        // fall away from the adventurer
-        creakSound(0.7);
-      }
+      // the node is claimed on the server first: if someone else got there, nothing falls
+      chop.rec = null; rec.g.rotation.z = 0; rec.state = 'claiming';
+      claimNode(rec).then(until => {
+        if (!until) { rec.state = 'standing'; showToast(ONLINE.ok ? 'Someone got there first.' : "Can't reach the village."); return; }
+        rec.until = until;
+        if (rec.kind === 'rock') mineDone(rec);
+        else { rec.state = 'falling'; rec.t = 0; rec.dir = hero.position.x < rec.x ? -1 : 1; creakSound(0.7); }
+      });
     }
   }
 }
-// a rock that has been mined leaves rubble, gives copper ore, and comes back later
-function mineDone(rec){
-  burstRock(rec); explosionSound();
+// a node that is down: hidden, with its stump showing
+function hideNode(rec){
   rec.state = 'felled';
   rec.g.visible = false; rec.g.rotation.z = 0;
-  solidBoxes.splice(solidBoxes.indexOf(rec.box), 1);
-  trees.splice(trees.indexOf(rec.g), 1);
+  const i = solidBoxes.indexOf(rec.box); if (i >= 0) solidBoxes.splice(i, 1);
+  const j = trees.indexOf(rec.g); if (j >= 0) trees.splice(j, 1);
   rec.stump.visible = true;
-  felledTrees.push({ rec, wait: REGROW_FRAMES });
+}
+// a node growing back from a sapling
+function regrowNode(rec){
+  rec.g.visible = true; rec.g.rotation.z = 0; rec.g.scale.setScalar(0.05);
+  rec.stump.visible = false; solidBoxes.push(rec.box); trees.push(rec.g);
+  rec.state = 'growing'; rec.t = 0;
+}
+// the shared state from the database: nodes someone else took are hidden here too
+function applyNodeStates(nodes){
+  const now = Date.now();
+  for (const rec of treeRecs) {
+    const n = nodes && nodes[rec.key];
+    rec.until = n && n.until ? n.until : 0;
+    if (rec.until > now && (rec.state === 'standing' || rec.state === 'growing')) hideNode(rec);
+  }
+}
+function giveLogs(rec){
+  if (addItem('Logs', 1, LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some logs.  +${rec.xp} Woodcutting XP`); }
+  else showToast('Your bag is full.');
+}
+// a rock that has been mined leaves rubble, gives ore, and comes back later
+function mineDone(rec){
+  burstRock(rec); explosionSound();
+  hideNode(rec);
   const oreName = ORES[rec.ore].item, icon = rec.ore === 'tin' ? TIN_ICON : ORE_ICON;
   if (addItem(oreName, 1, icon)) { addXp('Mining', 20); showToast(`You get some ${oreName.toLowerCase()}.  +20 Mining XP`); }
   else showToast('Your bag is full.');
@@ -1004,7 +1021,7 @@ function makeRock(x, z, s = 1, ore = 'copper'){
   g.userData.action = 'Mine'; g.userData.name = ORES[ore].label;
   const h = Math.max(1, 0.7 * s);   // at least a 2x2 footprint, centred on the rock
   const box = { x0: x - h, x1: x + h, z0: z - h, z1: z + h };   // the rock blocks walking
-  const rec = { kind: 'rock', ore, g, x, z, s, box, stump: rubble, state: 'standing', t: 0, dir: 1 };
+  const rec = { kind: 'rock', key: nodeKey(x, z), until: 0, ore, g, x, z, s, box, stump: rubble, state: 'standing', t: 0, dir: 1 };
   g.userData.rec = rec; treeRecs.push(rec);
   trees.push(g); town.add(g); solidBoxes.push(box);
   return g;
@@ -1628,12 +1645,195 @@ rebuildHero();
 if (lookMade) { target.set(START.x, 1, START.z); dist = 30; }
 else openCreator();
 
+// ----- online: the village is shared. Players, trees and rocks, and progress are kept in the database -----
+const DB = 'https://space-dodger-1a558-default-rtdb.firebaseio.com';
+const REGROW_MS = 25000;   // a shared tree or rock comes back after this long
+const ONLINE = { ok: false, id: '', name: '', ready: false, nodes: {}, chatK: 0, sig: '', lastWrite: 0, saveJson: '', lastSave: 0 };
+const remote = {};   // the other players on screen
+const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
+  'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON, 'Raw shrimp': SHRIMP_ICON };
+function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
+const setStatus = t => { document.getElementById('onlineStatus').textContent = t; };
+function showJoin(msg, withName){
+  document.getElementById('online').hidden = false;
+  setStatus(msg);
+  document.getElementById('nameBox').hidden = !withName;
+  document.getElementById('retryBtn').hidden = withName;
+}
+async function checkServer(){
+  try { const r = await fetch(DB + '/nodes.json?shallow=true'); ONLINE.ok = r.ok; } catch (e) { ONLINE.ok = false; }
+  return ONLINE.ok;
+}
+async function bootOnline(){
+  showJoin('Connecting...', false);
+  if (!(await checkServer())) { showJoin("Can't reach the village server. Check your connection, then try again.", false); return; }
+  const name = localStorage.getItem('itapName') || '';
+  if (name) enterVillage(name); else showJoin('Choose a name for your adventurer.', true);
+}
+async function enterVillage(name){
+  ONLINE.name = name;
+  try { localStorage.setItem('itapName', name); } catch (e) {}
+  let id = ''; try { id = localStorage.getItem('itapId') || ''; } catch (e) {}
+  if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem('itapId', id); } catch (e) {} }
+  ONLINE.id = id;
+  setStatus('Joining...');
+  try { const r = await fetch(`${DB}/saves/${id}.json`); applySave(await r.json()); } catch (e) {}
+  ONLINE.saveJson = JSON.stringify(currentSave());
+  startStreams();
+  ONLINE.ready = true;
+  document.getElementById('online').hidden = true;
+}
+// your progress, as saved online
+function currentSave(){ return { bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look }; }
+function applySave(d){
+  if (d && d.bag) {
+    bag.length = 0;
+    d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name] }); });
+  }
+  if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
+  if (d && d.xp) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });
+  if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
+  renderBag(); renderStats(); renderGear();
+}
+async function saveNow(keepalive){
+  if (!ONLINE.ready) return;
+  const j = JSON.stringify(currentSave());
+  if (j === ONLINE.saveJson && !keepalive) return;
+  ONLINE.saveJson = j;
+  try { await fetch(`${DB}/saves/${ONLINE.id}.json`, { method: 'PUT', keepalive: !!keepalive, body: j }); } catch (e) {}
+}
+// your own position, look and chat, shared with the others
+function writePresence(force){
+  if (!ONLINE.ready || !hero) return;
+  const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look)].join('|');
+  const now = Date.now();
+  if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
+  if (!force && now - ONLINE.lastWrite < 100) return;
+  ONLINE.sig = sig; ONLINE.lastWrite = now;
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null };
+  fetch(`${DB}/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
+}
+function sendChat(text){
+  ONLINE.chatK++;
+  ONLINE.chat = { t: text.slice(0, 120), k: ONLINE.chatK };
+  writePresence(true);
+}
+// claim a shared node before it falls: only one player wins, and the server says who
+async function claimNode(rec){
+  if (!ONLINE.ready) return null;
+  const url = `${DB}/nodes/${rec.key}.json`;
+  try {
+    const r = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+    const etag = r.headers.get('ETag'), cur = await r.json();
+    if (cur && cur.until > Date.now()) return null;
+    const until = Date.now() + REGROW_MS;
+    const w = await fetch(url, { method: 'PUT', headers: { 'If-Match': etag, 'Content-Type': 'application/json' }, body: JSON.stringify({ until, by: ONLINE.id }) });
+    return w.ok ? until : null;
+  } catch (e) { return null; }
+}
+// the other players: a sprite with their look, and their name above it
+function setRemote(id, p){
+  if (!p || id === ONLINE.id) return;
+  let r = remote[id];
+  if (!r) {
+    const lookJson = JSON.stringify(p.l || {});
+    const frames = [0, 1, 2, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(p.l || look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
+    sprite.center.set(0.5, 0); sprite.scale.set(3, 4, 1); sprite.renderOrder = 9;
+    scene.add(sprite);
+    const label = document.createElement('div');
+    label.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#fff;font:13px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;white-space:nowrap;display:none;';
+    const bubbleEl = document.createElement('div');
+    bubbleEl.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;max-width:260px;text-align:center;display:none;';
+    document.body.append(label, bubbleEl);
+    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: null, bubbleTimer: 0, name: '', seen: 0 };
+    sprite.position.set(p.x, 0, p.z);
+  }
+  if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
+    r.lookJson = JSON.stringify(p.l || {});
+    r.frames.forEach((t, f) => { t.image = adventurerCanvas(p.l || look, f); t.needsUpdate = true; });
+  }
+  r.name = p.n || 'Traveller';
+  r.label.textContent = r.name;
+  r.tx = p.x; r.tz = p.z;
+  r.face = p.f === -1 ? -1 : 1;
+  r.seen = performance.now();
+  if (p.c && p.c.k !== r.k) {
+    if (r.k !== null) addChatLine(r.name, p.c.t, '#ffffff');   // a new line from them (not the first we see)
+    if (r.k !== null) sayRemote(r, p.c.t);
+    r.k = p.c.k;
+  }
+}
+function removeRemote(id){
+  const r = remote[id]; if (!r) return;
+  scene.remove(r.sprite); r.sprite.material.dispose();
+  r.frames.forEach(t => t.dispose());
+  r.label.remove(); r.bubbleEl.remove();
+  delete remote[id];
+}
+function sayRemote(r, text){
+  r.bubbleEl.textContent = text; r.bubbleEl.style.display = 'block';
+  clearTimeout(r.bubbleTimer); r.bubbleTimer = setTimeout(() => { r.bubbleEl.style.display = 'none'; }, 6000);
+}
+function applyPlayersEvent(ev, d){
+  if (d.path === '/') {
+    const all = d.data || {};
+    if (ev === 'put') Object.keys(remote).forEach(id => { if (!(id in all)) removeRemote(id); });
+    Object.keys(all).forEach(id => setRemote(id, all[id]));
+    return;
+  }
+  const parts = d.path.split('/').filter(Boolean);
+  if (parts.length === 1) { if (d.data === null) removeRemote(parts[0]); else setRemote(parts[0], d.data); }
+}
+function startStreams(){
+  const ps = new EventSource(DB + '/players.json');
+  ps.addEventListener('put', e => applyPlayersEvent('put', JSON.parse(e.data)));
+  ps.addEventListener('patch', e => applyPlayersEvent('patch', JSON.parse(e.data)));
+  const ns = new EventSource(DB + '/nodes.json');
+  const applyNodes = (ev, d) => {
+    if (d.path === '/') ONLINE.nodes = d.data || {};
+    else { const k = d.path.split('/').filter(Boolean)[0]; if (d.data === null) delete ONLINE.nodes[k]; else ONLINE.nodes[k] = d.data; }
+    applyNodeStates(ONLINE.nodes);
+  };
+  ns.addEventListener('put', e => applyNodes('put', JSON.parse(e.data)));
+  ns.addEventListener('patch', e => applyNodes('patch', JSON.parse(e.data)));
+  window.addEventListener('pagehide', () => {
+    try { fetch(`${DB}/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}
+    saveNow(true);
+  });
+}
+// once a frame: send our own position, save progress now and then, and move the others
+function updateOnline(){
+  if (!ONLINE.ready) return;
+  writePresence(false);
+  const now = Date.now();
+  if (now - ONLINE.lastSave > 4000) { ONLINE.lastSave = now; saveNow(false); }
+  const t = performance.now();
+  for (const id in remote) {
+    const r = remote[id];
+    if (t - r.seen > 20000) { removeRemote(id); continue; }   // gone quiet: they have left
+    const x = r.sprite.position.x, z = r.sprite.position.z;
+    const nx = x + (r.tx - x) * 0.25, nz = z + (r.tz - z) * 0.25;
+    const moving = Math.hypot(nx - x, nz - z) > 0.01;
+    r.sprite.position.set(nx, 0, nz);
+    if (moving) r.tick++;
+    const f = moving ? Math.floor(r.tick / 6) % 4 : 0;
+    if (r.sprite.material.map !== r.frames[f]) r.sprite.material.map = r.frames[f];
+    r.frames.forEach(tex => { tex.repeat.x = r.face; tex.offset.x = r.face < 0 ? 1 : 0; });   // face left or right
+    const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
+    const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
+    r.label.style.left = sx + 'px'; r.label.style.top = sy + 'px'; r.label.style.display = 'block';
+    r.bubbleEl.style.left = sx + 'px'; r.bubbleEl.style.top = (sy - 22) + 'px';
+  }
+}
 function frame(){
   updateWalk();
   updateTrees();
   updateDebris();
   updateHouses();
   updateFish();
+  updateOnline();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
   updateDoor();
   turnWithKeys();
@@ -1644,6 +1844,11 @@ function frame(){
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
+const joinName = () => { const n = document.getElementById('nameInput').value.trim().slice(0, 12); if (n) enterVillage(n); };
+document.getElementById('joinBtn').addEventListener('click', joinName);
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') joinName(); e.stopPropagation(); });
+document.getElementById('retryBtn').addEventListener('click', bootOnline);
+bootOnline();
 frame();
 </script>
 </body>
