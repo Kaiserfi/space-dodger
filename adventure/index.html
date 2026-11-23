@@ -1251,7 +1251,7 @@ document.getElementById('shopList').addEventListener('click', e => {
 });
 
 // ----- the gear tab: each slot and what is worn in it -----
-const SLOT_NAMES = { head: 'Head', body: 'Body', legs: 'Legs', weapon: 'Weapon', shield: 'Shield' };
+const SLOT_NAMES = { head: 'Head', back: 'Back', body: 'Body', legs: 'Legs', weapon: 'Weapon', shield: 'Shield' };
 function renderGear(){
   document.getElementById('gearList').innerHTML = Object.keys(SLOT_NAMES).map(slot => {
     const worn = equipped[slot];
@@ -1783,7 +1783,7 @@ function makeRock(x, z, s = 1, ore = 'copper'){
 }
 
 
-const equipped = { head: null, body: null, legs: null, weapon: null, shield: null };   // what is worn in each slot
+const equipped = { head: null, back: null, body: null, legs: null, weapon: null, shield: null };   // what is worn in each slot
 // ----- the adventurer -----
 const START = new THREE.Vector3(HALL.x, 0, HALL.z + 2.4 * HALL_SCALE);   // the spawn point: inside the hall, just south of the centre pillar
 const hex = n => '#' + n.toString(16).padStart(6, '0');
@@ -1917,7 +1917,7 @@ function addCape(fig){
 function dressChibi(g, eq){
   const c = g.userData.chibi; c.gear.clear();
   if (!c.cloak) { c.cloak = new THREE.Group(); c.body.add(c.cloak); }
-  c.cloak.clear(); if (eq.body === "Villager's cloak") addCape(g);
+  c.cloak.clear(); if (eq.back === "Villager's cloak") addCape(g);
   for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
   if (eq.weapon) {
     const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -Math.PI / 2;   // held point forward
@@ -2335,7 +2335,7 @@ const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
 // food you can eat from the bag
 const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
 const ITEMS = {
-  "Villager's cloak": { slot: 'body', def: 1, icon: CLOAK_ICON },
+  "Villager's cloak": { slot: 'back', def: 1, icon: CLOAK_ICON },
   'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
   'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
   'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON }
@@ -3184,6 +3184,7 @@ function applySave(d){
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
   if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
+  if (equipped.body === "Villager's cloak") { equipped.back = equipped.body; equipped.body = null; }   // the cloak moved to its own back slot
   if (d && d.dm) Object.keys(d.dm).forEach(k => { if (d.dm[k] && typeof d.dm[k].n === 'number') DEMAND[k] = d.dm[k]; });   // Mara's prices carry over
   if (d && d.xp && d.v === 2) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
