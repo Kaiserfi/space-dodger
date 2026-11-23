@@ -42,8 +42,15 @@ for (let i = 0; i < 8; i++) { const st = new THREE.Mesh(new THREE.DodecahedronGe
 for (let i = 0; i < 3; i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.2, 6), mat(0x5a3a1e)); lg.position.y = 0.15; lg.rotation.set(Math.PI / 2, i * 1.05, 0); fire.add(lg); }
 const flame = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 6), new THREE.MeshBasicMaterial({ color: 0xff8a20 })); flame.position.y = 0.6; fire.add(flame);
 const flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 6), new THREE.MeshBasicMaterial({ color: 0xffd040 })); flame2.position.y = 0.5; fire.add(flame2);
-const tent = new THREE.Mesh(new THREE.ConeGeometry(2.2, 3.2, 5), mat(0x8a6a48)); tent.position.set(W[0] - 3.5, 1.6, W[1] - 4.5); town.add(tent);
-const flap = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.05), mat(0x3a2a1a)); flap.position.set(W[0] - 3.2, 0.7, W[1] - 2.6); town.add(flap);
+// a hide tent about twice a goblin's height, on crossed poles, with a doorway taller than they are
+const tentG = new THREE.Group(); tentG.position.set(W[0] - 4.5, 0, W[1] - 6); tentG.rotation.y = 0.3; town.add(tentG);
+const tent = new THREE.Mesh(new THREE.ConeGeometry(3.6, 6.2, 6), mat(0x8a6a48)); tent.position.y = 3.1; tentG.add(tent);
+for (let i = 0; i < 4; i++) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.6, 5), mat(0x5a3a1e)); const a = i * Math.PI / 2; pole.position.set(Math.sin(a) * 0.25, 6.6, Math.cos(a) * 0.25); pole.rotation.set(Math.cos(a) * 0.4, 0, -Math.sin(a) * 0.4); tentG.add(pole); }   // poles crossing at the top
+const door = new THREE.Mesh(new THREE.ConeGeometry(1.0, 3.6, 3, 1, true, -Math.PI / 3, Math.PI * 2 / 3), mat(0x1e140c)); door.position.set(0, 1.8, 2.05); door.material.side = THREE.DoubleSide; tentG.add(door);
+const doorway = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 3.4), mat(0x150e08)); doorway.position.set(0, 1.5, 2.55); doorway.rotation.x = -0.5; tentG.add(doorway);
+// a skull on a stake by the door, and a pile of bones
+const stake = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 5), mat(0x5a3a1e)); stake.position.set(2.2, 1.1, 3.0); tentG.add(stake);
+const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28, 0), mat(0xe8e0c8)); skull.position.set(2.2, 2.35, 3.0); tentG.add(skull);
 // animate: one idles, one swings the club, one hops by the fire
 let t = 0;
 (function tick(){ t += 1 / 60;
