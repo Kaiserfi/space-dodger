@@ -191,6 +191,7 @@
     <button id="crStart">Start playing</button>
   </div>
 </div>
+<script src="../word-filter.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
@@ -1507,7 +1508,8 @@ function placeHeroChat(){
 chatInput.addEventListener('keydown', e => {
   e.stopPropagation();
   if (e.key === 'Enter') {
-    const text = chatInput.value.trim();
+    let text = chatInput.value.trim();
+    if (text && window.cleanText) text = cleanText(text);   // rude words are masked before anyone sees them
     if (text) { addChatLine(ONLINE.name || 'You', text, '#ffe14d'); sayAbove(text); sendChat(text); }
     chatInput.value = ''; chatInput.blur();
   } else if (e.key === 'Escape') chatInput.blur();
@@ -3153,7 +3155,7 @@ function setRemote(id, p){
     fresh.position.copy(r.sprite.position); fresh.rotation.y = r.sprite.rotation.y;
     scene.remove(r.sprite); scene.add(fresh); r.sprite = fresh;
   }
-  r.name = p.n || 'Traveller';
+  r.name = p.n && window.isBadName && isBadName(p.n) ? 'Traveller' : (p.n || 'Traveller');
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
   r.face = p.f === -1 ? -1 : 1;
@@ -3161,8 +3163,9 @@ function setRemote(id, p){
   if (aj !== r.actJson) { r.actJson = aj; r.act = p.a || null; r.actAt = performance.now(); }
   r.seen = performance.now();
   if (p.c && p.c.k !== r.k) {   // a new line from them
-    addChatLine(r.name, p.c.t, '#ffffff');
-    sayRemote(r, p.c.t);
+    const said = window.cleanText ? cleanText(p.c.t) : p.c.t;   // masked again here, in case they are on an older version
+    addChatLine(r.name, said, '#ffffff');
+    sayRemote(r, said);
     r.k = p.c.k;
   }
 }
@@ -3314,7 +3317,9 @@ function frame(){
   composer.render();
   requestAnimationFrame(frame);
 }
-const joinName = () => { const n = document.getElementById('nameInput').value.trim().slice(0, 12); if (n) enterVillage(n); };
+const joinName = () => { const n = document.getElementById('nameInput').value.trim().slice(0, 12); if (!n) return;
+  if (window.isBadName && isBadName(n)) { setStatus('That name is not allowed. Please choose another.'); return; }
+  enterVillage(n); };
 document.getElementById('joinBtn').addEventListener('click', joinName);
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') joinName(); e.stopPropagation(); });
 document.getElementById('retryBtn').addEventListener('click', bootOnline);
