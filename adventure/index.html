@@ -539,13 +539,16 @@ function stall(x, z, col){
   P(new THREE.BoxGeometry(0.8, 0.5, 0.6), 0x9a7040, 1.0, 1.45, -0.3);
   g.position.set(x, 0, z); town.add(g);
 }
+const solidAt = (x, z, hx, hz = hx) => solidBoxes.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz });   // a prop you walk around
 function bench(x, z, ry){
+  solidAt(x, z, 1.4, 1.4);
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; town.add(g);
   const seat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.7), mat(0x8a6038)); seat.position.y = 0.6; g.add(seat);
   const back = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.6, 0.12), mat(0x8a6038)); back.position.set(0, 1.05, 0.32); g.add(back);
   for (const sx of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.6, 0.6), mat(0x5a3a1e)); leg.position.set(sx * 1.1, 0.3, 0); g.add(leg); }
 }
 function signpost(x, z){
+  solidAt(x, z, 0.4);
   const g = new THREE.Group(); g.position.set(x, 0, z); town.add(g);
   const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.4, 0.22), mat(0x5a3a1e)); post.position.y = 1.7; g.add(post);
   [[2.9, 0.2], [2.5, 2.2], [2.1, -2.4]].forEach(([y, ry]) => { const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.36, 0.08), mat(0xb08a58)); arm.geometry.translate(0.7, 0, 0); arm.position.y = y; arm.rotation.y = ry; g.add(arm);
@@ -553,6 +556,7 @@ function signpost(x, z){
 }
 const lampGlass = new THREE.MeshStandardMaterial({ color: 0xffd070, emissive: 0xffb040, emissiveIntensity: 1.3 });
 function lamp(x, z){
+  solidAt(x, z, 0.35);
   const g = new THREE.Group(); g.position.set(x, 0, z); town.add(g);
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 3.6, 6), mat(0x2e2e34)); post.position.y = 1.8; g.add(post);
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.08), mat(0x2e2e34)); arm.position.set(0.3, 3.5, 0); g.add(arm);
@@ -560,10 +564,11 @@ function lamp(x, z){
   const top = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.25, 4), mat(0x2e2e34)); top.position.set(0.6, 3.55, 0); top.rotation.y = Math.PI / 4; g.add(top);
 }
 function barrel(x, z){
+  solidAt(x, z, 0.6);
   const b = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.48, 1.2, 10), mat(0x8a5a2a)); b.position.set(x, 0.6, z); town.add(b);
   for (const y of [0.25, 0.95]) { const hp = new THREE.Mesh(new THREE.CylinderGeometry(0.57, 0.57, 0.08, 10), mat(0x3a3a40)); hp.position.set(x, y, z); town.add(hp); }
 }
-function crate(x, z, ry){ const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), texMat(woodTex(), 1, 1, 0xb08a58)); c.position.set(x, 0.5, z); c.rotation.y = ry; town.add(c); }
+function crate(x, z, ry){ solidAt(x, z, 0.7); const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), texMat(woodTex(), 1, 1, 0xb08a58)); c.position.set(x, 0.5, z); c.rotation.y = ry; town.add(c); }
 
 // ----- nature -----
 const nearStart = (x, z) => Math.hypot(x - 4, z - 11) < 7;   // keep the starting tile clear
