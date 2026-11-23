@@ -1781,7 +1781,16 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look }; }
+function currentSave(){ return { v: 2, bag: bag.map(i => ({ name: i.name, qty: i.qty })), eq: equipped, xp: SKILL_XP, look, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+// the nearest spot the body fits in, so a saved position is never inside a wall or a building
+function openSpotNear(x, z){
+  if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
+  for (let r = 0.5; r <= 12; r += 0.5) for (let a = 0; a < 24; a++) {
+    const px = x + Math.cos(a * Math.PI / 12) * r, pz = z + Math.sin(a * Math.PI / 12) * r;
+    if (!blocked(px, pz)) return { x: px, z: pz };
+  }
+  return { x: START.x, z: START.z };
+}
 function applySave(d){
   if (d && d.bag) {
     bag.length = 0;
@@ -1790,6 +1799,7 @@ function applySave(d){
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
   if (d && d.xp && d.v === 2) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
+  if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
   renderBag(); renderStats(); renderGear();
 }
 async function saveNow(keepalive){
