@@ -33,6 +33,14 @@
   .statsBody h4 { margin:6px 0 4px; color:#f0c35a; font-size:14px; }
   .skillGrid { display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; }
   .skillGrid span b { color:#f0c35a; font-weight:normal; }
+  #statsPanel { width:260px !important; }
+  .statsBody { max-height:min(70vh, 560px); overflow-y:auto; }
+  .skList { display:flex; flex-direction:column; gap:7px; }
+  .skTop { display:flex; justify-content:space-between; }
+  .skTop b { color:#f0c35a; font-weight:normal; }
+  .skBar { height:7px; margin:3px 0 2px; background:#120d07; border:1px solid #5b4324; border-radius:4px; overflow:hidden; }
+  .skBar i { display:block; height:100%; background:linear-gradient(90deg, #b8862e, #f0c35a); box-shadow:0 0 6px rgba(240,195,90,.5); transition:width .4s; }
+  .skXp { font-size:11px; color:#a8956a; }
   .statRow { display:flex; justify-content:space-between; margin:2px 0; }
   .statRow b { color:#f0c35a; font-weight:normal; }
   #bagPanel { position:fixed; right:58px; top:52px; width:240px; background:rgba(20,16,10,.94); border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
@@ -1655,17 +1663,23 @@ function renderStats(){
   const body = document.getElementById('statsBody');
   if (statsSub === 'quests') { body.innerHTML = '<p>No quests yet.</p>'; return; }
   const names = Object.keys(SKILL_XP);
-  const half = Math.ceil(names.length / 2);
-  const cell = n => `<span>${n}: <b>${levelOf(SKILL_XP[n])}</b></span>`;
+  // a row per skill: its level, a bar filling towards the next level, and the XP still needed
+  const xpFor = lvl => 25 * (lvl - 1) * (lvl - 1);   // the XP where a level starts (the inverse of levelOf)
+  const row = n => {
+    const xp = SKILL_XP[n], lvl = levelOf(xp), from = xpFor(lvl), to = xpFor(lvl + 1);
+    const pct = Math.min(100, (xp - from) / (to - from) * 100);
+    return `<div class="skRow" title="${n}: ${xp} XP. Level ${lvl + 1} at ${to} XP.">
+      <div class="skTop"><span>${n}</span><b>Lv ${lvl}</b></div>
+      <div class="skBar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <div class="skXp">${xp - from} / ${to - from} XP &middot; ${to - xp} to level ${lvl + 1}</div>
+    </div>`;
+  };
   const total = names.reduce((t, n) => t + levelOf(SKILL_XP[n]), 0);
   const combat = Math.floor((levelOf(SKILL_XP.Attack) + levelOf(SKILL_XP.Defence)) / 2) + 1;
   const totalXp = names.reduce((t, n) => t + SKILL_XP[n], 0);
   body.innerHTML = `
     <h4>Skills</h4>
-    <div class="skillGrid">
-      <div>${names.slice(0, half).map(cell).join('<br>')}</div>
-      <div>${names.slice(half).map(cell).join('<br>')}</div>
-    </div>
+    <div class="skList">${names.map(row).join('')}</div>
     <h4>Equipment status</h4>
     <div class="statRow"><span>Attack bonus</span><b>+${gearBonus('atk')}</b></div>
     <div class="statRow"><span>Weapon</span><b>${equipped.weapon || 'none'}</b></div>
