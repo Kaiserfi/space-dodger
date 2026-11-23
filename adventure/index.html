@@ -1901,7 +1901,7 @@ function setRemote(id, p){
     const bubbleEl = document.createElement('div');
     bubbleEl.className = 'chatBub'; bubbleEl.style.display = 'none';
     document.body.append(label, bubbleEl);
-    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: null, bubbleTimer: 0, name: '', seen: 0, swing: makeSwing(p.l || look), act: null, actJson: 'null', actAt: 0, verb: '' };
+    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: p.c ? p.c.k : 0, bubbleTimer: 0, name: '', seen: 0, swing: makeSwing(p.l || look), act: null, actJson: 'null', actAt: 0, verb: '' };
     sprite.position.set(p.x, 0, p.z);
   }
   if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
@@ -1916,9 +1916,9 @@ function setRemote(id, p){
   const aj = JSON.stringify(p.a || null);
   if (aj !== r.actJson) { r.actJson = aj; r.act = p.a || null; r.actAt = performance.now(); }
   r.seen = performance.now();
-  if (p.c && p.c.k !== r.k) {
-    if (r.k !== null) addChatLine(r.name, p.c.t, '#ffffff');   // a new line from them (not the first we see)
-    if (r.k !== null) sayRemote(r, p.c.t);
+  if (p.c && p.c.k !== r.k) {   // a new line from them
+    addChatLine(r.name, p.c.t, '#ffffff');
+    sayRemote(r, p.c.t);
     r.k = p.c.k;
   }
 }
