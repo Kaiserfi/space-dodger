@@ -888,7 +888,17 @@ function crawlerCollide(c) {
 function crawlerHit(c, reason) {
   c.lives--; c.inv = 120; c.px = W/2; c.py = crZoneBottom() - 30; shake = 18;
   boom(c.px, c.py, '#f66', 30); sfx.ouch();
-  if (c.lives <= 0) crawlerDie(reason);
+  if (c.lives <= 0) return crawlerDie(reason);
+  crawlerRestartWave(c);
+}
+// getting hit restarts the wave, as in the original: the centipede starts again from the top at full length.
+// The mushrooms stay where they are, and the score and lives carry on.
+function crawlerRestartWave(c) {
+  const len = Math.min(16, 8 + 2 * (c.wave - 1));
+  const segs = [];
+  for (let i = 0; i < len; i++) segs.push({x: len - 1 - i, y: 0});
+  c.chains = [{segs, dir: 1}];
+  c.countdown = 120; c.banner = 120; c.timer = 0;
 }
 
 function crawlerUpdate() {
