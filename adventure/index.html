@@ -1705,14 +1705,16 @@ function scatterOaks(){
     if (oakSpots.some(o => Math.hypot(o[0] - x, o[1] - z) < 4)) return false;   // oaks keep a little room between them
     return true;
   };
-  const oakSpots = [];
+  // three oaks, just south of the spawn hall
+  const oakSpots = [[9, 17], [19, 18], [13, 22]];
+  oakSpots.forEach(([x, z]) => makeTree(x, z, 1.5, true));
+  // the rest of the village trees are ordinary trees
   let placed = 0, tries = 0;
-  while (placed < 24 && tries < 4000) {
+  while (placed < 21 && tries < 4000) {
     tries++;
     const x = -100 + rand() * 152, z = -8 + rand() * 66;
     if (!clear(x, z)) continue;
-    makeTree(x, z, 1.5 + rand() * 0.3, true);
-    oakSpots.push([x, z]);
+    makeTree(x, z, 1.4 + rand() * 0.3, false);
     placed++;
   }
 }
