@@ -814,6 +814,13 @@ function crawlerStepChains(c) {
         if (np && np.x === nx) ch.dir = dir0;
       }
     }
+    if (!np) {                                     // still stuck, often against another piece: slip past it onto any open cell that is not a mushroom or its own body
+      const own = new Set(ch.segs.map(p => crKey(p.x, p.y)));
+      for (const [dx, dy] of [[dir0, 0], [0, 1], [0, -1], [-dir0, 0]]) {
+        const x = h.x + dx, y = h.y + dy;
+        if (x >= 0 && x < CR.COLS && y >= 0 && y < CR.ROWS && !c.mush.has(crKey(x, y)) && !own.has(crKey(x, y))) { np = {x, y}; break; }
+      }
+    }
     if (!np && ch.segs.length > 1) {                // no way out at all: the centipede turns round, so its tail becomes the head and can move off
       ch.segs.reverse();
       ch.dir = Math.sign(ch.segs[0].x - ch.segs[1].x) || ch.dir;   // face away from its body
