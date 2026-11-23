@@ -85,6 +85,12 @@
   .dOpts div { font-size:17px; line-height:1.3; padding:4px 8px; margin:2px auto; border-radius:5px; cursor:pointer; max-width:460px; }
   .dOpts div:hover { background:rgba(240,195,90,.14); color:#ffe08a; }
   @media (max-width: 560px) { .dHead, .dHead img { width:64px; height:64px; } .dText, .dOpts div { font-size:15px; } .dOpts div { padding:8px; } }
+  .hpBar { position:fixed; left:0; top:0; transform:translate(-50%,-100%); width:60px; height:8px; background:#8a1a12; border:1px solid #1a0a06; pointer-events:none; z-index:6; }
+  .hpBar i { display:block; height:100%; width:100%; background:linear-gradient(#5ad05a,#2a9a2a); }
+  .splat { position:fixed; left:0; top:0; transform:translate(-50%,-50%); pointer-events:none; z-index:8; width:44px; height:40px; display:flex; align-items:center; justify-content:center; font:bold 20px Georgia,serif; color:#fff; text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000; }
+  .splat:before { content:''; position:absolute; inset:0; z-index:-1; clip-path:polygon(50% 0,62% 22%,88% 12%,80% 38%,100% 50%,80% 62%,88% 88%,62% 78%,50% 100%,38% 78%,12% 88%,20% 62%,0 50%,20% 38%,12% 12%,38% 22%); }
+  .splat.hit:before { background:radial-gradient(#e8352a,#8a0e08); } .splat.block:before { background:radial-gradient(#4a8ae8,#1a3a8a); } .splat.miss:before { background:radial-gradient(#9aa0a8,#4a4e56); }
+  .splat small { position:absolute; top:100%; font:bold 12px Georgia,serif; white-space:nowrap; color:#e8f0ff; }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
   #questTrack b { color:#f0c35a; font-weight:normal; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
@@ -182,6 +188,7 @@
 </div>
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
 <div id="questTrack" hidden></div>
+<div class="hpBar" id="heroHp" style="display:none"><i></i></div>
 <div id="questDone" hidden>
   <div class="qScroll">
     <div class="qBanner">Quest complete</div>
@@ -1041,6 +1048,7 @@ function clickNode(rec){
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
+  if (rec.kind === 'monster') { startFight(rec); return; }
   if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
   if (rec.kind === 'range' && !hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
@@ -1198,6 +1206,7 @@ function updateSmith(){
 }
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
+  if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to wear a ${name.toLowerCase()}.`); return; }
   removeItem(name);
   if (old) addItem(old, 1, ITEMS[old].icon);   // the piece it replaces goes back to the bag
   equipped[def.slot] = name;
@@ -1206,7 +1215,7 @@ function equip(name){
   showToast(`Equipped ${name.toLowerCase()}${statText(name) ? ' (' + statText(name) + ')' : ''}.`);
 }
 // an item's bonuses, as text: "+6 Attack", "+2 Defence"
-function statText(name){ const d = ITEMS[name]; if (!d) return ''; return [d.atk && `+${d.atk} Attack`, d.def && `+${d.def} Defence`].filter(Boolean).join(', '); }
+function statText(name){ const d = ITEMS[name]; if (!d) return ''; return [d.atk && `+${d.atk} Attack`, d.def && `+${d.def} Defence`, d.req && `Melee ${d.req}`].filter(Boolean).join(', '); }
 function gearBonus(stat){
   return Object.values(equipped).reduce((t, n) => t + (n && ITEMS[n][stat] ? ITEMS[n][stat] : 0), 0);
 }
@@ -1217,7 +1226,7 @@ document.getElementById('smithList').addEventListener('click', e => {
 document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
-  if (it && FOOD[it.name]) { removeItem(it.name); showToast(FOOD[it.name]); eatSound(); return; }
+  if (it && FOOD[it.name]) { removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
 
@@ -2067,6 +2076,7 @@ function setHeroFrame(frame, facing, pose = null, tool = 'axe'){
 function setHeroSwing(phase, tool, yaw){ heroAnim.mode = 'swing'; heroAnim.phase = phase; heroAnim.tool = tool; heroAnim.yaw = yaw; }
 function updateHeroAnim(){
   if (!hero) return;
+  if (FIGHT && heroAnim.mode === 'fight') { turnChibi(hero, heroAnim.yaw); return; }
   if (heroFrame === '') { heroFrame = 0; dressChibi(hero, equipped); }
   turnChibi(hero, heroAnim.yaw);
   poseChibi(hero, heroAnim.mode, heroAnim.mode === 'swing' ? heroAnim.phase : (heroAnim.mode === 'walk' ? walkTick / 60 : 0), heroAnim.tool);
@@ -2181,6 +2191,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     if (g) { clickNode(g.userData.rec); return; }
   }
   cancelChop();
+  if (FIGHT) { endFight('You run away.'); }
   if (ray.ray.intersectPlane(groundPlane, hit)) {
     // a click on a house (even on its roof) goes to its door, or walks in if the door is already open
     const inside = houses.find(h => Math.abs(hit.x - h.x) < h.hw && Math.abs(hit.z - h.z) < h.hd);
@@ -2300,7 +2311,8 @@ function followCharacter(){
 }
 
 // ----- the Stats tab: our own skill list and summaries -----
-const SKILL_XP = {Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Attack: 0, Defence: 0, Cooking: 0};   // everyone starts at level 1
+const HP = { cur: 10 };   // your current health; the most is your Hitpoints level
+const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0};   // everyone starts at level 1, and Hitpoints at 10
 const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 xp, level 8 is 1225 xp
 let statsSub = 'skills';
 function renderStats(){
@@ -2327,12 +2339,13 @@ function renderStats(){
     </div>`;
   };
   const total = names.reduce((t, n) => t + levelOf(SKILL_XP[n]), 0);
-  const combat = Math.floor((levelOf(SKILL_XP.Attack) + levelOf(SKILL_XP.Defence)) / 2) + 1;
+  const combat = combatLevel();
   const totalXp = names.reduce((t, n) => t + SKILL_XP[n], 0);
   body.innerHTML = `
     <h4>Skills</h4>
     <div class="skList">${names.map(row).join('')}</div>
     <h4>Equipment status</h4>
+    <div class="statRow"><span>Health</span><b>${HP.cur} / ${maxHp()}</b></div>
     <div class="statRow"><span>Attack bonus</span><b>+${gearBonus('atk')}</b></div>
     <div class="statRow"><span>Weapon</span><b>${equipped.weapon || 'none'}</b></div>
     <div class="statRow"><span>Defence bonus</span><b>+${gearBonus('def')}</b></div>
@@ -2398,6 +2411,7 @@ const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
   <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
 // food you can eat from the bag
 const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
+const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0 };
 const HELM_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M3 10 Q3 3 8 3 Q13 3 13 10 L13 12 L11 12 L11 9 L5 9 L5 12 L3 12 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="3" y="8" width="10" height="1.4" fill="#6a3c18"/><path d="M7.4 1.2 L8.6 1.2 L8 3 Z" fill="#e0a458"/></svg>`;
 const CHEST_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -3094,6 +3108,211 @@ function updateGrass(){
   list.sort((a, b) => a.distanceToSquared(c) - b.distanceToSquared(c));
   for (let i = 0; i < 12; i++) { const v = list[i]; if (v) u.push.value[i].set(v.x, 0, v.z); else u.push.value[i].set(9999, 0, 9999); }
 }
+// ----- melee combat: turn based, like the classic MMOs. You and the monster lock in place and take turns swinging -----
+// One Melee skill covers attacking, strength and defending; Hitpoints levels alongside it.
+const HAIRLESS = 0x10fe01;   // a marker colour: the hair pieces made in it are removed, goblins are bald
+function makeGoblin(o = {}){
+  const skin = o.skin || 0x6a9a3a;
+  const g = makeChibi({ gender: 'male', hair: 'short', hairCol: HAIRLESS, skin, shirt: o.shirt || 0x6a4a2a, pants: o.pants || 0x4a3a22 });
+  const c = g.userData.chibi, head = c.head;
+  head.children.filter(m => m.material && m.material.color && m.material.color.getHex() === HAIRLESS).forEach(m => head.remove(m));
+  head.scale.set(1.08, 0.92, 1.0);                                        // a wider, squatter head
+  // long pointed ears, sweeping out and back
+  for (const s of [-1, 1]) {
+    const ear = chibiPart(head, new THREE.ConeGeometry(0.16, 0.75, 8), skin, s * 0.72, 0.08, -0.05);
+    ear.rotation.set(0.25, 0, s * -1.25);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5, 6), toonMat(0xc86a6a)); inner.position.set(0, 0.03, 0.06); ear.add(inner);
+  }
+  // a big hooked nose, a heavy scowling brow, a wide grin with two fangs
+  const nose = chibiPart(head, new THREE.ConeGeometry(0.11, 0.36, 8), skin, 0, -0.04, 0.68); nose.rotation.x = Math.PI / 2 + 0.35;
+  for (const s of [-1, 1]) {
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.06), toonMat(0x3a4a1a)); brow.position.set(s * 0.22, 0.17, 0.57); brow.rotation.z = s * 0.4; head.add(brow);
+    const fang = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 5), basic(0xf4f0e0)); fang.position.set(s * 0.1, -0.24, 0.57); fang.rotation.x = Math.PI; head.add(fang);
+  }
+  // yellow eyes with dark slits, in place of the friendly ones
+  c.eyes.forEach((e, i) => { if (i % 2 === 0) { e.material = basic(0xf0d030); const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), basic(0x1a1208)); pupil.scale.set(0.45, 1.3, 0.5); pupil.position.z = 0.09; e.add(pupil); } else e.visible = false; });
+  head.children.forEach(m => { if (m.geometry && m.geometry.type === 'TorusGeometry') { m.scale.set(1.9, 1.2, 1); m.material = basic(0x3a1a12); } });   // the grin
+  head.children.forEach(m => { if (m.material && m.material.opacity < 1) m.material = basic(0x8a5a3a, 0.4); });   // grubby cheeks
+  // a ragged tunic edge, a rope belt and a bone club
+  for (let i = 0; i < 6; i++) { const rag = chibiPart(c.body, new THREE.ConeGeometry(0.1, 0.22, 4), o.shirt || 0x6a4a2a, -0.3 + i * 0.12, 0.7, 0.18, false); rag.rotation.x = Math.PI; }
+  chibiPart(c.body, new THREE.TorusGeometry(0.39, 0.035, 5, 16).rotateX(Math.PI / 2), 0xb8a070, 0, 0.83, 0, false);
+  const club = new THREE.Group(); club.userData.isClub = true; club.position.set(0, -0.45, 0); club.rotation.x = -Math.PI / 2 + 0.3; c.arms[1].add(club);
+  chibiPart(club, new THREE.CylinderGeometry(0.06, 0.09, 0.9, 7), 0x6a4a2a, 0, -0.35, 0);
+  const knob = chibiPart(club, new THREE.DodecahedronGeometry(0.2, 0), 0x5a3e22, 0, -0.85, 0); knob.scale.set(1, 1.3, 1);
+  for (let i = 0; i < 4; i++) { const spike = chibiPart(club, new THREE.ConeGeometry(0.04, 0.16, 4), 0xd8d0b8, Math.cos(i * 1.6) * 0.17, -0.85 - (i % 2) * 0.1, Math.sin(i * 1.6) * 0.17, false); spike.rotation.set(Math.sin(i * 1.6) * 1.5, 0, -Math.cos(i * 1.6) * 1.5); }
+  g.scale.setScalar(CHIBI_SCALE * 0.82);   // goblins are a head shorter than people
+  return g;
+}
+
+function combatLevel(){ return Math.floor((levelOf(SKILL_XP.Melee) * 2 + levelOf(SKILL_XP.Hitpoints)) / 3); }
+function maxHp(){ return levelOf(SKILL_XP.Hitpoints); }
+const MONSTERS = [];
+const MONSTER_TYPES = { goblin: { name: 'Goblin', level: 2, hp: 6, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2600, respawn: 25000 } };
+// the classic accuracy roll: compare an attack roll against a defence roll
+function hitChance(attRoll, defRoll){ return attRoll > defRoll ? 1 - (defRoll + 2) / (2 * (attRoll + 1)) : attRoll / (2 * (defRoll + 1)); }
+function playerRolls(){
+  const lv = levelOf(SKILL_XP.Melee) + 8, atk = gearBonus('atk'), def = gearBonus('def');
+  return { att: lv * (atk + 64), def: lv * (def + 64), maxHit: Math.max(1, Math.floor(1 + lv * (atk + 64) / 450)) };
+}
+function monsterRolls(t){ const lv = t.melee + 8; return { att: lv * (t.atk + 64), def: lv * (t.def + 64), maxHit: t.maxHit }; }
+function spawnMonster(kind, x, z){
+  const t = MONSTER_TYPES[kind];
+  const g = makeGoblin({ skin: [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3] }); g.position.set(x, 0, z); scene.add(g);
+  const rec = { kind: 'monster', type: kind, t, name: `${t.name} (level ${t.level})`, x, z, s: 0.75, state: 'standing', hp: t.hp, home: [x, z], g };
+  g.userData.action = 'Attack'; g.userData.name = rec.name; g.userData.rec = rec; trees.push(g);
+  rec.bar = document.createElement('div'); rec.bar.className = 'hpBar'; rec.bar.innerHTML = '<i></i>'; rec.bar.style.display = 'none'; document.body.appendChild(rec.bar);
+  rec.wander = { tx: x, tz: z, pause: 60 };
+  MONSTERS.push(rec); return rec;
+}
+let FIGHT = null;
+function startFight(rec){
+  if (rec.state !== 'standing') return;
+  if (FIGHT && FIGHT.m === rec) return;
+  if (FIGHT) endFight();
+  // walk up to it, then lock in: you and it face each other and stay put until one of you falls or you run
+  const dx = hero.position.x - rec.x, dz = hero.position.z - rec.z, L = Math.hypot(dx, dz) || 1;
+  const spot = new THREE.Vector3(rec.x + dx / L * 2.1, 0, rec.z + dz / L * 2.1);
+  rec.state = 'engaged';
+  walkStart(spot, () => {
+    if (rec.state !== 'engaged') return;
+    FIGHT = { m: rec, nextP: performance.now() + 300, nextM: performance.now() + 1500, pAnim: null, mAnim: null };
+    heroAnim.yaw = yawTo(hero.position.x, hero.position.z, rec.x, rec.z);
+    rec.g.rotation.y = yawTo(rec.x, rec.z, hero.position.x, hero.position.z);
+    setAct({ k: 'fight', n: rec.name, t: Date.now() });
+  });
+}
+function endFight(msg){
+  if (!FIGHT) return;
+  const m = FIGHT.m; FIGHT = null;
+  if (m.state === 'engaged') m.state = 'standing';
+  if (ONLINE.act && ONLINE.act.k === 'fight') setAct(null);
+  if (msg) showToast(msg);
+}
+// poses for one swing: wind up, strike, recover. 'block' raises the shield, 'hurt' flinches back
+function fightPose(c, kind, k){
+  const [AL, AR] = c.arms;
+  AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2); c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0); c.legs.forEach(l => l.rotation.set(0, 0, 0));
+  if (kind === 'swing') {
+    const a = k < 0.45 ? lerp(-0.4, -2.9, ease(k / 0.45)) : k < 0.6 ? lerp(-2.9, -0.6, (k - 0.45) / 0.15) : lerp(-0.6, -0.4, (k - 0.6) / 0.4);
+    AR.rotation.set(a, 0, 0.05); c.body.rotation.x = k < 0.45 ? -0.12 * ease(k / 0.45) : (k < 0.75 ? 0.2 : 0.2 * (1 - (k - 0.75) / 0.25)); c.legs[0].rotation.x = -0.35;
+  } else if (kind === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); AL.rotation.set(-1.45 * b, 0.5 * b, -0.2 + 0.3 * b); c.body.rotation.x = 0.06 * b; c.legs[1].rotation.x = 0.3 * b; }
+  else if (kind === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); c.body.rotation.x = -0.3 * b; c.head.rotation.z = 0.2 * b; AL.rotation.set(0.4 * b, 0, -0.2 - 0.4 * b); AR.rotation.set(0.4 * b, 0, 0.2 + 0.4 * b); }
+  else if (kind === 'dead') { c.body.rotation.x = -1.45 * k; c.body.position.y = -0.62 * k; AL.rotation.set(-2.6 * k, 0, -0.4); AR.rotation.set(-2.6 * k, 0, 0.4); c.legs.forEach(l => l.rotation.x = 1.2 * k); }
+  else { const b = Math.sin(performance.now() / 300) * 0.04; c.body.position.y = 0; AR.rotation.x = -0.4 + b; AL.rotation.x = -0.3; }   // ready stance
+}
+function hitsplat(obj, n, kind, label){
+  const el = document.createElement('div'); el.className = 'splat ' + kind; el.innerHTML = n + (label ? `<small>${label}</small>` : '');
+  document.body.appendChild(el); SPLATS.push({ el, obj, t0: performance.now(), y: obj === hero ? 3.3 : 2.6 });
+}
+const SPLATS = [], spV = new THREE.Vector3();
+function playerSwing(m){
+  const me = playerRolls(), it = monsterRolls(m.t);
+  FIGHT.pAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
+  combatSound('swing');
+  setTimeout(() => {
+    if (!FIGHT || FIGHT.m !== m) return;
+    if (Math.random() < hitChance(me.att, it.def)) {
+      const dmg = Math.floor(Math.random() * (me.maxHit + 1));
+      if (dmg > 0) { m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); combatSound('hit'); combatSound('goblinHurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
+        addXp('Melee', dmg * 4); addXp('Hitpoints', Math.round(dmg * 4 / 3)); }
+      else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound('clang'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+    } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+    if (m.hp <= 0) killMonster(m);
+  }, 480);
+}
+function monsterSwing(m){
+  const me = playerRolls(), it = monsterRolls(m.t);
+  FIGHT.mAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
+  combatSound('goblinAttack');
+  setTimeout(() => {
+    if (!FIGHT || FIGHT.m !== m) return;
+    if (Math.random() < hitChance(it.att, me.def)) {
+      const dmg = Math.floor(Math.random() * (it.maxHit + 1));
+      if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); }
+      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound('clang'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+    } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+    if (HP.cur <= 0) playerDies();
+  }, 480);
+}
+function killMonster(m){
+  m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie');
+  const coins = 3 + Math.floor(Math.random() * 8);
+  setTimeout(() => { if (addItem('Coins', coins, COIN_ICON)) showToast(`The goblin is defeated! It dropped ${coins} coins.`); }, 900);
+  endFight();
+}
+function playerDies(){
+  endFight(); showToast('Oh dear, you are dead! You wake up in the hall.');
+  setTimeout(() => { hero.position.copy(START); walkTarget = null; HP.cur = maxHp(); renderStats(); }, 1200);
+}
+let hpRegen = 0;
+function updateFight(){
+  const now = performance.now();
+  if (!FIGHT && hero && HP.cur < maxHp() && now > hpRegen) { hpRegen = now + 6000; HP.cur++; renderStats(); }   // health comes back slowly out of combat
+  else if (FIGHT) hpRegen = now + 6000;
+  // monsters: wander near home, fall over when beaten, come back later
+  for (const m of MONSTERS) {
+    const c = m.g.userData.chibi;
+    if (m.state === 'dying') { const k = Math.min(1, (now - m.dieT) / 700); fightPose(c, 'dead', k); if (now - m.dieT > 3000) { m.g.visible = false; m.state = 'dead'; } }
+    else if (m.state === 'dead') { if (now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); fightPose(c, 'ready', 0); } }
+    else if (!FIGHT || FIGHT.m !== m) {
+      if (m.state === 'standing') {
+        const w = m.wander, x = m.g.position.x, z = m.g.position.z;
+        if (w.pause > 0) { w.pause--; poseChibi(m.g, 'idle', 0); }
+        else { const dx = w.tx - x, dz = w.tz - z, d = Math.hypot(dx, dz);
+          if (d < 0.05) { w.tx = m.home[0] + (Math.random() * 2 - 1) * 3; w.tz = m.home[1] + (Math.random() * 2 - 1) * 3; w.pause = 120 + Math.random() * 200; }
+          else { const st = Math.min(d, 0.022); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); poseChibi(m.g, 'walk', now / 1000); } }
+        m.x = m.g.position.x; m.z = m.g.position.z;
+      } else if (m.state === 'engaged') { poseChibi(m.g, 'idle', 0); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
+      c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
+    }
+    // the health bar shows while it is hurt or fighting
+    const show = m.state !== 'dead' && (m.hp < m.t.hp || (FIGHT && FIGHT.m === m));
+    m.bar.style.display = show ? 'block' : 'none';
+    if (show) { m.bar.firstChild.style.width = (m.hp / m.t.hp * 100) + '%'; m.g.getWorldPosition(spV); spV.y += 3.1; spV.project(camera); m.bar.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; m.bar.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; }
+  }
+  // your own health bar, while fighting or hurt
+  const hb = document.getElementById('heroHp'), showH = hero && (FIGHT || HP.cur < maxHp());
+  hb.style.display = showH ? 'block' : 'none';
+  if (showH) { hb.firstChild.style.width = (HP.cur / maxHp() * 100) + '%'; hero.getWorldPosition(spV); spV.y += 4.0; spV.project(camera); hb.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; hb.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; }
+  // the hitsplats rise and fade
+  for (let i = SPLATS.length - 1; i >= 0; i--) { const sp = SPLATS[i], k = (now - sp.t0) / 1300;
+    if (k >= 1) { sp.el.remove(); SPLATS.splice(i, 1); continue; }
+    sp.obj.getWorldPosition(spV); spV.y += sp.y + k * 1.2; spV.project(camera);
+    sp.el.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; sp.el.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; sp.el.style.opacity = k > 0.7 ? (1 - k) / 0.3 : 1; }
+  if (!FIGHT) return;
+  const m = FIGHT.m;
+  if (!hero || Math.hypot(hero.position.x - m.x, hero.position.z - m.z) > 4) { endFight(); return; }
+  heroAnim.mode = 'fight';
+  heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.x, m.z);
+  if (now > FIGHT.nextP) { FIGHT.nextP = now + 2400; playerSwing(m); }
+  if (FIGHT && now > FIGHT.nextM) { FIGHT.nextM = now + m.t.speed; monsterSwing(m); }
+  if (!FIGHT) return;
+  const anim = (a, c) => { if (a && now - a.t0 < a.dur) fightPose(c, a.kind, (now - a.t0) / a.dur); else fightPose(c, 'ready', 0); };
+  anim(FIGHT.pAnim, hero.userData.chibi); anim(FIGHT.mAnim, m.g.userData.chibi);
+}
+// combat sounds, made in code like the rest
+function combatSound(kind){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + 0.01;
+  const out = ctx.createGain(); out.gain.value = 0.55; out.connect(sfxOut(ctx));
+  const noiseThrough = (dur, type, f0, f1, q, vol, att = 0.01) => { const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, dur); const f = ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.linearRampToValueAtTime(f1, t + dur); f.Q.value = q;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); n.connect(f); f.connect(g); g.connect(out); n.start(t); n.stop(t + dur); };
+  const osc = (dur, type, f0, f1, vol, at = 0) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t + at); o.frequency.exponentialRampToValueAtTime(f1, t + at + dur);
+    g.gain.setValueAtTime(vol, t + at); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur); o.connect(g); g.connect(out); o.start(t + at); o.stop(t + at + dur + 0.02); };
+  const voice = (dur, f0, f1, forms, vol = 0.8, rough = 0) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f1, t + dur);
+    if (rough) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 37; lg.gain.value = f0 * rough; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur); }
+    const env = ctx.createGain(); env.gain.setValueAtTime(0.0001, t); env.gain.linearRampToValueAtTime(vol, t + 0.03); env.gain.exponentialRampToValueAtTime(0.0001, t + dur); env.connect(out);
+    for (const [f, q, gg] of forms) { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const g2 = ctx.createGain(); g2.gain.value = gg; o.connect(bp); bp.connect(g2); g2.connect(env); }
+    o.start(t); o.stop(t + dur + 0.05); };
+  if (kind === 'swing') noiseThrough(0.32, 'bandpass', 500, 2400, 1.4, 0.5, 0.12);
+  if (kind === 'miss') noiseThrough(0.28, 'bandpass', 1800, 700, 1.0, 0.45, 0.05);
+  if (kind === 'hit') { noiseThrough(0.18, 'lowpass', 900, 600, 0.7, 0.8, 0.002); osc(0.15, 'sine', 120, 60, 0.7); }
+  if (kind === 'clang') { for (const [f, v] of [[620, 0.35], [1544, 0.2], [2490, 0.14], [3711, 0.08]]) osc(0.9, 'sine', f, f * 0.998, v); noiseThrough(0.05, 'highpass', 3000, 3000, 0.7, 0.3, 0.001); }
+  if (kind === 'hurtM') voice(0.32, 150, 105, [[500, 4, 1.2], [1100, 5, 0.6], [2400, 6, 0.2]]);
+  if (kind === 'hurtF') voice(0.3, 290, 220, [[800, 4, 1.2], [1300, 5, 0.7], [2800, 6, 0.25]]);
+  if (kind === 'goblinAttack') voice(0.42, 230, 330, [[700, 3, 1.2], [1600, 4, 0.7]], 0.6, 0.25);
+  if (kind === 'goblinHurt') voice(0.28, 520, 760, [[1000, 4, 1.2], [2200, 5, 0.7]], 0.6, 0.12);
+  if (kind === 'goblinDie') voice(0.9, 420, 140, [[800, 4, 1.2], [1800, 5, 0.6]], 0.7, 0.15);
+}
 // remarks villagers say out loud now and then when you are nearby
 const BARKERS = [], NPC_SPOTS = [];
 let nextBark = performance.now() + 5000;
@@ -3171,6 +3390,7 @@ function populateVillage(){
   const wenna = TOWNSFOLK.find(f => f.name === 'Wenna'); wenna.x = wbx; wenna.z = wbz;
   for (const f of TOWNSFOLK) addWorldNpc(f.x, f.z, f);
   buildFarm();
+  spawnMonster('goblin', 37, 30);   // a temporary goblin near the quarry, for testing combat
   // things that make the green feel lived in: market stalls, benches, a signpost, lamps, barrels and crates
   const spots = [];
   for (const [sx, sz, col] of [[-46.5, 12, 0xb04a3a], [-47, 17, 0x3a6a9a]]) { const [x, z] = off(sx, sz, 1.9); stall(x, z, col); solidBoxes.push({ x0: x - 1.7, x1: x + 1.7, z0: z - 1, z1: z + 1 }); spots.push([x, z]); }
@@ -3360,7 +3580,11 @@ function applySave(d){
   if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
   if (equipped.body === "Villager's cloak") { equipped.back = equipped.body; equipped.body = null; }   // the cloak moved to its own back slot
   if (d && d.dm) Object.keys(d.dm).forEach(k => { if (d.dm[k] && typeof d.dm[k].n === 'number') DEMAND[k] = d.dm[k]; });   // Mara's prices carry over
-  if (d && d.xp && d.v === 2) Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
+  if (d && d.xp && d.v === 2) {
+    Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
+    if (typeof d.xp.Melee !== 'number') SKILL_XP.Melee = Math.max(d.xp.Attack || 0, d.xp.Defence || 0);   // Attack and Defence became Melee
+  }
+  HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
   renderBag(); renderStats(); renderGear();
@@ -3452,8 +3676,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000, smith: 6000 };
+const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -3577,6 +3801,7 @@ function frame(){
   updateBarks();
   updateAnimals();
   updateGrass();
+  updateFight();
   checkDialogDistance();
   updateDialog();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
