@@ -30,6 +30,18 @@ A centipede crawls down through a mushroom field. Shoot it from your zone at the
 
 Crawler has its own leaderboard. Its online scores need the `crawler` section of `database.rules.json` published in Firebase.
 
+## 🗺️ ITAP Adventure
+A low-poly village to explore, found from the arcade menu (or at `adventure/`).
+
+- **Walk:** click or tap the ground. Routes go round the houses, trees and rocks.
+- **Look:** arrow keys or middle-mouse drag turn the camera; the wheel zooms.
+- **Skills:** chop trees with the bronze axe, mine copper and tin rocks with the bronze pickaxe, smelt bronze at the furnace, smith at the anvil, and fish at the river.
+- **Villagers:** click a villager to talk to them. Doors open and close when clicked.
+- **Chat:** press Enter to type. Your line shows above your character in yellow.
+- **Music:** a village loop, toggled with the button in the top left.
+
+Progress is not saved yet, and the village is single-player for now.
+
 ## How to play
 Open `index.html` in any browser (or play the GitHub Pages link).
 

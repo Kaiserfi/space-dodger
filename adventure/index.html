@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITAP Adventure</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0d1410; color:#e8efe6; font-family: Georgia, serif; overflow:hidden; height:100vh; }
+  canvas { display:block; touch-action:none; }
+  #hint { position:fixed; left:12px; bottom:10px; font-size:13px; background:rgba(0,0,0,.5); padding:6px 10px; border-radius:6px; }
+  #lookBtn { position:fixed; right:12px; top:12px; font-family:inherit; font-size:13px; color:#e8efe6; background:rgba(0,0,0,.6); border:1px solid #5b4324; border-radius:6px; padding:6px 10px; cursor:pointer; }
+  #creator { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:5; }
+  #creator[hidden] { display:none; }
+  .crBox { pointer-events:auto; background:rgba(30,24,16,.95); border:2px solid #f0c35a; border-radius:10px; padding:12px 14px; width:290px; max-width:92vw; position:relative; }
+  .crBox:after { content:''; position:absolute; left:50%; bottom:-12px; transform:translateX(-50%); border:10px solid transparent; border-top:12px solid #f0c35a; border-bottom:0; }
+  .crBox h2 { margin:0 0 8px; font-size:15px; color:#f0c35a; text-transform:uppercase; letter-spacing:1px; text-align:center; }
+  .crRow { display:flex; align-items:center; justify-content:space-between; margin:4px 0; font-size:14px; }
+  .crRow span { min-width:160px; text-align:center; }
+  .crRow button, #crStart { font-family:inherit; background:#1d150b; color:#e8efe6; border:1px solid #5b4324; border-radius:5px; padding:3px 11px; cursor:pointer; }
+  #crStart { margin-top:10px; font-size:15px; padding:7px 18px; color:#f0c35a; width:100%; }
+  #tabbar { position:fixed; right:12px; top:52px; display:flex; flex-direction:column; gap:6px; z-index:8; }
+  .tabIcon { width:36px; height:36px; background:rgba(20,16,10,.85); border:2px solid #5b4324; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+  .tabIcon.on { border-color:#f0c35a; }
+  .tabIcon svg { width:22px; height:22px; shape-rendering:crispEdges; }
+  #statsPanel { position:fixed; right:58px; top:52px; width:240px; background:rgba(20,16,10,.94); border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
+  #statsPanel[hidden] { display:none; }
+  .subTabs { display:flex; border-bottom:1px solid #5b4324; }
+  .subTabs button { flex:1; background:#2a1f10; color:#e8efe6; border:0; padding:7px 0; font:inherit; cursor:pointer; }
+  .subTabs button.on { background:#3a2a16; color:#f0c35a; }
+  .statsBody { padding:8px 10px; }
+  .statsBody h4 { margin:6px 0 4px; color:#f0c35a; font-size:14px; }
+  .skillGrid { display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; }
+  .skillGrid span b { color:#f0c35a; font-weight:normal; }
+  .statRow { display:flex; justify-content:space-between; margin:2px 0; }
+  .statRow b { color:#f0c35a; font-weight:normal; }
+  #bagPanel { position:fixed; right:58px; top:52px; width:240px; background:rgba(20,16,10,.94); border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
+  #bagPanel[hidden] { display:none; }
+  .bagHead { padding:7px 10px; border-bottom:1px solid #5b4324; color:#f0c35a; font-size:14px; }
+  .bagGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; padding:8px 10px; }
+  .slot { aspect-ratio:1; background:#1d160c; border:1px solid #5b4324; border-radius:4px; display:flex; align-items:center; justify-content:center; position:relative; }
+  .slot.full { background:#3a2a16; }
+  .slot .swatch { width:14px; height:14px; border-radius:3px; }
+  .slot .qty { position:absolute; right:3px; bottom:0; font-size:10px; color:#f0c35a; }
+  .bagFoot { padding:0 10px 8px; font-size:12px; color:#c9b27a; }
+  #gearPanel { position:fixed; right:58px; top:52px; width:240px; background:rgba(20,16,10,.94); border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
+  #gearPanel[hidden] { display:none; }
+  .gearList { padding:6px 10px 8px; }
+  .gearRow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #3a2a16; }
+  .gearRow b { color:#f0c35a; font-weight:normal; }
+</style>
+</head>
+<body>
+<div id="tip" style="position:fixed;display:none;pointer-events:none;background:rgba(0,0,0,.78);color:#fff;font:14px Georgia,serif;padding:3px 7px;border-radius:4px;z-index:7;white-space:nowrap"></div>
+<div id="tabbar">
+  <button class="tabIcon" id="tabStats" title="Stats"><svg viewBox="0 0 16 16"><rect x="2" y="9" width="3" height="5" fill="#d64b3c"/><rect x="6" y="5" width="3" height="9" fill="#4bc24b"/><rect x="10" y="2" width="3" height="12" fill="#3b7fd6"/><rect x="1" y="14" width="14" height="1" fill="#c9b27a"/></svg></button>
+  <button class="tabIcon" id="tabBag" title="Bag"><svg viewBox="0 0 16 16"><path d="M5 5 Q5 2 8 2 Q11 2 11 5" fill="none" stroke="#c9b27a" stroke-width="1.5"/><rect x="3" y="5" width="10" height="9" rx="2" fill="#9a6b3a"/><rect x="3" y="8" width="10" height="1" fill="#6b4524"/><rect x="7" y="7" width="2" height="2" fill="#f0c35a"/></svg></button>
+  <button class="tabIcon" id="tabGear" title="Gear"><svg viewBox="0 0 16 16"><path d="M3 9 Q3 3 8 3 Q13 3 13 9 L13 12 L3 12 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="3" y="9" width="10" height="1.5" fill="#434a53"/></svg></button>
+</div>
+<div id="statsPanel" hidden>
+  <div class="subTabs"><button class="on" data-sub="skills">Skills</button><button data-sub="quests">Quests</button></div>
+  <div class="statsBody" id="statsBody"></div>
+</div>
+<div id="bagPanel" hidden>
+  <div class="bagHead">Bag</div>
+  <div class="bagGrid" id="bagGrid"></div>
+  <div class="bagFoot" id="bagFoot"></div>
+</div>
+<div id="gearPanel" hidden>
+  <div class="bagHead">Gear</div>
+  <div class="gearList" id="gearList"></div>
+</div>
+<div id="smithPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Anvil</span><button id="smithClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
+  <div id="smithList" style="padding:6px 10px"></div>
+</div>
+<div id="dialog" hidden style="position:fixed;left:50%;bottom:90px;transform:translateX(-50%);width:min(420px,92vw);background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:8px;padding:10px 14px;z-index:10;font:15px Georgia,serif;color:#e8efe6;">
+  <div id="dlgName" style="color:#f0c35a;margin-bottom:4px"></div>
+  <div id="dlgText"></div>
+  <div style="text-align:right;margin-top:8px"><button id="dlgNext" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 12px;cursor:pointer">Continue</button></div>
+</div>
+<button id="musicBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Music: on</button>
+<div id="chatBox" style="position:fixed;left:12px;bottom:46px;width:min(320px,70vw);z-index:9;font:13px Georgia,serif;color:#e8efe6;">
+  <div id="chatLog" style="background:rgba(0,0,0,.55);border-radius:6px 6px 0 0;padding:6px 8px;height:110px;overflow-y:auto;"></div>
+  <input id="chatInput" maxlength="120" placeholder="Press Enter to chat" style="width:100%;box-sizing:border-box;font:13px Georgia,serif;background:rgba(20,16,10,.9);color:#e8efe6;border:1px solid #5b4324;border-radius:0 0 6px 6px;padding:6px 8px;outline:none;">
+</div>
+<div id="heroChat" style="position:fixed;left:0;top:0;transform:translate(-50%,-100%);display:none;pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;max-width:260px;text-align:center;"></div>
+<a id="backArcade" href="../" style="position:fixed;left:12px;top:52px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;text-decoration:none;">&lt; Arcade</a>
+<div id="hint">Drag to turn the camera. Scroll or pinch to zoom.</div>
+<div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
+<button id="lookBtn">Change look</button>
+<div id="creator" hidden>
+  <div class="crBox">
+    <h2>Create your adventurer</h2>
+    <div id="crRows"></div>
+    <button id="crStart">Start playing</button>
+  </div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ----- the look options -----
+const LOOK = [
+  {key: 'gender', label: 'Build', values: [{id: 'male', label: 'Male'}, {id: 'female', label: 'Female'}]},
+  {key: 'hair', label: 'Hair', values: [{id: 'short', label: 'Short'}, {id: 'long', label: 'Long'}, {id: 'topknot', label: 'Top knot'}]},
+  {key: 'hairCol', label: 'Hair colour', values: [{id: 0x4a2a14, label: 'Brown'}, {id: 0x1a1a1a, label: 'Black'}, {id: 0xe0c070, label: 'Blonde'}, {id: 0xa03a1e, label: 'Red'}, {id: 0x9a9aa0, label: 'Grey'}]},
+  {key: 'skin', label: 'Skin', values: [{id: 0xf1cba0, label: 'Light'}, {id: 0xe8c39c, label: 'Fair'}, {id: 0xc9955f, label: 'Tan'}, {id: 0x8a5a33, label: 'Dark'}]},
+  {key: 'shirt', label: 'Top', values: [{id: 0x3d6fb8, label: 'Blue'}, {id: 0x3f8f4f, label: 'Green'}, {id: 0x8c2f2f, label: 'Red'}, {id: 0x7a5a2a, label: 'Brown'}, {id: 0x8a8f98, label: 'Grey'}]},
+  {key: 'pants', label: 'Trousers', values: [{id: 0x5c4a2a, label: 'Brown'}, {id: 0x2a3a5c, label: 'Navy'}, {id: 0x3a3a3a, label: 'Charcoal'}, {id: 0x6a4a8a, label: 'Plum'}]},
+];
+let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a};
+let lookMade = false;
+try { const d = JSON.parse(localStorage.getItem('lowpolyLook')); if (d) { look = {...look, ...d.look}; lookMade = !!d.made; } } catch (e) {}
+const saveLook = () => { try { localStorage.setItem('lowpolyLook', JSON.stringify({look, made: lookMade})); } catch (e) {} };
+
+// ----- renderer, scene, camera -----
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd3e8);
+scene.fog = new THREE.Fog(0x9fd3e8, 45, 100);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+let yaw = 0.6, pitch = 0.95, dist = 30;
+const target = new THREE.Vector3(0, 1, 0);
+function placeCamera(){
+  camera.position.set(
+    target.x + dist * Math.sin(yaw) * Math.sin(pitch),
+    target.y + dist * Math.cos(pitch),
+    target.z + dist * Math.cos(yaw) * Math.sin(pitch));
+  camera.lookAt(target);
+}
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a5a2a, 1.1));
+const sun = new THREE.DirectionalLight(0xfff1d6, 1.4);
+sun.position.set(12, 22, 8);
+scene.add(sun);
+
+const mat = c => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.9, metalness: 0 });
+const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+const town = new THREE.Group();
+scene.add(town);
+
+// ----- the ground, a river, a bridge and paths -----
+const groundGeo = new THREE.PlaneGeometry(240, 240, 240, 240);   // a fine grid so the hall's flat patch lines up
+groundGeo.rotateX(-Math.PI / 2);
+const gp = groundGeo.attributes.position;
+for (let i = 0; i < gp.count; i++) {
+  const x = gp.getX(i), z = gp.getZ(i);
+  const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
+  const inVillage = (x > -110 && x < 12 && z > -10 && z < 52) || (x > 28 && x < 62 && z > 12 && z < 56);   // the village is flat, so grass cannot poke through the houses
+  gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
+}
+groundGeo.computeVertexNormals();
+town.add(new THREE.Mesh(groundGeo, mat(0x4f8a3a)));
+const river = new THREE.Mesh(new THREE.PlaneGeometry(240, 4.2).rotateX(-Math.PI / 2), mat(0x3a7fb0));
+river.position.set(0, -0.12, -14); town.add(river);
+function path(x, z, w, l, rot){
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(w, l).rotateX(-Math.PI / 2), mat(0xa48a5e));
+  p.position.set(x, 0.05, z); p.rotation.z = rot; town.add(p);
+}
+
+// ----- buildings -----
+// a textured material for a building part: the texture repeats over the part, and the colour tints it
+function texMat(tex, rx, ry, color = 0xffffff){
+  const t = tex.clone(); t.needsUpdate = true; t.repeat.set(rx, ry);
+  return new THREE.MeshStandardMaterial({ map: t, color, flatShading: true, roughness: 0.95 });
+}
+// the houses: hollow walls with a doorway in the front, a floor, and a roof that lifts off while you are in.
+// They are built in their own units and scaled to the hall; rot turns a house by a quarter or half turn.
+const houses = [];
+const HOUSE_SIZE = 2;   // houses are twice the size of the first ones
+function house(x, z, w, d, wall, roofCol, rot = 0, furnish = null){
+  const g = new THREE.Group();
+  const S = HOUSE_SIZE; w = w * S; d = d * S;
+  const t = 0.4, dw = 1.8 * S;   // wall thickness and doorway width, in the house's own units
+  const walls = [[0, -d / 2, w / 2, t / 2], [-w / 2, 0, t / 2, d / 2], [w / 2, 0, t / 2, d / 2],
+                 [-(w + dw) / 4, d / 2, (w - dw) / 4, t / 2], [(w + dw) / 4, d / 2, (w - dw) / 4, t / 2]];   // back, sides, front either side of the doorway
+  walls.forEach(([cx, cz, hx, hz]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, 3 * S, hz * 2), texMat(wallStone, Math.max(1, hx), 1.5, wall));
+    m.position.set(cx, 1.5 * S, cz); g.add(m);
+  });
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(dw, 0.8 * S, t), texMat(wallStone, 1, 1, wall)); lintel.position.set(0, 2.6 * S, d / 2); g.add(lintel);
+  // the door fills the doorway: it hangs from a pivot on the left jamb and swings open when clicked
+  const doorPivot = new THREE.Group(); doorPivot.position.set(-dw / 2, 0, d / 2); g.add(doorPivot);
+  const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(dw, 2.2 * S, 0.15), texMat(doorPlanks, 1, 1, 0x8a5a2a));
+  doorLeaf.position.set(dw / 2, 1.1 * S, 0); doorPivot.add(doorLeaf);
+  const knob = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.12), mat(0xd9b44a));
+  knob.position.set(dw / 2 - 0.25, 0, 0.14); doorLeaf.add(knob);   // on the door face, near the free edge (positions are relative to the door's centre)
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w - t, d - t).rotateX(-Math.PI / 2), texMat(floorWood, 2, 2, 0xc8a070));
+  floor.position.y = 0.06; g.add(floor);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.7, 2.2 * S, 4), texMat(roofTex, 2, 2, roofCol));
+  roof.position.y = 4.1 * S; roof.rotation.y = Math.PI / 4; g.add(roof);
+  const k = HALL_SCALE, c = Math.cos(rot), sn = Math.sin(rot);
+  g.scale.setScalar(k); g.position.set(x, 0, z); g.rotation.y = rot; town.add(g);
+  const toWorld = (lx, lz) => ({ x: x + (lx * c + lz * sn) * k, z: z + (-lx * sn + lz * c) * k });
+  walls.forEach(([cx, cz, hx, hz]) => {
+    const p = toWorld(cx, cz);
+    const ax = (Math.abs(c) * hx + Math.abs(sn) * hz) * k, az = (Math.abs(sn) * hx + Math.abs(c) * hz) * k;
+    solidBoxes.push({ x0: p.x - ax, x1: p.x + ax, z0: p.z - az, z1: p.z + az });
+  });
+  const hw = (Math.abs(c) * w / 2 + Math.abs(sn) * d / 2) * k, hd = (Math.abs(sn) * w / 2 + Math.abs(c) * d / 2) * k;
+  const h = { roof, x, z, hw, hd, k, toWorld, door: toWorld(0, d / 2 + 0.6) };   // the door is just outside the front
+  houses.push(h);
+  // the closed door blocks the doorway; opening it removes that block
+  const dc = toWorld(0, d / 2);
+  const dax = (Math.abs(c) * dw / 2 + Math.abs(sn) * t / 2) * k, daz = (Math.abs(sn) * dw / 2 + Math.abs(c) * t / 2) * k;
+  const doorRec = { kind: 'door', x: dc.x, z: dc.z, s: 0.6, state: 'standing', pivot: doorPivot, leaf: doorLeaf, open: false,
+    box: { x0: dc.x - dax, x1: dc.x + dax, z0: dc.z - daz, z1: dc.z + daz } };
+  doorLeaf.userData = { action: 'Open', name: 'Door', rec: doorRec };
+  h.doorRec = doorRec;
+  doorRec.outside = h.door;
+  doorRec.inside = toWorld(0, d / 2 - 1.3);   // a spot just inside the doorway
+  trees.push(doorLeaf);
+  solidBoxes.push(doorRec.box);
+  if (furnish) furnish(g, h);
+  return h;
+}
+// lift the roof off a house while the adventurer is inside, so the inside can be seen
+function updateHouses(){
+  for (const h of houses) h.roof.visible = !(Math.abs(hero.position.x - h.x) < h.hw && Math.abs(hero.position.z - h.z) < h.hd);
+}
+function smithy(x, z){
+  house(x, z, 4.5, 4, 0x9a6a44, 0x7a2e2e, -0.4);
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.7, 3, 0.7), mat(0x5a5a62));
+  chimney.position.set(x + 1.4, 4.2, z - 1.2); town.add(chimney);
+  const anvil = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.6), mat(0x6a7078));
+  anvil.position.set(x + 2.6, 0.6, z + 1.8); town.add(anvil);
+}
+// the keep: a walled corner with four towers
+function keep(x, z){
+  const wallMat = mat(0x8a8a90);
+  [[-4, -4, 8, 0.6], [-4, 4, 8, 0.6]].forEach(([dx, dz, w]) => {}); // (walls below)
+  const sides = [[0, -4, 8.4, 0.6], [0, 4, 8.4, 0.6], [-4, 0, 0.6, 8.4], [4, 0, 0.6, 8.4]];
+  sides.forEach(([dx, dz, w, d]) => { const s = new THREE.Mesh(new THREE.BoxGeometry(w, 2.2, d), wallMat); s.position.set(x + dx, 1.1, z + dz); town.add(s); });
+  [[-4, -4], [4, -4], [-4, 4], [4, 4]].forEach(([dx, dz]) => {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.95, 4, 6), wallMat); t.position.set(x + dx, 2, z + dz); town.add(t);
+    const r = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.4, 6), mat(0x4a3a6a)); r.position.set(x + dx, 4.7, z + dz); town.add(r);
+  });
+  const gate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.6, 1.4), mat(0x4a2e16)); gate.position.set(x + 4.05, 0.8, z); town.add(gate);
+}
+function well(x, z){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.75, 0.9, 8), mat(0x8a8a90)); base.position.set(0, 0.45, 0); g.add(base);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 0.12), mat(0x6b4a2a)); post.position.set(-0.6, 1.3, 0); g.add(post);
+  const roofW = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.6, 4), mat(0x7a2e2e)); roofW.position.set(0, 2.3, 0); roofW.rotation.y = Math.PI / 4; g.add(roofW);
+  g.scale.setScalar(HALL_SCALE);   // the same scale as the spawn hall
+  g.position.set(x, 0, z); town.add(g);
+}
+// market stalls
+function stall(x, z, col){
+  const g = new THREE.Group();
+  const table = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 1), mat(0x7a5a2a)); table.position.y = 0.45; g.add(table);
+  const canopy = new THREE.Mesh(new THREE.ConeGeometry(1.4, 0.8, 4), mat(col)); canopy.position.y = 2.1; canopy.rotation.y = Math.PI / 4; g.add(canopy);
+  g.position.set(x, 0, z); town.add(g);
+}
+
+// ----- nature -----
+const nearStart = (x, z) => Math.hypot(x - 4, z - 11) < 7;   // keep the starting tile clear
+function tree(x, z){
+  if (nearStart(x, z) || (x > 9 && x < 23 && z > -4 && z < 8)) return;   // keep clear of the stone hall
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, 5), mat(0x6b4a2a)); trunk.position.y = 1; g.add(trunk);
+  const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 0), mat(0x2f7a3a)); leaves.position.y = 3.2; g.add(leaves);
+  g.position.set(x, 0, z); g.rotation.y = rnd() * Math.PI; town.add(g);
+}
+function rock(x, z){
+  if (nearStart(x, z)) return;
+  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8 + rnd() * 0.4, 0), mat(0x7b7f88));
+  r.position.set(x, 0.4, z); r.rotation.set(rnd(), rnd(), rnd()); town.add(r);
+}
+
+// the starting tile: a gold ring under the spot where your adventurer stands
+const startRing = new THREE.Mesh(new THREE.RingGeometry(1.3, 1.6, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xf0c35a }));
+
+// ----- textures drawn in code: crisp 32px tiles, shown without smoothing -----
+const seeded = (() => { let q = 11; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+function makeTex(draw){
+  const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+  draw(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const stoneTex = () => makeTex(g => {
+  g.fillStyle = '#5a5c62'; g.fillRect(0, 0, 32, 32);                 // mortar
+  for (let row = 0; row < 4; row++) {
+    const off = row % 2 ? 8 : 0;
+    for (let x = -8; x < 32; x += 16) {
+      const v = 120 + Math.floor(seeded() * 40);
+      g.fillStyle = `rgb(${v},${v + 2},${v + 6})`; g.fillRect(x + off + 1, row * 8 + 1, 14, 6);
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x + off + 1, row * 8 + 1, 14, 1);   // highlight on the top edge
+    }
+  }
+});
+const woodTex = () => makeTex(g => {
+  for (let x = 0; x < 32; x += 8) {
+    const v = 70 + Math.floor(seeded() * 30);
+    g.fillStyle = `rgb(${v + 40},${v + 14},${v - 10})`; g.fillRect(x, 0, 8, 32);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x, 0, 1, 32);                  // plank seam
+  }
+});
+const bannerTex = () => makeTex(g => {
+  g.fillStyle = '#2a4f9a'; g.fillRect(0, 0, 32, 32);
+  g.fillStyle = '#e8e0c0'; g.beginPath(); g.moveTo(8, 10); g.lineTo(16, 18); g.lineTo(24, 10); g.lineTo(24, 14); g.lineTo(16, 22); g.lineTo(8, 14); g.closePath(); g.fill();
+});
+
+// ----- the stone hall -----
+const HALL = new THREE.Vector3(16, 0, 2);      // east of the starting tile
+const HALL_SCALE = 1.45;   // the whole hall is built at its own size and scaled up, so it stays symmetrical
+const hallGroup = new THREE.Group(); hallGroup.position.copy(HALL); hallGroup.scale.setScalar(HALL_SCALE); scene.add(hallGroup);
+const wallStone = stoneTex(), floorWood = woodTex(), bannerMap = bannerTex();
+const hallWallMats = [];   // the hall's stone, so it can fade out while you are inside
+function block(x, y, z, w, h, d, tex, rx = 1, ry = 1, fades = true){
+  const t = tex.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 2) * rx, Math.max(1, h / 2) * ry);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, flatShading: true, roughness: 0.95 }));
+  m.position.set(x, y + h / 2, z); hallGroup.add(m); if (fades) hallWallMats.push(m.material); return m;
+}
+// floor
+const hallFloor = new THREE.Mesh(new THREE.PlaneGeometry(12, 10).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: (() => { const t = floorWood.clone(); t.needsUpdate = true; t.repeat.set(3, 2.5); return t; })(), flatShading: true }));
+hallFloor.position.y = 0.06; hallGroup.add(hallFloor);
+// walls: north and east/west are solid; the south wall has a doorway in the middle
+block(0, 0, -5.4, 13.6, 4.5, 0.8, wallStone);
+block(-4.05, 0, 5.4, 5.5, 4.5, 0.8, wallStone);   // south wall, left of the doorway
+block(4.05, 0, 5.4, 5.5, 4.5, 0.8, wallStone);   // south wall, right of the doorway
+block(-6.4, 0, 0, 0.8, 4.5, 11.6, wallStone);
+block(6.4, 0, 0, 0.8, 4.5, 11.6, wallStone);
+block(0, 3.8, 5.4, 2.6, 0.7, 0.8, wallStone);                  // wall above the door, flush with the wall
+// door
+// the door fills the doorway up to the lintel, with wood planks, iron bands and a handle
+const doorPlanks = woodTex(); doorPlanks.repeat.set(1, 1.6); doorPlanks.needsUpdate = true;
+const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.8, 0.2), new THREE.MeshStandardMaterial({ map: doorPlanks, flatShading: true }));
+const ironMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, flatShading: true });
+[-1.2, 1.2].forEach(y => { const band = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.14, 0.26), ironMat); band.position.set(0, y, 0); doorMesh.add(band); });
+const handle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.22), new THREE.MeshStandardMaterial({ color: 0xd9b44a, flatShading: true }));
+handle.position.set(0.95, 0, 0.1); doorMesh.add(handle);
+const doorPivot = new THREE.Group(); doorPivot.position.set(-1.3, 0, 5.5); hallGroup.add(doorPivot);   // the hinge is on the left edge
+doorMesh.position.set(1.3, 1.9, 0); doorPivot.add(doorMesh);
+// pillars
+block(0, 0, 0, 1, 4.5, 1, wallStone, 0.5, 1, false);   // one pillar in the middle of the hall
+// banners on the north wall
+[-3.2, 3.2].forEach(x => {
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.6), new THREE.MeshStandardMaterial({ map: bannerMap, flatShading: true, side: THREE.DoubleSide }));
+  flag.position.set(x, 2.8, -4.9); hallGroup.add(flag);
+});
+
+// a tiled roof with an overhang, and a stone base along the walls
+const shingleTex = () => makeTex(g => {
+  g.fillStyle = '#6a2f22'; g.fillRect(0, 0, 32, 32);
+  for (let row = 0; row < 4; row++) {
+    const off = row % 2 ? 8 : 0;
+    for (let x = -8; x < 32; x += 16) {
+      const v = Math.floor(seeded() * 30);
+      g.fillStyle = `rgb(${150 + v},${72 + Math.floor(v / 2)},${52})`; g.fillRect(x + off + 1, row * 8 + 1, 14, 6);
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + off + 1, row * 8 + 7, 14, 1);   // the shadow under each row
+    }
+  }
+});
+const roofTex = shingleTex(); roofTex.repeat.set(3, 2); roofTex.needsUpdate = true;
+const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, flatShading: true, side: THREE.DoubleSide });
+hallWallMats.push(roofMat);                                   // the roof fades inside too
+// hip roof: four sloping faces that start at the wall tops and meet at a point
+const roofGeo = (() => {
+  const a = 7.7, b = 6.7, h = 3.5, y = 4.5;   // wider overhang and a steeper pitch
+  const P = [[-a, y, -b], [a, y, -b], [a, y, b], [-a, y, b]], apex = [0, y + h, 0];
+  // one top-down projection for every face, so the shingles line up around the whole roof
+  const uvOf = p => [(p[0] + a) / (2 * a), (p[2] + b) / (2 * b)];
+  const pos = [], uvs = [];
+  for (let i = 0; i < 4; i++) {
+    const p0 = P[i], p1 = P[(i + 1) % 4];
+    pos.push(...apex, ...p0, ...p1);
+    uvs.push(0.5, 0.5, ...uvOf(p0), ...uvOf(p1));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.computeVertexNormals();
+  return g;
+})();
+const roofMesh = new THREE.Mesh(roofGeo, roofMat); hallGroup.add(roofMesh);
+
+// stone frame around the doorway: two posts and a wider lintel
+// windows: a stone surround with dark glass, set into the outside of each wall
+const glassMat = new THREE.MeshStandardMaterial({ color: 0x2a3a52, emissive: 0x2a1f0e, flatShading: true });
+function windowAt(x, y, z, facesZ){
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(facesZ ? 0.9 : 0.1, 1.1, facesZ ? 0.1 : 0.9), glassMat);
+  glass.position.set(x, y, z); hallGroup.add(glass);   // flush with the wall face
+}
+// ----- doors and walls -----
+const HS = HALL_SCALE;
+const DOOR_WORLD = new THREE.Vector3(HALL.x, 0, HALL.z + 5.5 * HS);
+const OUTSIDE = new THREE.Vector3(DOOR_WORLD.x, 0, DOOR_WORLD.z + 1.6 * HS);
+const INSIDE = new THREE.Vector3(DOOR_WORLD.x, 0, DOOR_WORLD.z - 2.0 * HS);
+const box = (x0, x1, z0, z1) => ({x0: HALL.x + x0 * HS, x1: HALL.x + x1 * HS, z0: HALL.z + z0 * HS, z1: HALL.z + z1 * HS});
+const solidBoxes = [
+  box(-6.8, 6.8, -5.8, -5.0),      // north wall
+  box(-6.8, -1.3, 5.0, 5.8),       // south wall, left of the doorway
+  box(1.3, 6.8, 5.0, 5.8),         // south wall, right of the doorway
+  box(-6.8, -6.0, -5.8, 5.8),      // west wall
+  box(6.0, 6.8, -5.8, 5.8),        // east wall
+];
+// the centre pillar blocks movement too
+solidBoxes.push(box(-0.5, 0.5, -0.5, 0.5));
+// the river is solid water: the route goes round the town, not through it
+solidBoxes.push({ x0: -120, x1: 120, z0: -16.2, z1: -11.8 });
+// materials for the smithy
+const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1.2, flatShading: true });
+const stoneDark = mat(0x5a5650), ironDark = mat(0x3a3f46), steelTop = mat(0x6a7078);
+const doorBox = box(-1.3, 1.3, 5.4, 5.6);   // only solid while shut
+let doorOpen = false, doorTargetAngle = 0, doorCloseIn = 0;
+const blocked = (x, z) => {
+  const r = 1.0;    // the adventurer's visible body is about 2 units wide, so it stops this far from walls and pillars
+  if (solidBoxes.some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r)) return true;
+  return !doorOpen && x > doorBox.x0 - r && x < doorBox.x1 + r && z > doorBox.z0 - r && z < doorBox.z1 + r;
+};
+let walkQueue = [];   // the rest of the route after the current waypoint
+let walkFinal = null, walkTries = 0;   // where the walk is meant to end, and how many times it has re-planned
+// ----- pathfinding: a grid of half-unit cells, A* around every solid box -----
+const PATH = { C: 0.5, X0: -120, Z0: -120, NX: 481, NZ: 481 };   // the whole ground, half a unit a cell
+const cellX = ix => PATH.X0 + ix * PATH.C, cellZ = iz => PATH.Z0 + iz * PATH.C;
+const cellFree = (ix, iz) => !blocked(cellX(ix), cellZ(iz));
+// does the body overlap a solid box right here (no clearance margin)? used to let a character step out of a tight spot
+function hardHit(x, z){ return solidBoxes.some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
+// A* over the grid. If the target cannot be reached, the route goes to the reachable cell nearest to it.
+function findPath(fromV, toV){
+  const { NX, NZ } = PATH;
+  const sx = Math.round((fromV.x - PATH.X0) / PATH.C), sz = Math.round((fromV.z - PATH.Z0) / PATH.C);
+  const gx = Math.min(NX - 1, Math.max(0, Math.round((toV.x - PATH.X0) / PATH.C)));
+  const gz = Math.min(NZ - 1, Math.max(0, Math.round((toV.z - PATH.Z0) / PATH.C)));
+  // a cell is usable if the body fits there; right next to where we stand, any cell we are not actually inside is usable, so a tight spot can be left
+  const free = new Uint8Array(NX * NZ);   // which cells the body fits in, worked out once for this search
+  for (let iz = 0; iz < NZ; iz++) for (let ix = 0; ix < NX; ix++) free[iz * NX + ix] = blocked(cellX(ix), cellZ(iz)) ? 0 : 1;
+  const usable = (ix, iz) => free[iz * NX + ix] === 1 || (Math.hypot(ix - sx, iz - sz) < 6 && !hardHit(cellX(ix), cellZ(iz)));
+  const N = NX * NZ, g = new Float64Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+  const h = (ix, iz) => { const dx = Math.abs(ix - gx), dz = Math.abs(iz - gz); return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz); };
+  const heap = [];   // a small binary heap of [score, cell]
+  const hpush = (f, i) => { heap.push([f, i]); let k = heap.length - 1; while (k > 0) { const q = (k - 1) >> 1; if (heap[q][0] <= heap[k][0]) break; [heap[q], heap[k]] = [heap[k], heap[q]]; k = q; } };
+  const hpop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+  const start = sz * NX + sx, goal = gz * NX + gx;
+  g[start] = 0; hpush(h(sx, sz), start);
+  const dirs = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+  let best = start, bestD = Infinity;   // the reachable cell nearest the target
+  while (heap.length) {
+    const cur = hpop()[1];
+    if (closed[cur]) continue;
+    closed[cur] = 1;
+    const cx = cur % NX, cz = (cur - cx) / NX;
+    const dd = Math.hypot(cx - gx, cz - gz);
+    if (dd < bestD) { bestD = dd; best = cur; }
+    if (cur === goal) break;
+    for (const [dx, dz, cost] of dirs) {
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= NX || nz >= NZ) continue;
+      const ni = nz * NX + nx;
+      if (closed[ni] || !usable(nx, nz)) continue;
+      if (dx && dz && (!usable(cx + dx, cz) || !usable(cx, cz + dz))) continue;   // no cutting corners
+      const ng = g[cur] + cost;
+      if (ng < g[ni]) { g[ni] = ng; from[ni] = cur; hpush(ng + h(nx, nz), ni); }
+    }
+  }
+  const target = closed[goal] ? goal : best;
+  if (target === start && start !== goal) return [];   // not a single step can be taken towards it
+  const pts = [];
+  for (let c = target; c !== -1; c = from[c]) { const ix = c % NX, iz = (c - ix) / NX; pts.push({ x: cellX(ix), z: cellZ(iz) }); if (c === start) break; }
+  pts.reverse();
+  pts[0] = { x: fromV.x, z: fromV.z };
+  return pts;
+}
+function walkStart(point, then, replan = false){
+  unstick();
+  const path = findPath(hero.position, point);
+  if (!replan) walkTries = 0;   // a new click starts with fresh re-plans
+  walkFinal = point;
+  walkThen = then || null;
+  if (path.length === 0) { walkTarget = null; walkQueue = []; walkThen = null; showToast('No way through there.'); return; }
+  if (path.length === 1) { walkTarget = point.clone(); walkQueue = []; return; }
+  walkTarget = new THREE.Vector3(path[1].x, 0, path[1].z);
+  walkQueue = path.slice(2).map(q => new THREE.Vector3(q.x, 0, q.z));
+}
+function creak(){
+  try {
+    creak.ctx = creak.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const c = creak.ctx, o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.4);
+    g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.5);
+  } catch (e) {}
+}
+function openDoor(){ if (doorOpen) return; doorOpen = true; doorTargetAngle = Math.PI / 2; creak(); }
+function closeDoor(){ if (!doorOpen) return; doorOpen = false; doorTargetAngle = 0; creak(); }
+// walk to the door's near side, open it, walk through, then it shuts again a few seconds later
+function useDoor(){
+  if (!hero) return;
+  const inside = hero.position.z < DOOR_WORLD.z;     // north of the door is inside the hall
+  const front = inside ? INSIDE : OUTSIDE, beyond = inside ? OUTSIDE : INSIDE;
+  walkStart(front, () => { openDoor(); walkStart(beyond, () => { doorCloseIn = 240; }); });
+}
+function updateDoor(){
+  // while the adventurer is inside, the stone turns see-through so they can be seen
+  if (hero) {
+    const inside = Math.abs(hero.position.x - HALL.x) < 7 * HS && Math.abs(hero.position.z - HALL.z) < 6 * HS;
+    hero.material.depthTest = true;   // the faded walls let you see through; the solid door still hides the character
+    roofMesh.visible = !inside;   // the roof lifts away while you are inside, and comes back outside
+    for (const m of hallWallMats) {
+      m.opacity += (1 - m.opacity) * 0.12;   // walls stay solid; the roof lifts away instead
+      m.transparent = m.opacity < 0.99;
+      m.depthWrite = !m.transparent;
+    }
+  }
+  doorPivot.rotation.y += (doorTargetAngle - doorPivot.rotation.y) * 0.2;   // the door eases open or shut
+  if (doorOpen && doorCloseIn > 0) {
+    const nearDoor = hero && Math.abs(hero.position.z - DOOR_WORLD.z) < 1.2 && Math.abs(hero.position.x - DOOR_WORLD.x) < 2;
+    if (!nearDoor) doorCloseIn--;
+    if (doorCloseIn === 0) closeDoor();
+  }
+}
+
+const trees = [];   // the trees that can be clicked or hovered right now
+const treeRecs = []; // every tree's state, standing or not
+// ----- a tree built from our own shapes: a tapered trunk with root flares and a lumpy, leafy crown -----
+// The crown's vertices are nudged by a hash of their position, so the blobs look uneven but still join up.
+function makeTree(x, z, s = 1, oak = false){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.34 * s, 2.8 * s, 7), mat(0x5a3a1e));
+  trunk.position.y = 1.4 * s; g.add(trunk);
+  for (let i = 0; i < 4; i++) {                       // root flares at the base
+    const a = i * Math.PI / 2 + 0.4;
+    const root = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s, 0.6 * s, 5), mat(0x4a2e16));
+    root.position.set(Math.cos(a) * 0.3 * s, 0.18 * s, Math.sin(a) * 0.3 * s);
+    root.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9); g.add(root);
+  }
+  const greens = oak ? [0x3f6e2a, 0x4f7f32, 0x2e5a22, 0x5a8a3a] : [0x2f7a2c, 0x3d8f34, 0x26662a, 0x4a9e3a];
+  const blobs = oak
+    ? [[0, 0, 0, 1.7], [1.3, 0.3, 0.4, 1.4], [-1.2, 0.4, -0.3, 1.5], [0.2, 0.9, -1.2, 1.3], [-0.4, 1.1, 0.9, 1.3], [0.9, 1.4, -0.6, 1.1]]
+    : [[0, 0, 0, 1.25], [0.9, 0.5, 0.3, 0.95], [-0.8, 0.6, -0.2, 1.0], [0.1, 0.9, -0.8, 0.9], [-0.3, 1.0, 0.7, 0.85], [0.6, 1.2, -0.5, 0.7]];
+  blobs.forEach(([dx, dy, dz, r], i) => {
+    const geo = new THREE.IcosahedronGeometry(r * s, 0);
+    const pos = geo.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+      const h = Math.sin(px * 12.9898 + py * 78.233 + pz * 37.719 + i * 1.7) * 43758.5453;
+      const j = 0.85 + 0.3 * (h - Math.floor(h));
+      pos.setXYZ(v, px * j, py * j, pz * j);
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat(greens[i % greens.length]));
+    m.position.set(dx * s, (2.5 + dy) * s, dz * s); g.add(m);
+  });
+  g.position.set(x, 0, z);                    // the origin is the base, so the tree falls over from its roots
+  g.userData.action = 'Chop'; g.userData.name = oak ? 'Oak tree' : 'Tree';
+  const h = Math.max(1, 0.35 * s);   // at least a 2x2 footprint, centred on the tree
+  const box = { x0: x - h, x1: x + h, z0: z - h, z1: z + h };   // the trunk blocks walking
+  const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * s, 0.36 * s, 0.5 * s, 7), mat(0x6b4a2a));
+  stump.position.set(x, 0.25 * s, z); stump.visible = false; town.add(stump);
+  const rec = { kind: 'tree', g, x, z, s, box, stump, state: 'standing', t: 0, dir: 1, level: oak ? 15 : 1, xp: oak ? 40 : 25 };   // oaks need Woodcutting 15
+  g.userData.rec = rec; treeRecs.push(rec);
+  trees.push(g); town.add(g); solidBoxes.push(box);
+  return g;
+}
+
+// ----- sound: small sounds made with Web Audio, so there are no sound files to license -----
+let audioCtx = null;
+function audio(){
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  } catch (e) { return null; }
+}
+function noiseBuffer(ctx, dur){
+  const n = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+// a short wooden "thock": a band of noise plus a low knock
+function chopSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.2);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 1.2;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.2);
+  const o = ctx.createOscillator(), og = ctx.createGain();
+  o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+  og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.15);
+}
+// a sharp clink for striking stone
+function clinkSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.12);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 3;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.12);
+}
+// the wood groaning as it starts to tip over
+function creakSound(dur){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(110, t); o.frequency.linearRampToValueAtTime(160, t + dur);
+  lp.type = 'lowpass'; lp.frequency.value = 500;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.22, t + dur * 0.5); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp); lp.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+// the trunk hitting the ground: a deep thud with a little rustle
+function fallSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.6);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+  src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.6);
+  const o = ctx.createOscillator(), og = ctx.createGain();
+  o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.4);
+  og.gain.setValueAtTime(0.7, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.5);
+}
+
+// which arm pose a point in the swing shows: wind up (first 40%), strike (40-55%), recover (the rest)
+function swingPose(p){
+  if (p < 0.4) return 'up';
+  if (p < 0.55) return 'down';
+  return 'mid';
+}
+
+// ----- chopping: click a tree to walk to it, chop for a few seconds, and it falls, leaves a stump, and grows back -----
+const CHOP_FRAMES = 180;          // about 3 seconds of chopping
+const REGROW_FRAMES = 1500;       // about 25 seconds before the tree grows back
+const chop = { rec: null, t: 0 }; // the tree being chopped, and how long we have been at it
+const felledTrees = [];           // { rec, wait } for trees waiting to grow back
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { t.style.display = 'none'; }, 2400);
+}
+function addXp(skill, amt){ SKILL_XP[skill] += amt; renderStats(); }
+function cancelChop(){
+  if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
+  chop.rec = null;
+}
+function clickNode(rec){
+  if (rec.state !== 'standing') return;
+  cancelChop();
+  if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door') { /* no tool needed */ }
+  else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
+  else if (rec.kind === 'rock') { if (!hasItem(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
+  else if (!hasItem(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
+  if (rec.kind === 'door') {
+    // approach from whichever side the adventurer is on
+    const d2 = q => Math.hypot(q.x - hero.position.x, q.z - hero.position.z);
+    const q = d2(rec.inside) < d2(rec.outside) ? rec.inside : rec.outside;
+    walkStart(new THREE.Vector3(q.x, 0, q.z), () => toggleDoor(rec)); return;
+  }
+  if (rec.kind === 'tree' && levelOf(SKILL_XP.Woodcutting) < rec.level) { showToast(`You need Woodcutting ${rec.level} to chop this ${rec.g.userData.name.toLowerCase()}.`); return; }
+  // stand on the side of the node that is free and nearest to the adventurer
+  const spots = [[2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]]
+    .map(([dx, dz]) => ({ x: rec.x + dx * rec.s, z: rec.z + dz * rec.s }))
+    .filter(p => !blocked(p.x, p.z))
+    .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
+  if (!spots.length) return;
+  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else { chop.rec = rec; chop.t = 0; } });
+}
+// one copper ore and one tin ore make one bronze bar
+function removeItem(name){
+  const it = bag.find(i => i.name === name); if (!it) return false;
+  if (--it.qty <= 0) bag.splice(bag.indexOf(it), 1);
+  renderBag(); return true;
+}
+function smelt(rec){
+  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; }
+  if (bag.length >= BAG_SIZE && !hasItem('Bronze bar')) { showToast('Your bag is full.'); return; }   // check room before taking the ores
+  removeItem('Copper ore'); removeItem('Tin ore');
+  clinkSound();
+  addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6);
+  showToast('You smelt a bronze bar.  +6 Smithing XP');
+}
+// ----- smithing at the anvil: bronze bars become gear, and gear is worn from the bag -----
+function openSmithing(){ document.getElementById('smithPanel').hidden = false; renderSmith(); }
+function barCount(){ const b = bag.find(i => i.name === 'Bronze bar'); return b ? b.qty : 0; }
+function renderSmith(){
+  const lvl = levelOf(SKILL_XP.Smithing), bars = barCount();
+  document.getElementById('smithList').innerHTML = RECIPES.map((r, i) => {
+    const ok = lvl >= r.level && bars >= r.bars;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ITEMS[r.name].icon}
+      <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} bronze bar${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small></span>
+      <button data-r="${i}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Make</button></div>`;
+  }).join('');
+}
+function makeGear(r){
+  if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
+  if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
+  if (bag.length >= BAG_SIZE && !hasItem(r.name)) { showToast('Your bag is full.'); return; }
+  for (let i = 0; i < r.bars; i++) removeItem('Bronze bar');
+  addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp);
+  showToast(`You make a ${r.name.toLowerCase()}.  +${r.xp} Smithing XP`);
+  renderSmith();
+}
+function equip(name){
+  const def = ITEMS[name], old = equipped[def.slot];
+  removeItem(name);
+  if (old) addItem(old, 1, ITEMS[old].icon);   // the piece it replaces goes back to the bag
+  equipped[def.slot] = name;
+  heroFrame = '';   // redraw the sprite with the new gear
+  renderBag(); renderStats(); renderGear();
+  showToast(`Equipped ${name.toLowerCase()}.`);
+}
+function gearBonus(stat){
+  return Object.values(equipped).reduce((t, n) => t + (n && ITEMS[n][stat] ? ITEMS[n][stat] : 0), 0);
+}
+document.getElementById('smithClose').addEventListener('click', () => { document.getElementById('smithPanel').hidden = true; });
+document.getElementById('smithList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-r]'); if (b && !b.disabled) makeGear(RECIPES[+b.dataset.r]);
+});
+document.getElementById('bagGrid').addEventListener('click', e => {
+  const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
+  const it = bag[+cell.dataset.i];
+  if (it && ITEMS[it.name]) equip(it.name);
+});
+
+// ----- the gear tab: each slot and what is worn in it -----
+const SLOT_NAMES = { head: 'Head', body: 'Body', legs: 'Legs', weapon: 'Weapon', shield: 'Shield' };
+function renderGear(){
+  document.getElementById('gearList').innerHTML = Object.keys(SLOT_NAMES).map(slot => {
+    const worn = equipped[slot];
+    return `<div class="gearRow"><span>${SLOT_NAMES[slot]}</span>${worn
+      ? `<b data-unequip="${slot}" title="Take off" style="cursor:pointer">${worn} &times;</b>`
+      : '<span style="color:#7a6a4a">empty</span>'}</div>`;
+  }).join('');
+}
+function unequip(slot){
+  const name = equipped[slot]; if (!name) return;
+  if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
+  equipped[slot] = null; addItem(name, 1, ITEMS[name].icon);
+  heroFrame = '';
+  renderBag(); renderStats(); renderGear();
+}
+document.getElementById('gearList').addEventListener('click', e => {
+  const b = e.target.closest('[data-unequip]'); if (b) unequip(b.dataset.unequip);
+});
+document.getElementById('tabGear').addEventListener('click', () => { togglePanel('gearPanel', 'tabGear'); renderGear(); });
+
+// ----- village music: a soft loop made from synthesised notes (no sound files) -----
+const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4, on: true };
+const MUSIC_BEAT = 60 / 76 / 2;                         // an eighth note at 76 beats a minute
+const MUSIC_BASS = [146.83, 123.47, 196.0, 220.0];      // the chords: D, B minor, G, A
+const MUSIC_NOTES = [293.66, 329.63, 369.99, 440, 493.88, 587.33, 659.25, 739.99, 880];   // D major pentatonic
+function musicPad(root, t, dur){
+  const ctx = audio(); if (!ctx || !MUSIC.master) return;
+  [root, root * 1.5].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+    o.type = 'triangle'; o.frequency.value = f * (i ? 1.002 : 0.998);
+    lp.type = 'lowpass'; lp.frequency.value = 900;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); lp.connect(g); g.connect(MUSIC.master); o.start(t); o.stop(t + dur + 0.05);
+  });
+}
+function musicNote(f, t){
+  const ctx = audio(); if (!ctx || !MUSIC.master) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+  o.connect(g); g.connect(MUSIC.master); o.start(t); o.stop(t + 0.75);
+}
+// schedule a little ahead of the audio clock: a chord each bar, and a melody that wanders up and down the scale
+function musicTick(){
+  const ctx = audio(); if (!ctx || !MUSIC.master) return;
+  while (MUSIC.nextTime < ctx.currentTime + 0.4) {
+    const t = MUSIC.nextTime, bar = Math.floor(MUSIC.step / 8) % 4, pos = MUSIC.step % 8;
+    if (pos === 0) musicPad(MUSIC_BASS[bar], t, MUSIC_BEAT * 8);
+    if (pos % 2 === 0 && Math.random() < 0.7) {
+      MUSIC.mel = Math.min(MUSIC_NOTES.length - 1, Math.max(0, MUSIC.mel + [-1, -1, 0, 1, 1, 2, -2][Math.floor(Math.random() * 7)]));
+      musicNote(MUSIC_NOTES[MUSIC.mel], t);
+    }
+    MUSIC.nextTime += MUSIC_BEAT; MUSIC.step++;
+  }
+}
+function startMusic(){
+  if (MUSIC.master) return;
+  const ctx = audio(); if (!ctx) return;
+  MUSIC.master = ctx.createGain(); MUSIC.master.gain.value = MUSIC.on ? 0.5 : 0; MUSIC.master.connect(ctx.destination);
+  MUSIC.nextTime = ctx.currentTime + 0.1;
+  MUSIC.timer = setInterval(musicTick, 150);
+}
+function toggleMusic(){
+  MUSIC.on = !MUSIC.on;
+  if (MUSIC.master) MUSIC.master.gain.value = MUSIC.on ? 0.5 : 0;
+  document.getElementById('musicBtn').textContent = MUSIC.on ? 'Music: on' : 'Music: off';
+}
+document.getElementById('musicBtn').addEventListener('click', toggleMusic);
+addEventListener('pointerdown', startMusic, { once: true });   // browsers only allow sound after a click
+
+// ----- talking: a line at a time, in the panel at the bottom -----
+let dlg = null, dlgLine = 0;
+function openDialog(npc){ dlg = npc; dlgLine = 0; showDialog(); }
+function showDialog(){
+  document.getElementById('dlgName').textContent = dlg.name;
+  document.getElementById('dlgText').textContent = dlg.lines[dlgLine];
+  document.getElementById('dialog').hidden = false;
+}
+function nextLine(){
+  if (!dlg) return;
+  dlgLine++;
+  if (dlgLine >= dlg.lines.length) { dlg = null; document.getElementById('dialog').hidden = true; }
+  else showDialog();
+}
+document.getElementById('dlgNext').addEventListener('click', nextLine);
+
+// ----- chat: type a line and press Enter; it goes in the log, and shows in yellow above the adventurer -----
+const chatLog = document.getElementById('chatLog'), chatInput = document.getElementById('chatInput'), heroChat = document.getElementById('heroChat');
+let heroChatTimer = 0;
+function addChatLine(who, text, color){
+  const line = document.createElement('div');
+  const name = document.createElement('b'); name.textContent = who + ': '; name.style.color = color;
+  const body = document.createElement('span'); body.textContent = text;   // textContent, so nothing typed is read as HTML
+  line.append(name, body); chatLog.appendChild(line);
+  while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+function sayAbove(text){
+  heroChat.textContent = text; heroChat.style.display = 'block';
+  clearTimeout(heroChatTimer); heroChatTimer = setTimeout(() => { heroChat.style.display = 'none'; }, 6000);
+}
+const heroChatV = new THREE.Vector3();
+function placeHeroChat(){
+  if (heroChat.style.display !== 'block' || !hero) return;
+  heroChatV.copy(hero.position).add(new THREE.Vector3(0, 4.9, 0)).project(camera);
+  heroChat.style.left = ((heroChatV.x + 1) / 2 * innerWidth) + 'px';
+  heroChat.style.top = ((-heroChatV.y + 1) / 2 * innerHeight) + 'px';
+}
+chatInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    const text = chatInput.value.trim();
+    if (text) { addChatLine('You', text, '#ffe14d'); sayAbove(text); }
+    chatInput.value = ''; chatInput.blur();
+  } else if (e.key === 'Escape') chatInput.blur();
+});
+addEventListener('keydown', e => {   // Enter starts typing, when the creator is not open
+  if (e.key === 'Enter' && document.activeElement !== chatInput && creator.hidden) { e.preventDefault(); chatInput.focus(); }
+});
+
+// where a point in the world lands across the screen (-1 left, +1 right), so facing matches what the camera shows
+const screenV = new THREE.Vector3();
+function screenX(x, z){ screenV.set(x, 1, z).project(camera); return screenV.x; }
+function updateTrees(){
+  // trees whose time is up grow back from a sapling
+  for (let i = felledTrees.length - 1; i >= 0; i--) {
+    const f = felledTrees[i];
+    if (--f.wait > 0) continue;
+    felledTrees.splice(i, 1);
+    const rec = f.rec;
+    rec.g.visible = true; rec.g.rotation.z = 0; rec.g.scale.setScalar(0.05);
+    rec.stump.visible = false; solidBoxes.push(rec.box); trees.push(rec.g);
+    rec.state = 'growing'; rec.t = 0;
+  }
+  for (const rec of treeRecs) {
+    if (rec.state === 'growing') {
+      rec.t++;
+      const k = Math.min(1, rec.t / 60), e = 1 - Math.pow(1 - k, 3);
+      rec.g.scale.setScalar(0.05 + 0.95 * e);
+      if (k >= 1) rec.state = 'standing';
+    } else if (rec.state === 'falling') {
+      rec.t++;
+      const k = Math.min(1, rec.t / 40);
+      rec.g.rotation.z = rec.dir * (Math.PI / 2) * k * k;
+      if (k >= 1) {
+        rec.state = 'felled';
+        rec.g.visible = false; rec.g.rotation.z = 0;
+        solidBoxes.splice(solidBoxes.indexOf(rec.box), 1);
+        trees.splice(trees.indexOf(rec.g), 1);
+        rec.stump.visible = true;
+        fallSound();
+        felledTrees.push({ rec, wait: REGROW_FRAMES });
+        if (addItem('Logs', 1, LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some logs.  +${rec.xp} Woodcutting XP`); }
+        else showToast('Your bag is full.');
+      }
+    }
+  }
+  if (chop.rec) {
+    const rec = chop.rec;
+    if (rec.state !== 'standing') { chop.rec = null; return; }
+    chop.t++;
+    rec.g.rotation.z = Math.sin(chop.t * 0.5) * 0.025;   // the node shakes under each blow
+    const phase = (chop.t % 45) / 45;              // one full swing every 45 frames
+    const facing = screenX(rec.x, rec.z) < screenX(hero.position.x, hero.position.z) ? -1 : 1;   // face the node as the camera sees it
+    setHeroFrame(0, facing, swingPose(phase), rec.kind === 'rock' ? 'pick' : 'axe');   // the arm winds up, strikes, and recovers
+    if (chop.t % 45 === 25) { if (rec.kind === 'rock') clinkSound(); else chopSound(); }   // the blow lands as the tool comes down
+    if (chop.t >= CHOP_FRAMES) {
+      chop.rec = null; rec.g.rotation.z = 0;
+      if (rec.kind === 'rock') mineDone(rec);
+      else {
+        rec.state = 'falling'; rec.t = 0;
+        rec.dir = hero.position.x < rec.x ? -1 : 1;        // fall away from the adventurer
+        creakSound(0.7);
+      }
+    }
+  }
+}
+// a rock that has been mined leaves rubble, gives copper ore, and comes back later
+function mineDone(rec){
+  burstRock(rec); explosionSound();
+  rec.state = 'felled';
+  rec.g.visible = false; rec.g.rotation.z = 0;
+  solidBoxes.splice(solidBoxes.indexOf(rec.box), 1);
+  trees.splice(trees.indexOf(rec.g), 1);
+  rec.stump.visible = true;
+  felledTrees.push({ rec, wait: REGROW_FRAMES });
+  const oreName = ORES[rec.ore].item, icon = rec.ore === 'tin' ? TIN_ICON : ORE_ICON;
+  if (addItem(oreName, 1, icon)) { addXp('Mining', 20); showToast(`You get some ${oreName.toLowerCase()}.  +20 Mining XP`); }
+  else showToast('Your bag is full.');
+}
+
+// ----- the rock smash: the rock breaks into chunks and dust that fly out, bounce, and fade -----
+const debris = [];   // { mesh, vel, life, max, grav, spin, s, dust }
+function burstRock(rec){
+  const cx = rec.x, cz = rec.z, s = rec.s;
+  const stone = [0x6e6a62, 0x5c5850, 0x7d786f, 0x67635b, ...ORES[rec.ore].veins];   // the chunks take the ore's colours
+  for (let i = 0; i < 12; i++) {
+    const size = (0.12 + Math.random() * 0.2) * s;
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), mat(stone[i % stone.length]));
+    m.position.set(cx + (Math.random() - 0.5) * 0.4 * s, 0.6 * s, cz + (Math.random() - 0.5) * 0.4 * s);
+    scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = (0.035 + Math.random() * 0.045) * s;
+    debris.push({ mesh: m, vel: new THREE.Vector3(Math.cos(a) * sp, 0.1 + Math.random() * 0.1, Math.sin(a) * sp),
+      life: 150 + Math.random() * 60, max: 210, grav: 0.012, spin: (Math.random() - 0.5) * 0.3, s: size, dust: false });
+  }
+  for (let i = 0; i < 6; i++) {                       // a puff of dust that spreads and fades
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.25 * s, 8, 6), new THREE.MeshBasicMaterial({ color: 0xbdb6a8, transparent: true, opacity: 0.7, depthWrite: false }));
+    m.position.set(cx, 0.4 * s, cz); scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = (0.012 + Math.random() * 0.015) * s;
+    debris.push({ mesh: m, vel: new THREE.Vector3(Math.cos(a) * sp, 0.01, Math.sin(a) * sp), life: 60, max: 60, grav: 0, spin: 0, s: 0.25 * s, dust: true });
+  }
+}
+function updateDebris(){
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i];
+    d.life--;
+    d.mesh.position.add(d.vel);
+    if (!d.dust) {
+      d.vel.y -= d.grav;
+      if (d.mesh.position.y < d.s * 0.5) { d.mesh.position.y = d.s * 0.5; d.vel.y *= -0.4; d.vel.x *= 0.6; d.vel.z *= 0.6; }   // bounce and slow down
+      d.mesh.rotation.x += d.spin; d.mesh.rotation.y += d.spin * 0.7;
+      if (d.life < 40) d.mesh.scale.setScalar(Math.max(0.01, d.life / 40));
+    } else {
+      const k = 1 - d.life / d.max;
+      d.mesh.scale.setScalar(1 + k * 0.8); d.mesh.material.opacity = 0.7 * (1 - k);
+    }
+    if (d.life <= 0) { scene.remove(d.mesh); d.mesh.geometry.dispose(); d.mesh.material.dispose(); debris.splice(i, 1); }
+  }
+}
+// the blast: a crack of noise that drops into a low rumble, a boom, then stone pieces clattering down
+function explosionSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.8);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2500, t); lp.frequency.exponentialRampToValueAtTime(180, t + 0.7);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+  src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.8);
+  const o = ctx.createOscillator(), og = ctx.createGain();
+  o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.5);
+  og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t + 0.6);
+  for (let i = 0; i < 6; i++) {
+    const tt = t + 0.12 + Math.random() * 0.5;
+    const s2 = ctx.createBufferSource(); s2.buffer = noiseBuffer(ctx, 0.08);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500 + Math.random() * 2500; bp.Q.value = 4;
+    const cg = ctx.createGain(); cg.gain.setValueAtTime(0.35, tt); cg.gain.exponentialRampToValueAtTime(0.001, tt + 0.08);
+    s2.connect(bp); bp.connect(cg); cg.connect(ctx.destination); s2.start(tt); s2.stop(tt + 0.09);
+  }
+}
+
+// ----- a copper ore rock: grey-brown stone with copper veins, built from our own shapes -----
+const ORES = {
+  copper: { label: 'Copper rock', item: 'Copper ore', veins: [0xc2652b, 0xd9773a] },
+  tin:    { label: 'Tin rock',    item: 'Tin ore',    veins: [0xb8c4cc, 0xdfe6ea] }
+};
+function makeRock(x, z, s = 1, ore = 'copper'){
+  const g = new THREE.Group();
+  const stone = [0x6e6a62, 0x5c5850, 0x7d786f, 0x67635b];
+  const lumps = [[0, 0.55, 0, 0.9], [0.7, 0.4, 0.3, 0.6], [-0.6, 0.35, -0.3, 0.55], [0.1, 0.3, 0.8, 0.5]];
+  lumps.forEach(([dx, dy, dz, r], i) => {
+    const geo = new THREE.IcosahedronGeometry(r * s, 0);
+    const pos = geo.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      const px = pos.getX(v), py = pos.getY(v), pz = pos.getZ(v);
+      const h = Math.sin(px * 12.9898 + py * 78.233 + pz * 37.719 + i * 1.7) * 43758.5453;
+      const j = 0.85 + 0.3 * (h - Math.floor(h));
+      pos.setXYZ(v, px * j, py * j, pz * j);
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat(stone[i]));
+    m.position.set(dx * s, dy * s, dz * s); g.add(m);
+  });
+  // the copper veins: small orange-brown chunks set into the stone
+  [[0.5, 0.9, 0.5], [-0.3, 0.8, 0.6], [0.2, 0.7, -0.6], [-0.7, 0.5, -0.1], [0.8, 0.45, -0.1]].forEach(([dx, dy, dz], i) => {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16 * s, 0), mat(ORES[ore].veins[i % 2]));
+    m.position.set(dx * s, dy * s, dz * s); g.add(m);
+  });
+  // the rubble left behind after mining
+  const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55 * s, 0), mat(0x5c5850));
+  rubble.scale.set(1, 0.35, 0.9); rubble.position.set(x, 0.12 * s, z); rubble.visible = false; town.add(rubble);
+  g.position.set(x, 0, z);
+  g.userData.action = 'Mine'; g.userData.name = ORES[ore].label;
+  const h = Math.max(1, 0.7 * s);   // at least a 2x2 footprint, centred on the rock
+  const box = { x0: x - h, x1: x + h, z0: z - h, z1: z + h };   // the rock blocks walking
+  const rec = { kind: 'rock', ore, g, x, z, s, box, stump: rubble, state: 'standing', t: 0, dir: 1 };
+  g.userData.rec = rec; treeRecs.push(rec);
+  trees.push(g); town.add(g); solidBoxes.push(box);
+  return g;
+}
+
+
+const equipped = { head: null, body: null, legs: null, weapon: null, shield: null };   // what is worn in each slot
+// ----- the adventurer: a 16x16 pixel-art sprite that always faces the camera (classic-style 2D sprites in a 3D world) -----
+const START = new THREE.Vector3(HALL.x, 0, HALL.z + 2.4 * HALL_SCALE);   // the spawn point: inside the hall, just south of the centre pillar
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+// shade a colour: amt > 0 lightens, amt < 0 darkens
+function shade(rgb, amt){
+  const f = v => Math.max(0, Math.min(255, Math.round(v + (amt > 0 ? (255 - v) * amt : v * amt))));
+  return `rgb(${f(rgb[0])},${f(rgb[1])},${f(rgb[2])})`;
+}
+const rgbOf = n => [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+// the adventurer as a 24x32 sprite: shapes are drawn flat, then shading and an outline are added per pixel
+const W24 = 24, H32 = 32;
+function adventurerCanvas(a, step = 0, pose = null){
+  // a walk cycle: one leg lifts and swings forward while the opposite arm swings forward
+  const dyL = step === 1 ? -2 : 0, dyR = step === 3 ? -2 : 0;
+  const aL = step === 1 ? -1 : step === 3 ? 1 : 0, aR = -aL;   // arm swing, opposite to the legs
+  const male = a.gender === 'male';
+  const layer = document.createElement('canvas'); layer.width = W24; layer.height = H32;
+  const L = layer.getContext('2d');
+  const rect = (x, y, w, h, c) => { L.fillStyle = hex(c); L.fillRect(x, y, w, h); };
+  const boots = 0x3a2a1a, belt = 0x5a3a1a;
+  // back hair (long) sits behind everything
+  if (a.hair === 'long') rect(5, 4, 14, 14, a.hairCol);
+  // legs, boots and the belt / skirt
+  if (male) {
+    rect(7, 20 + dyL, 4, 9, a.pants); rect(13, 20 + dyR, 4, 9, a.pants);
+    rect(6, 28 + dyL, 5, 3, boots); rect(13, 28 + dyR, 5, 3, boots);
+    rect(6, 19, 12, 2, belt);
+  } else {
+    L.fillStyle = hex(a.pants); L.beginPath(); L.moveTo(6, 17); L.lineTo(18, 17); L.lineTo(20, 24); L.lineTo(4, 24); L.closePath(); L.fill();
+    rect(8, 24 + dyL, 3, 6, a.skin); rect(13, 24 + dyR, 3, 6, a.skin);
+    rect(7, 28 + dyL, 4, 3, boots); rect(13, 28 + dyR, 4, 3, boots);
+  }
+  // torso and arms
+  if (male) { rect(5, 12, 14, 8, a.shirt); rect(3, 13 + aL, 3, 8, a.shirt); if (!pose) rect(18, 13 + aR, 3, 8, a.shirt); }
+  else { rect(7, 12, 10, 8, a.shirt); rect(4, 13 + aL, 3, 7, a.shirt); if (!pose) rect(17, 13 + aR, 3, 7, a.shirt); }
+  rect(3, 20 + aL, 3, 3, a.skin); if (!pose) rect(18, 20 + aR, 3, 3, a.skin);      // hands
+  if (pose) {
+    // the right arm holds the axe while chopping: 'up' winds back, 'down' strikes, 'mid' recovers
+    const sx = male ? 18 : 17;
+    if (pose === 'up') { rect(sx, 6, 3, 7, a.shirt); rect(sx, 4, 3, 3, a.skin); rect(sx + 2, 0, 1, 5, 0x7a4d22); rect(sx + 1, 0, 3, 2, 0xa9b2bc); }
+    else if (pose === 'down') { rect(sx, 14, 3, 6, a.shirt); rect(sx, 19, 3, 3, a.skin); rect(sx + 1, 22, 1, 6, 0x7a4d22); rect(sx, 27, 3, 3, 0xa9b2bc); }
+    else { rect(sx, 11, 3, 6, a.shirt); rect(sx, 16, 3, 3, a.skin); rect(sx + 1, 17, 1, 2, 0x7a4d22); rect(sx + 2, 19, 1, 2, 0x7a4d22); rect(sx + 3, 21, 1, 2, 0x7a4d22); rect(sx + 3, 21, 2, 3, 0xa9b2bc); }
+  }
+  // neck and head
+  rect(10, 10, 4, 3, a.skin);
+  L.fillStyle = hex(a.skin); L.beginPath(); L.ellipse(12, 6.5, 5.5, 6, 0, 0, Math.PI * 2); L.fill();
+  // hair on top, and the side pieces
+  L.fillStyle = hex(a.hairCol); L.beginPath(); L.ellipse(12, 4.8, 6.2, 4.6, 0, Math.PI, 0); L.fill();
+  if (a.hair === 'long') { rect(5, 5, 2, 9, a.hairCol); rect(17, 5, 2, 9, a.hairCol); }
+  if (a.hair === 'topknot') rect(10, 0, 4, 3, a.hairCol);
+  // the worn gear, held in the hands: a shield on the left arm, a weapon in the right hand
+  if (equipped.shield) { rect(0, 12 + aL, 4, 8, 0xcd7f32); rect(1, 15 + aL, 2, 1, 0x7a4d22); }
+  if (equipped.weapon === 'Bronze sword') { rect(19, 8 + aR, 1, 12, 0xcd7f32); rect(17, 20 + aR, 5, 1, 0x7a4d22); rect(19, 21 + aR, 1, 2, 0x5a3a1a); }
+  else if (equipped.weapon === 'Bronze dagger') { rect(19, 14 + aR, 1, 6, 0xcd7f32); rect(17, 20 + aR, 5, 1, 0x7a4d22); rect(19, 21 + aR, 1, 2, 0x5a3a1a); }
+  // eyes and mouth, drawn before the shading
+  L.fillStyle = '#1a1a1a'; L.fillRect(9, 7, 2, 2); L.fillRect(14, 7, 2, 2); L.fillStyle = '#a0604a'; L.fillRect(11, 10, 2, 1);
+  return finishSprite(L, step);
+}
+
+function finishSprite(L, step){
+  // shade every coloured pixel using its neighbours: light on the left edge, dark on the right and bottom
+  const src = L.getImageData(0, 0, W24, H32), d = src.data;
+  const opaque = (x, y) => x >= 0 && y >= 0 && x < W24 && y < H32 && d[(y * W24 + x) * 4 + 3] > 0;
+  const out = document.createElement('canvas'); out.width = W24; out.height = H32;
+  const O = out.getContext('2d'), img = O.createImageData(W24, H32), o = img.data;
+  for (let y = 0; y < H32; y++) for (let x = 0; x < W24; x++) {
+    const i = (y * W24 + x) * 4;
+    if (!opaque(x, y)) continue;
+    const base = rgbOf(((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]));
+    let amt = 0;
+    if (!opaque(x - 1, y)) amt += 0.22;            // left edge catches the light
+    if (!opaque(x + 1, y)) amt -= 0.18;            // right edge in shadow
+    if (!opaque(x, y + 1)) amt -= 0.16;            // underside in shadow
+    if (y < 8 && opaque(x, y - 1) === false) amt += 0.1;  // top of the head
+    const c = base.map(v => Math.max(0, Math.min(255, Math.round(v + (amt > 0 ? (255 - v) * amt : v * amt)))));
+    o[i] = c[0]; o[i + 1] = c[1]; o[i + 2] = c[2]; o[i + 3] = 255;
+  }
+  O.putImageData(img, 0, 0);
+  // the body bobs up a pixel on the middle frames of the walk
+  const bob = (step === 1 || step === 3) ? 1 : 0;
+  // dark outline around the whole figure
+  O.fillStyle = '#1a1a1a';
+  for (let y = 0; y < H32; y++) for (let x = 0; x < W24; x++) {
+    if (opaque(x, y)) continue;
+    if (opaque(x - 1, y) || opaque(x + 1, y) || opaque(x, y - 1) || opaque(x, y + 1)) O.fillRect(x, y, 1, 1);
+  }
+  if (!bob) return out;
+  const bobbed = document.createElement('canvas'); bobbed.width = W24; bobbed.height = H32;
+  bobbed.getContext('2d').drawImage(out, 0, -1);
+  return bobbed;
+}
+
+// the adventurer seen from the side, facing right (the sprite is mirrored to face left).
+// It is used only while chopping, so the character turns toward the tree.
+function adventurerSide(a, step = 0, pose = 'mid', tool = 'axe'){
+  const dyL = step === 1 ? -2 : 0, dyR = step === 3 ? -2 : 0;
+  const male = a.gender === 'male';
+  const layer = document.createElement('canvas'); layer.width = W24; layer.height = H32;
+  const L = layer.getContext('2d');
+  const rect = (x, y, w, h, c) => { L.fillStyle = hex(c); L.fillRect(x, y, w, h); };
+  const boots = 0x3a2a1a, belt = 0x5a3a1a;
+  const head = 0xcd7f32, handle = 0x7a4d22;   // bronze heads on both tools
+  // the axe has a broad blade; the pickaxe has a thin bar with a point at each end
+  const H = tool === 'pick'
+    ? { up: () => { rect(1, 6, 4, 1, head); rect(1, 7, 1, 1, head); rect(4, 7, 1, 1, head); },
+        down: () => { rect(23, 10, 1, 6, head); rect(22, 10, 1, 1, head); rect(22, 15, 1, 1, head); },
+        mid: () => { rect(21, 9, 1, 6, head); rect(20, 9, 1, 1, head); rect(20, 14, 1, 1, head); } }
+    : { up: () => rect(2, 6, 3, 3, head), down: () => rect(22, 11, 2, 4, head), mid: () => rect(21, 10, 2, 3, head) };
+  if (a.hair === 'long') rect(7, 4, 4, 13, a.hairCol);
+  // the far arm and leg sit behind the body
+  rect(9, 14, 3, 6, a.shirt); rect(9, 20 + dyL, 3, 8, a.pants); rect(9, 28 + dyL, 4, 3, boots);
+  // the near leg
+  rect(12, 20 + dyR, 4, 9, a.pants); rect(12, 28 + dyR, 5, 3, boots);
+  // torso, with a belt or a skirt
+  rect(8, 12, 10, 8, a.shirt);
+  if (male) rect(8, 19, 10, 2, belt);
+  else { L.fillStyle = hex(a.pants); L.beginPath(); L.moveTo(7, 17); L.lineTo(19, 17); L.lineTo(20, 24); L.lineTo(6, 24); L.closePath(); L.fill(); }
+  // neck and head in profile, with the hair at the back
+  rect(12, 10, 4, 3, a.skin);
+  L.fillStyle = hex(a.skin); L.beginPath(); L.ellipse(13.5, 6.5, 5, 6, 0, 0, Math.PI * 2); L.fill();
+  L.fillStyle = hex(a.hairCol); L.beginPath(); L.ellipse(13.5, 4.8, 5.8, 4.6, 0, Math.PI, 0); L.fill();
+  rect(8, 5, 3, a.hair === 'long' ? 8 : 3, a.hairCol);   // long hair falls to the shoulders; short hair stays at the back of the head
+  if (a.hair === 'topknot') rect(12, 0, 4, 3, a.hairCol);
+  rect(18, 7, 1, 2, a.skin);                          // nose
+  L.fillStyle = '#1a1a1a'; L.fillRect(16, 6, 2, 2);    // eye
+  L.fillStyle = '#a0604a'; L.fillRect(15, 10, 2, 1);   // mouth
+  // the near arm holds the axe and swings it level across the front: back, strike, recover
+  if (pose === 'up') { rect(8, 11, 5, 3, a.shirt); rect(6, 11, 3, 3, a.skin); rect(5, 10, 1, 1, handle); rect(4, 9, 1, 1, handle); H.up(); }
+  else if (pose === 'down') { rect(13, 13, 7, 3, a.shirt); rect(19, 13, 3, 3, a.skin); rect(21, 14, 2, 1, handle); H.down(); }
+  else { rect(13, 12, 6, 3, a.shirt); rect(18, 12, 3, 3, a.skin); rect(20, 13, 2, 1, handle); H.mid(); }
+  return finishSprite(L, step);
+}
+
+let hero = null, heroShadow = null, heroFrame = -1, heroFacing = 1;
+// Sprites ignore a negative scale, so a left-facing sprite is mirrored by flipping its texture instead
+function applyFlip(){
+  const t = hero.material.map;
+  t.wrapS = THREE.RepeatWrapping; t.repeat.x = heroFacing; t.offset.x = heroFacing < 0 ? 1 : 0;
+}
+function setHeroFrame(frame, facing, pose = null, tool = 'axe'){
+  if (!hero) return;
+  const key = frame + '|' + (pose || '') + '|' + tool;
+  if (key !== heroFrame) {
+    heroFrame = key;
+    hero.material.map.dispose();
+    hero.material.map = new THREE.CanvasTexture((pose ? adventurerSide(look, frame, pose, tool) : adventurerCanvas(look, frame)));
+    hero.material.map.magFilter = THREE.NearestFilter; hero.material.map.minFilter = THREE.NearestFilter; hero.material.map.colorSpace = THREE.SRGBColorSpace;
+    hero.material.needsUpdate = true;
+    applyFlip();
+  }
+  if (facing !== heroFacing) { heroFacing = facing; applyFlip(); }
+}
+function rebuildHero(){
+  const tex = new THREE.CanvasTexture(adventurerCanvas(look));
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+  if (hero) { scene.remove(hero); hero.material.map.dispose(); hero.material.dispose(); }
+  hero = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.5 }));
+  hero.center.set(0.5, 0);                    // the feet stand on the tile
+  hero.scale.set(3.0, 4.0, 1);
+  applyFlip();
+  hero.renderOrder = 10;             // drawn after the walls, so it can show through them
+  hero.position.copy(START);
+  scene.add(hero);
+  if (!heroShadow) {                          // a soft shadow so the sprite sits on the ground
+    heroShadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+    scene.add(heroShadow);
+  }
+  heroShadow.position.set(START.x, 0.06, START.z);
+}
+
+// ----- character creator: a panel that floats over the starting tile -----
+const creator = document.getElementById('creator');
+function renderCreator(){
+  document.getElementById('crRows').innerHTML = LOOK.map(o => {
+    const v = o.values.find(x => x.id === look[o.key]) || o.values[0];
+    return `<div class="crRow"><button data-k="${o.key}" data-d="-1">‹</button><span>${o.label}: ${v.label}</span><button data-k="${o.key}" data-d="1">›</button></div>`;
+  }).join('');
+}
+function openCreator(){
+  creator.hidden = false;
+  target.set(START.x, 4.6, START.z); dist = 13; renderCreator(); rebuildHero();
+}
+function closeCreator(){
+  lookMade = true; saveLook();
+  creator.hidden = true;
+  target.set(START.x, 1, START.z); dist = 30; rebuildHero();
+}
+// keep the panel above the adventurer's head as the camera moves
+const headV = new THREE.Vector3();
+function placeCreator(){
+  if (creator.hidden || !hero) return;
+  headV.copy(START).add(new THREE.Vector3(0, 4.2, 0)).project(camera);
+  const x = (headV.x + 1) / 2 * innerWidth, y = (-headV.y + 1) / 2 * innerHeight;
+  creator.style.left = x + 'px'; creator.style.top = y + 'px';
+}
+document.getElementById('crRows').addEventListener('click', e => {
+  const b = e.target.closest('[data-k]'); if (!b) return;
+  const o = LOOK.find(x => x.key === b.dataset.k), i = o.values.findIndex(x => x.id === look[o.key]);
+  look[o.key] = o.values[(i + +b.dataset.d + o.values.length) % o.values.length].id;
+  renderCreator(); rebuildHero(); saveLook();
+});
+document.getElementById('crStart').addEventListener('click', closeCreator);
+document.getElementById('lookBtn').addEventListener('click', openCreator);
+
+// ----- walking: click the ground and the adventurer walks there -----
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let walkTarget = null, walkThen = null, walkTick = 0;
+const WALK_SPEED = 0.09;
+let pressX = 0, pressY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { pressX = e.clientX; pressY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  // a short click (not a drag) sets where to walk
+  if (e.button !== 0 || !creator.hidden || Math.hypot(e.clientX - pressX, e.clientY - pressY) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = new THREE.Vector3();
+  if (ray.intersectObject(doorMesh, false).length) { if (doorOpen) closeDoor(); else useDoor(); return; }
+  const treeHit = ray.intersectObjects(trees, true)[0];
+  if (treeHit) {
+    let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
+    if (g) { clickNode(g.userData.rec); return; }
+  }
+  cancelChop();
+  if (ray.ray.intersectPlane(groundPlane, hit)) {
+    // a click on a house (even on its roof) goes to its door, or walks in if the door is already open
+    const inside = houses.find(h => Math.abs(hit.x - h.x) < h.hw && Math.abs(hit.z - h.z) < h.hd);
+    const here = houses.find(h => Math.abs(hero.position.x - h.x) < h.hw && Math.abs(hero.position.z - h.z) < h.hd);
+    if (inside && !inside.doorRec.open) clickNode(inside.doorRec);
+    else if (here && here !== inside && !here.doorRec.open) {
+      // leaving a shut house: go to its door, open it, then carry on to the point clicked
+      const q = here.doorRec.inside, target = hit.clone();
+      walkStart(new THREE.Vector3(q.x, 0, q.z), () => { toggleDoor(here.doorRec); walkStart(target, null); });
+    }
+    else walkStart(hit, null);
+  }
+});
+function updateWalk(){
+  if (!hero || !walkTarget) { if (!chop.rec) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
+  if (dist < WALK_SPEED) {
+    hero.position.set(walkTarget.x, 0, walkTarget.z);
+    if (walkQueue.length) { walkTarget = walkQueue.shift(); return; }   // on to the next waypoint
+    walkTarget = null; setHeroFrame(0, heroFacing);
+    if (walkThen) { const cb = walkThen; walkThen = null; cb(); }
+    return;
+  }
+  const nx = hero.position.x + dx / dist * WALK_SPEED, nz = hero.position.z + dz / dist * WALK_SPEED;
+  // the planner already keeps each route clear of walls (with a body's width), so the walk only stops on a real overlap
+  if (hardHit(nx, nz)) {
+    // something is in the way: re-plan the route a few times before giving up
+    walkTarget = null; walkQueue = [];
+    if (walkFinal && walkTries < 3) { walkTries++; walkStart(walkFinal, walkThen, true); return; }
+    walkThen = null; setHeroFrame(0, heroFacing); return;
+  }   // a wall stops the walk
+  hero.position.x = nx; hero.position.z = nz;
+  heroShadow.position.set(hero.position.x, 0.06, hero.position.z);
+  walkTick++;
+  const frame = Math.floor(walkTick / 6) % 4;      // four frames, a new one every six ticks
+  setHeroFrame(frame, dx < 0 ? -1 : 1);
+}
+
+// ----- camera: arrow keys or middle-mouse drag rotate it around the character; the wheel zooms; it always follows the character -----
+const turnKeys = {};
+addEventListener('keydown', e => { if (document.activeElement && document.activeElement.id === 'chatInput') return; if (e.key.startsWith('Arrow')) { turnKeys[e.key] = true; e.preventDefault(); } });
+addEventListener('keyup', e => { delete turnKeys[e.key]; });
+let turning = false, turnX = 0, turnY = 0;
+const clampPitch = p => Math.min(1.4, Math.max(0.35, p));
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (e.button === 1) { turning = true; turnX = e.clientX; turnY = e.clientY; e.preventDefault(); }
+});
+renderer.domElement.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });   // no browser autoscroll
+renderer.domElement.addEventListener('auxclick', e => e.preventDefault());
+addEventListener('pointerup', e => { if (e.button === 1) turning = false; });
+addEventListener('pointermove', e => {
+  if (!turning) return;
+  const dx = e.clientX - turnX, dy = e.clientY - turnY; turnX = e.clientX; turnY = e.clientY;
+  yaw -= dx * 0.008;
+  pitch = clampPitch(pitch - dy * 0.005);
+});
+renderer.domElement.addEventListener('wheel', e => { dist = Math.min(60, Math.max(4, dist + e.deltaY * 0.02)); e.preventDefault(); }, { passive: false });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+// hovering the door says what a click does, as in the classic game
+const tip = document.getElementById('tip');
+renderer.domElement.addEventListener('pointermove', e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  let label = null;   // what a click would do here, or null
+  if (!turning && creator.hidden && !e.buttons) {
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    if (ray.intersectObject(doorMesh, false).length > 0) label = { name: 'Door', action: doorOpen ? 'Close' : 'Open' };
+    else {
+      const hit = ray.intersectObjects(trees, true)[0];
+      if (hit) { let g = hit.object; while (g && !g.userData.action) g = g.parent; if (g) label = { name: g.userData.name, action: g.userData.action }; }
+    }
+  }
+  renderer.domElement.style.cursor = label ? 'pointer' : '';
+  if (label) {
+    tip.innerHTML = `<span style="color:#7fe8ff">${label.name}:</span> ${label.action}`;
+    tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; tip.style.display = 'block';
+  }
+  else tip.style.display = 'none';
+});
+function turnWithKeys(){
+  const speed = 0.03;
+  if (turnKeys.ArrowLeft) yaw -= speed;
+  if (turnKeys.ArrowRight) yaw += speed;
+  if (turnKeys.ArrowUp) pitch = clampPitch(pitch - speed);
+  if (turnKeys.ArrowDown) pitch = clampPitch(pitch + speed);
+}
+// the camera always centres on the character
+function followCharacter(){
+  if (!creator.hidden) return;                 // the creator sets its own framing
+  const base = hero ? hero.position : START;
+  target.set(base.x, 1, base.z);
+}
+
+// ----- the Stats tab: our own skill list and summaries -----
+const SKILL_XP = {Woodcutting: 3025, Mining: 1225, Fishing: 400, Smithing: 0, Attack: 3025, Defence: 3025, Cooking: 0};
+const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 xp, level 8 is 1225 xp
+let statsSub = 'skills';
+function renderStats(){
+  const body = document.getElementById('statsBody');
+  if (statsSub === 'quests') { body.innerHTML = '<p>No quests yet.</p>'; return; }
+  const names = Object.keys(SKILL_XP);
+  const half = Math.ceil(names.length / 2);
+  const cell = n => `<span>${n}: <b>${levelOf(SKILL_XP[n])}</b></span>`;
+  const total = names.reduce((t, n) => t + levelOf(SKILL_XP[n]), 0);
+  const combat = Math.floor((levelOf(SKILL_XP.Attack) + levelOf(SKILL_XP.Defence)) / 2) + 1;
+  const totalXp = names.reduce((t, n) => t + SKILL_XP[n], 0);
+  body.innerHTML = `
+    <h4>Skills</h4>
+    <div class="skillGrid">
+      <div>${names.slice(0, half).map(cell).join('<br>')}</div>
+      <div>${names.slice(half).map(cell).join('<br>')}</div>
+    </div>
+    <h4>Equipment status</h4>
+    <div class="statRow"><span>Attack bonus</span><b>+${gearBonus('atk')}</b></div>
+    <div class="statRow"><span>Weapon</span><b>${equipped.weapon || 'none'}</b></div>
+    <div class="statRow"><span>Defence bonus</span><b>+${gearBonus('def')}</b></div>
+    <div class="statRow"><span>Shield</span><b>${equipped.shield || 'none'}</b></div>
+    <h4>Overall</h4>
+    <div class="statRow"><span>Skill total</span><b>${total}</b></div>
+    <div class="statRow"><span>Total XP</span><b>${totalXp}</b></div>
+    <div class="statRow"><span>Combat level</span><b>${combat}</b></div>`;
+}
+// Only one side panel is open at a time; each tab button toggles its own panel.
+function togglePanel(panelId, btnId) {
+  const open = document.getElementById(panelId).hidden;
+  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel').forEach(p => p.hidden = true);
+  document.querySelectorAll('.tabIcon').forEach(b => b.classList.remove('on'));
+  if (open) { document.getElementById(panelId).hidden = false; document.getElementById(btnId).classList.add('on'); }
+}
+document.getElementById('tabStats').addEventListener('click', () => togglePanel('statsPanel', 'tabStats'));
+document.getElementById('tabBag').addEventListener('click', () => togglePanel('bagPanel', 'tabBag'));
+
+// ----- the Bag: 30 slots. Gathering code calls addItem(name, qty, icon) -----
+// Item icons are our own small drawings: a cut log with its end rings, and a hand axe.
+const LOG_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <rect x="1" y="5" width="12" height="6" rx="1" fill="#8a5a2b"/>
+  <rect x="2" y="6" width="10" height="1" fill="#a06d37"/>
+  <rect x="2" y="9" width="10" height="1" fill="#6b4220"/>
+  <ellipse cx="12.5" cy="8" rx="2.2" ry="3" fill="#e0b97f" stroke="#7a4d22" stroke-width="0.8"/>
+  <circle cx="12.5" cy="8" r="1" fill="none" stroke="#a9773f" stroke-width="0.6"/></svg>`;
+const AXE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M3.5 13.5 L10 5.5" stroke="#7a4d22" stroke-width="2" stroke-linecap="round"/>
+  <path d="M8.5 2.5 L13.5 2 L14 7 L10.5 7.5 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
+  <path d="M13.5 2 L14 7" stroke="#f2c28a" stroke-width="0.6"/></svg>`;
+const PICK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M3.5 13.5 L10 5.5" stroke="#7a4d22" stroke-width="2" stroke-linecap="round"/>
+  <path d="M5 3 Q13 2 14 7 L11.5 6.5 Q10 4.5 5.5 4.5 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/></svg>`;
+const ORE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2.5 10 L4.5 5 L9.5 3.5 L13.5 6.5 L12.5 12 L6 13 Z" fill="#6e6a62" stroke="#3a3833" stroke-width="0.8"/>
+  <rect x="6" y="7" width="2" height="2" fill="#d9773a"/><rect x="9" y="9" width="2" height="2" fill="#e8934f"/></svg>`;
+const BAR_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 10 L4.5 5.5 L13.5 5.5 L11 10 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
+  <rect x="5" y="6.5" width="4" height="1" fill="#f2c28a"/></svg>`;
+const TIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2.5 10 L4.5 5 L9.5 3.5 L13.5 6.5 L12.5 12 L6 13 Z" fill="#6e6a62" stroke="#3a3833" stroke-width="0.8"/>
+  <rect x="6" y="7" width="2" height="2" fill="#dfe6ea"/><rect x="9" y="9" width="2" height="2" fill="#b8c4cc"/></svg>`;
+const DAGGER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M7 2 L9 2 L9.5 9 L6.5 9 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
+  <rect x="5" y="9" width="6" height="1.5" fill="#7a4d22"/><rect x="7" y="10.5" width="2" height="3.5" fill="#5a3a1a"/></svg>`;
+const SWORD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M7.5 1 L8.5 1 L9.2 10 L6.8 10 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
+  <rect x="4.5" y="10" width="7" height="1.5" fill="#7a4d22"/><rect x="7.2" y="11.5" width="1.6" height="3" fill="#5a3a1a"/></svg>`;
+const SHIELD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M4 3 L12 3 L12 8 Q12 12 8 14 Q4 12 4 8 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
+  <rect x="7.5" y="5" width="1" height="6" fill="#f2c28a"/></svg>`;
+// what each smithing recipe makes, and what each piece of gear adds
+const ITEMS = {
+  'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
+  'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
+  'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON }
+};
+const RECIPES = [
+  { name: 'Bronze dagger', bars: 1, level: 1, xp: 12 },
+  { name: 'Bronze sword',  bars: 2, level: 4, xp: 25 },
+  { name: 'Bronze shield', bars: 2, level: 6, xp: 30 }
+];
+const BAG_SIZE = 30;
+const bag = [];
+const AXE_NAME = "Bronze axe";
+const PICK_NAME = 'Bronze pickaxe';
+const ORE_NAME = 'Copper ore';
+function addItem(name, qty = 1, icon = '') {
+  const have = bag.find(i => i.name === name);
+  if (have) have.qty += qty;
+  else if (bag.length < BAG_SIZE) bag.push({ name, qty, icon });
+  else return false;
+  renderBag();
+  return true;
+}
+function hasItem(name){ return bag.some(i => i.name === name); }
+function renderBag() {
+  let html = '';
+  for (let i = 0; i < BAG_SIZE; i++) {
+    const it = bag[i];
+    html += it
+      ? `<div class="slot full" data-i="${i}" title="${it.name}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
+      : '<div class="slot"></div>';
+  }
+  document.getElementById('bagGrid').innerHTML = html;
+  document.getElementById('bagFoot').textContent = `${bag.length} / ${BAG_SIZE} slots used`;
+}
+addItem(AXE_NAME, 1, AXE_ICON);   // the starting kit
+addItem(PICK_NAME, 1, PICK_ICON);
+document.querySelectorAll('.subTabs button').forEach(b => b.addEventListener('click', () => {
+  statsSub = b.dataset.sub;
+  document.querySelectorAll('.subTabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderStats();
+}));
+renderStats();
+
+// ----- the village: houses spread out, a smithy building, a woodland, a quarry and a fishing spot -----
+const VILLAGERS = [
+  { name: 'Brenna', look: { gender: 'female', skin: 0xe8b48a, hair: 'long', hairCol: 0x7a4a22, shirt: 0xe8e0c0, pants: 0x6a4a3a },
+    lines: ['Fresh bread every morning, and the ovens never care who you are.', 'If you ever need flour, the mill is down the road to the north.', 'Mind the roots in the woods to the west. They trip up the new ones.'] },
+  { name: 'Tobin', look: { gender: 'male', skin: 0xd9a070, hair: 'short', hairCol: 0x2a1a10, shirt: 0x3a7a3a, pants: 0x4a3a2a },
+    lines: ['A good axe is only as good as your grip.', 'Chop the big trees further in. The young ones are still growing.', 'Keep your logs dry. Damp wood is hard to work with.'] },
+  { name: 'Ysolde', look: { gender: 'female', skin: 0xf0c8a0, hair: 'topknot', hairCol: 0x1a1a1a, shirt: 0x4a6aa0, pants: 0x3a3a4a },
+    lines: ['The river has been quiet this spring.', 'The shrimp come up near the bank in the early morning.', 'Keep your hands dry and your line tight.'] },
+  { name: 'Dunmore', look: { gender: 'male', skin: 0xc08a60, hair: 'short', hairCol: 0x5a5a5a, shirt: 0x6a4a3a, pants: 0x2a2a2a },
+    lines: ['Copper and tin, heated together, make bronze.', 'Strike the bar while it still glows. Cold metal does not bend.', 'The master is away. I just keep the fire going.'] }
+];
+const fishSpots = [];
+const SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#f08a6a" stroke="#7a3a2a" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
+// a splash when the line goes in
+function splashSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 0.5);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t + 0.5);
+}
+function catchFish(){
+  showToast('You cast a line...');
+  splashSound();
+  setTimeout(() => {
+    if (addItem('Raw shrimp', 1, SHRIMP_ICON)) { addXp('Fishing', 10); showToast('You catch a raw shrimp.  +10 Fishing XP'); }
+    else showToast('Your bag is full.');
+  }, 1800);
+}
+function updateFish(){
+  const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
+  for (const f of fishSpots) f.ring.scale.setScalar(pulse);
+}
+function addFishSpot(x, z){
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xcfe9ff, transparent: true, opacity: 0.7, depthWrite: false }));
+  ring.position.set(x, 0.1, z); town.add(ring);
+  const hit = new THREE.Mesh(new THREE.CircleGeometry(1.4, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  hit.position.set(x, 0.1, z); town.add(hit);
+  const rec = { kind: 'fish', x, z, s: 1.2, state: 'standing', ring };
+  hit.userData = { action: 'Fish', name: 'Fishing spot', rec }; trees.push(hit);
+  fishSpots.push(rec);
+}
+// a road as a flat strip between two points
+const ROADS = [];   // every road segment, so the scattered trees keep clear of them
+function roadBetween(x1, z1, x2, z2, w = 1.4){
+  ROADS.push([x1, z1, x2, z2]);
+  const dx = x2 - x1, dz = z2 - z1, len = Math.hypot(dx, dz);
+  const r = new THREE.Mesh(new THREE.PlaneGeometry(w, len).rotateX(-Math.PI / 2), mat(0xa48a5e));
+  r.position.set((x1 + x2) / 2, 0.3, (z1 + z2) / 2); r.rotation.y = Math.atan2(dx, dz);   // 0.3 is above the highest hill, so no part of the road is buried
+  town.add(r);
+}
+// if the adventurer has ended up inside a solid box (a door shutting on them, say), slide them to the nearest clear spot
+function unstick(){
+  if (!hero || !hardHit(hero.position.x, hero.position.z)) return;
+  for (let r = 0.25; r <= 4; r += 0.25) for (let a = 0; a < 16; a++) {
+    const x = hero.position.x + Math.cos(a * Math.PI / 8) * r, z = hero.position.z + Math.sin(a * Math.PI / 8) * r;
+    if (!hardHit(x, z)) { hero.position.set(x, 0, z); heroShadow.position.set(x, 0.06, z); return; }
+  }
+}
+// open or close a house door: a swing on its hinge, and the doorway is walkable only while it is open
+function toggleDoor(rec){
+  rec.open = !rec.open;
+  if (rec.open === false) unstick();   // never shut a door on the adventurer
+  rec.pivot.rotation.y = rec.open ? -Math.PI / 2 : 0;
+  rec.leaf.userData.action = rec.open ? 'Close' : 'Open';
+  const i = solidBoxes.indexOf(rec.box);
+  if (rec.open && i >= 0) solidBoxes.splice(i, 1);
+  if (!rec.open && i < 0) solidBoxes.push(rec.box);
+}
+// a villager stands inside a house; clicking them walks over and opens their dialogue
+function addNpc(g, h, lx, lz, npc){
+  const tex = new THREE.CanvasTexture(adventurerCanvas(npc.look));
+  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.5 }));
+  sp.center.set(0.5, 0); sp.scale.set(2.1, 2.8, 1); sp.position.set(lx, 0, lz); sp.renderOrder = 10;
+  g.add(sp);
+  const p = h.toWorld(lx, lz);
+  const rec = { kind: 'npc', name: npc.name, lines: npc.lines, x: p.x, z: p.z, s: 0.7, state: 'standing' };
+  sp.userData = { action: 'Talk', name: npc.name, rec };
+  trees.push(sp);
+}
+// the smithy's furnace and anvil, inside its walls
+function furnishSmithy(g, h){
+  const S = HOUSE_SIZE;
+  const f = new THREE.Group(); f.scale.setScalar(S); g.add(f);   // the furnishings are drawn at the house's own units, then scaled
+  const fx = -1.6, fz = -1.8, ax = 1.4, az = -0.4;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.0), texMat(wallStone, 1, 1, 0xa0a0a0)); body.position.set(fx, 0.8, fz); f.add(body);
+  const fire = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.05), fireMat); fire.position.set(fx, 0.6, fz + 0.52); f.add(fire);
+  const fp = h.toWorld(fx * S, fz * S);
+  body.userData = { action: 'Smelt', name: 'Furnace', rec: { kind: 'furnace', x: fp.x, z: fp.z, s: 1, state: 'standing' } };
+  trees.push(body);
+  solidBoxes.push({ x0: fp.x - 1, x1: fp.x + 1, z0: fp.z - 1, z1: fp.z + 1 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), ironDark); base.position.set(ax, 0.2, az); f.add(base);
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.4), ironDark); waist.position.set(ax, 0.5, az); f.add(waist);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.5), steelTop); face.position.set(ax, 0.7, az); f.add(face);
+  const apt = h.toWorld(ax * S, az * S);
+  base.userData = { action: 'Smith', name: 'Anvil', rec: { kind: 'anvil', x: apt.x, z: apt.z, s: 1, state: 'standing' } };
+  trees.push(base);
+  solidBoxes.push({ x0: apt.x - 1, x1: apt.x + 1, z0: apt.z - 1, z1: apt.z + 1 });
+  addNpc(g, h, 0.6 * S, 1.0 * S, VILLAGERS[3]);
+}
+function roadPath(pts, w = 1.6){
+  for (let i = 0; i < pts.length - 1; i++) roadBetween(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w);
+  pts.forEach(([x, z]) => {
+    const c = new THREE.Mesh(new THREE.CircleGeometry(w / 2, 12).rotateX(-Math.PI / 2), mat(0xa48a5e));
+    c.position.set(x, 0.3, z); town.add(c);
+  });
+}
+function populateVillage(){
+  // the village green, in the open ground west of the hall
+  const hub = [-36, 8];
+  well(hub[0], hub[1]);
+  solidBoxes.push({ x0: hub[0] - 1.5, x1: hub[0] + 1.5, z0: hub[1] - 1.5, z1: hub[1] + 1.5 });   // at least 2x2 round the well
+  // houses, spread well apart
+  const h1 = house(-62, -4, 5.5, 5, 0x9a6a44, 0x7a2e2e, 0, (g, h) => addNpc(g, h, 0.5, -0.8, VILLAGERS[0]));
+  const h2 = house(-52, 34, 5, 5.5, 0x8a7a5a, 0x3a5a7a, 0, (g, h) => addNpc(g, h, 0.4, -0.6, VILLAGERS[1]));
+  const h3 = house(-22, -4, 5, 4.5, 0x9a7a5a, 0x5a3a7a, 0, (g, h) => addNpc(g, h, -0.4, -0.6, VILLAGERS[2]));
+  const h4 = house(-30, 40, 5.5, 4.5, 0x7a6a5a, 0x6a3a2a, Math.PI / 2);   // turned, with its doorway facing the hall
+  const smithyHouse = house(38, 46, 6, 5, 0x8a6a4a, 0x5a3a2a, 0, furnishSmithy);   // the smithy, its own building
+  // the roads: one network from the village green, each house reached by its front door
+  const G = hub;
+  const Dh1 = [h1.door.x, h1.door.z], Dh2 = [h2.door.x, h2.door.z], Dh3 = [h3.door.x, h3.door.z], Dh4 = [h4.door.x, h4.door.z], Dsm = [smithyHouse.door.x, smithyHouse.door.z];
+  roadPath([G, Dh1]);                                                  // the far west house
+  roadPath([G, Dh3]);                                                  // the north house
+  roadPath([G, [-44, 20], Dh2]);                                       // the south-west house, from its front
+  roadPath([G, [-30, 20], Dh4]);                                       // the turned house
+  roadPath([[14.5, 12], [24, 14], [24, 56], Dsm]);                     // the smithy, out to the south-east
+  roadPath([G, [-14, 14], [4, 14], [14.5, 12]]);                       // east to the hall door
+  roadPath([G, [-84, 6]]);                                             // west to the woods
+  roadPath([G, [-30, -8], [-36, -10.6]]);                              // north to the fishing bank
+  // the woodland, far to the west
+  [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
+  // the quarry, out to the south-east beyond the hall
+  roadPath([[24, 14], [44, 22]]);
+  [[46, 22, 'copper'], [50, 26, 'copper'], [54, 20, 'copper'], [56, 30, 'copper'], [44, 34, 'tin'], [48, 38, 'tin'], [53, 36, 'tin'], [57, 42, 'tin']]
+    .forEach(([x, z, ore]) => makeRock(x, z, 1.2, ore));
+  // the fishing spot in the river
+  addFishSpot(-36, -13.4);
+  scatterOaks();
+}
+// random oaks through the village: a seeded spread, kept clear of buildings, roads, the hall, the well and the river
+function scatterOaks(){
+  const rand = (() => { let q = 2024; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  const segDist = (px, pz, [x1, z1, x2, z2]) => {
+    const dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (pz - z1) * dz) / L));
+    return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
+  };
+  const clear = (x, z) => {
+    if (x < -100 || x > 52 || z < -8 || z > 58) return false;
+    if (solidBoxes.some(b => x > b.x0 - 2.5 && x < b.x1 + 2.5 && z > b.z0 - 2.5 && z < b.z1 + 2.5)) return false;   // houses, nodes, the well
+    if (x > 2 && x < 32 && z > -9 && z < 15) return false;      // the hall and its doorway
+    if (ROADS.some(r => segDist(x, z, r) < 2.8)) return false;   // roads
+    if (oakSpots.some(o => Math.hypot(o[0] - x, o[1] - z) < 4)) return false;   // oaks keep a little room between them
+    return true;
+  };
+  const oakSpots = [];
+  let placed = 0, tries = 0;
+  while (placed < 24 && tries < 4000) {
+    tries++;
+    const x = -100 + rand() * 152, z = -8 + rand() * 66;
+    if (!clear(x, z)) continue;
+    makeTree(x, z, 1.5 + rand() * 0.3, true);
+    oakSpots.push([x, z]);
+    placed++;
+  }
+}
+populateVillage();
+
+// ----- start -----
+renderCreator();
+rebuildHero();
+if (lookMade) { target.set(START.x, 1, START.z); dist = 30; }
+else openCreator();
+
+function frame(){
+  updateWalk();
+  updateTrees();
+  updateDebris();
+  updateHouses();
+  updateFish();
+  fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
+  updateDoor();
+  turnWithKeys();
+  followCharacter();
+  placeCamera();
+  placeCreator();
+  placeHeroChat();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>

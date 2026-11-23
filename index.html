@@ -1184,8 +1184,24 @@ const GAMES = [
     top: '#06302c', bottom: '#020808', accent: '#3f9', glow: '#7ff',
     art: drawCrawlerArt, hi: () => crawlerBest,
     start: () => { if (!playerName) openName(startCrawler); else startCrawler(); } },
+  { id: 'adventure', title: ['ITAP', 'ADVENTURE'], tag: 'EXPLORE THE VILLAGE.',
+    top: '#1d3a14', bottom: '#060d05', accent: '#9e6', glow: '#fd7',
+    art: drawAdventureArt, hi: null,
+    start: () => { location.href = 'adventure/'; } },
 ];
 
+// the banner for ITAP Adventure: a village green, a house with a path, and an oak
+function drawAdventureArt(x, y, w, h) {
+  const cx = x + w/2, gy = y + h*0.72;
+  ctx.fillStyle = '#2f6b2a'; ctx.fillRect(x, gy, w, h - (gy - y));
+  ctx.fillStyle = '#b09060'; ctx.beginPath(); ctx.moveTo(cx - 14, y + h); ctx.lineTo(cx + 30, y + h); ctx.lineTo(cx + 12, gy); ctx.lineTo(cx - 4, gy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8a6a4a'; ctx.fillRect(cx - 70, gy - 62, 96, 62);
+  ctx.fillStyle = '#7a2e2e'; ctx.beginPath(); ctx.moveTo(cx - 80, gy - 60); ctx.lineTo(cx - 22, gy - 104); ctx.lineTo(cx + 36, gy - 60); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#3a2a16'; ctx.fillRect(cx - 52, gy - 26, 18, 26);
+  ctx.fillStyle = '#5a3a1e'; ctx.fillRect(cx + 74, gy - 40, 8, 40);
+  ctx.fillStyle = '#3f8a3a'; ctx.beginPath(); ctx.arc(cx + 78, gy - 52, 26, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#2f7a2c'; ctx.beginPath(); ctx.arc(cx + 66, gy - 62, 18, 0, 6.28); ctx.fill();
+}
 function drawDodgerArt(x, y, w, h) {
   const cx = x + w/2, hz = y + h*0.55;
   ctx.strokeStyle = 'rgba(255,61,240,0.4)'; ctx.lineWidth = 1;
@@ -1213,7 +1229,7 @@ function drawHub() {
   else glowText(g.title[0], cx, y + 104, 46, g.glow, 'center', 18);
   g.art(x + 20, y + 150, w - 40, 190);
   glowText(g.tag, cx, y + 372, 13, '#fff', 'center', 0);
-  glowText('HI-SCORE ' + pad(g.hi()), cx, y + 400, 16, '#fd3', 'center', 6);
+  if (g.hi) glowText('HI-SCORE ' + pad(g.hi()), cx, y + 400, 16, '#fd3', 'center', 6);
   // carousel arrows and dots (only when there is more than one game)
   if (GAMES.length > 1) {
     glowText('◀', 40, 360, 34, '#fff', 'center', 8);
