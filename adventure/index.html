@@ -656,8 +656,11 @@ function showToast(msg){
 function addXp(skill, amt){ SKILL_XP[skill] += amt; renderStats(); }
 function cancelChop(){
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
+  if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
 }
+// what you are doing right now, shared with the others (chop, mine, smelt, fish)
+function setAct(a){ ONLINE.act = a; writePresence(true); }
 function clickNode(rec){
   if (rec.state === 'felled') { showToast(`This ${rec.g && rec.g.userData ? rec.g.userData.name.toLowerCase() : 'node'} is gone for now. It will grow back soon.`); return; }
   if (rec.state === 'growing') { showToast('It is still growing back. Give it a moment.'); return; }
@@ -682,7 +685,7 @@ function clickNode(rec){
     .filter(p => !blocked(p.x, p.z))
     .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
   if (!spots.length) return;
-  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else { chop.rec = rec; chop.t = 0; } });
+  walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(); else if (rec.kind === 'door') toggleDoor(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
 }
 // one copper ore and one tin ore make one bronze bar
 function removeItem(name){
@@ -694,6 +697,7 @@ function smelt(rec){
   if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; }
   if (bag.length >= BAG_SIZE && !hasItem('Bronze bar')) { showToast('Your bag is full.'); return; }   // check room before taking the ores
   removeItem('Copper ore'); removeItem('Tin ore');
+  setAct({ k: 'smelt', t: Date.now() }); setTimeout(() => setAct(null), 2000);
   clinkSound();
   addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6);
   showToast('You smelt a bronze bar.  +6 Smithing XP');
@@ -925,7 +929,7 @@ function updateTrees(){
       rec.t++;
       const k = Math.min(1, rec.t / 40);
       rec.g.rotation.z = rec.dir * (Math.PI / 2) * k * k;
-      if (k >= 1) { hideNode(rec); fallSound(); giveLogs(rec); }
+      if (k >= 1) { hideNode(rec); fallSound(); if (rec.remoteFall) rec.remoteFall = false; else giveLogs(rec); }
     }
   }
   if (chop.rec) {
@@ -939,7 +943,7 @@ function updateTrees(){
     if (chop.t % 45 === 25) { if (rec.kind === 'rock') clinkSound(); else chopSound(); }   // the blow lands as the tool comes down
     if (chop.t >= CHOP_FRAMES) {
       // the node is claimed on the server first: if someone else got there, nothing falls
-      chop.rec = null; rec.g.rotation.z = 0; rec.state = 'claiming';
+      chop.rec = null; rec.g.rotation.z = 0; rec.state = 'claiming'; setAct(null);
       claimNode(rec).then(until => {
         if (!until) { rec.state = 'standing'; showToast(ONLINE.ok ? 'Someone got there first.' : "Can't reach the village."); return; }
         rec.until = until;
@@ -964,12 +968,16 @@ function regrowNode(rec){
   rec.state = 'growing'; rec.t = 0;
 }
 // the shared state from the database: nodes someone else took are hidden here too
-function applyNodeStates(nodes){
+function applyNodeStates(nodes, animate){
   const now = Date.now();
   for (const rec of treeRecs) {
     const n = nodes && nodes[rec.key];
     rec.until = n && n.until ? n.until : 0;
-    if (rec.until > now && (rec.state === 'standing' || rec.state === 'growing')) hideNode(rec);
+    if (!(rec.until > now && (rec.state === 'standing' || rec.state === 'growing'))) continue;
+    if (!animate) hideNode(rec);   // the state when we join: no effects
+    else if (rec.state === 'standing' && rec.kind === 'rock') { burstRock(rec); explosionSound(); hideNode(rec); }
+    else if (rec.state === 'standing') { rec.remoteFall = true; rec.state = 'falling'; rec.t = 0; rec.dir = hero.position.x < rec.x ? -1 : 1; creakSound(0.7); }
+    else hideNode(rec);
   }
 }
 function giveLogs(rec){
@@ -1549,6 +1557,7 @@ function splashSound(){
 }
 function catchFish(){
   showToast('You cast a line...');
+  setAct({ k: 'fish', t: Date.now() }); setTimeout(() => setAct(null), 2000);
   splashSound();
   setTimeout(() => {
     if (addItem('Raw shrimp', 1, SHRIMP_ICON)) { addXp('Fishing', 10); showToast('You catch a raw shrimp.  +10 Fishing XP'); }
@@ -1781,12 +1790,12 @@ async function saveNow(keepalive){
 function writePresence(force){
   if (!ONLINE.ready || !hero) return;
   const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
-  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look)].join('|');
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act)].join('|');
   const now = Date.now();
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null };
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null };
   fetch(`${DB}/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -1822,17 +1831,20 @@ function setRemote(id, p){
     const bubbleEl = document.createElement('div');
     bubbleEl.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#ffe14d;font:15px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;max-width:260px;text-align:center;display:none;';
     document.body.append(label, bubbleEl);
-    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: null, bubbleTimer: 0, name: '', seen: 0 };
+    r = remote[id] = { sprite, frames, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: null, bubbleTimer: 0, name: '', seen: 0, swing: makeSwing(p.l || look), act: null, actJson: 'null', actAt: 0, verb: '' };
     sprite.position.set(p.x, 0, p.z);
   }
   if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
     r.lookJson = JSON.stringify(p.l || {});
     r.frames.forEach((t, f) => { t.image = adventurerCanvas(p.l || look, f); t.needsUpdate = true; });
+    refreshSwing(r, p.l || look);
   }
   r.name = p.n || 'Traveller';
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
   r.face = p.f === -1 ? -1 : 1;
+  const aj = JSON.stringify(p.a || null);
+  if (aj !== r.actJson) { r.actJson = aj; r.act = p.a || null; r.actAt = performance.now(); }
   r.seen = performance.now();
   if (p.c && p.c.k !== r.k) {
     if (r.k !== null) addChatLine(r.name, p.c.t, '#ffffff');   // a new line from them (not the first we see)
@@ -1844,9 +1856,24 @@ function removeRemote(id){
   const r = remote[id]; if (!r) return;
   scene.remove(r.sprite); r.sprite.material.dispose();
   r.frames.forEach(t => t.dispose());
+  r.swing.axe.concat(r.swing.pick).forEach(t => t.dispose());
   r.label.remove(); r.bubbleEl.remove();
   delete remote[id];
 }
+// the side-view swing frames for a look, with the axe and with the pickaxe
+const SWING_POSES = ['up', 'down', 'mid'];
+function makeSwing(a){
+  const out = {};
+  for (const tool of ['axe', 'pick']) out[tool] = SWING_POSES.map(pose => { const t = new THREE.CanvasTexture(adventurerSide({ ...look, ...a }, 0, pose, tool)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
+  return out;
+}
+function refreshSwing(r, a){
+  for (const tool of ['axe', 'pick']) SWING_POSES.forEach((pose, i) => { r.swing[tool][i].image = adventurerSide({ ...look, ...a }, 0, pose, tool); r.swing[tool][i].needsUpdate = true; });
+}
+let nodeMap = null;
+function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
+const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing' };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 2200, fish: 2200 };
 function sayRemote(r, text){
   r.bubbleEl.textContent = text; r.bubbleEl.style.display = 'block';
   clearTimeout(r.bubbleTimer); r.bubbleTimer = setTimeout(() => { r.bubbleEl.style.display = 'none'; }, 6000);
@@ -1866,10 +1893,12 @@ function startStreams(){
   ps.addEventListener('put', e => applyPlayersEvent('put', JSON.parse(e.data)));
   ps.addEventListener('patch', e => applyPlayersEvent('patch', JSON.parse(e.data)));
   const ns = new EventSource(DB + '/nodes.json');
+  let nodesReady = false;   // the first snapshot is the state when we join, so it plays no effects
   const applyNodes = (ev, d) => {
     if (d.path === '/') ONLINE.nodes = d.data || {};
     else { const k = d.path.split('/').filter(Boolean)[0]; if (d.data === null) delete ONLINE.nodes[k]; else ONLINE.nodes[k] = d.data; }
-    applyNodeStates(ONLINE.nodes);
+    applyNodeStates(ONLINE.nodes, nodesReady);
+    if (d.path === '/') nodesReady = true;
   };
   ns.addEventListener('put', e => applyNodes('put', JSON.parse(e.data)));
   ns.addEventListener('patch', e => applyNodes('patch', JSON.parse(e.data)));
@@ -1893,9 +1922,23 @@ function updateOnline(){
     const moving = Math.hypot(nx - x, nz - z) > 0.01;
     r.sprite.position.set(nx, 0, nz);
     if (moving) r.tick++;
-    const f = moving ? Math.floor(r.tick / 6) % 4 : 0;
-    if (r.sprite.material.map !== r.frames[f]) r.sprite.material.map = r.frames[f];
-    r.frames.forEach(tex => { tex.repeat.x = r.face; tex.offset.x = r.face < 0 ? 1 : 0; });   // face left or right
+    // what they are doing: the swing for chopping and mining, and a label for every action
+    const act = r.act && t - r.actAt < ACT_TIME[r.act.k] ? r.act : null;
+    const verb = act ? ACT_LABEL[act.k] : '';
+    if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
+    let face = r.face;
+    if (act && (act.k === 'chop' || act.k === 'mine')) {
+      const node = nodeRecByKey(act.n);
+      if (node) face = screenX(node.x, node.z) < screenX(nx, nz) ? -1 : 1;   // face the tree or rock
+      const pose = swingPose(((t - r.actAt) / 750) % 1);
+      const tex = r.swing[act.k === 'mine' ? 'pick' : 'axe'][SWING_POSES.indexOf(pose)];
+      if (r.sprite.material.map !== tex) r.sprite.material.map = tex;
+    } else {
+      const f = moving ? Math.floor(r.tick / 6) % 4 : 0;
+      if (r.sprite.material.map !== r.frames[f]) r.sprite.material.map = r.frames[f];
+    }
+    r.frames.forEach(tex => { tex.repeat.x = face; tex.offset.x = face < 0 ? 1 : 0; });   // face left or right
+    r.swing.axe.concat(r.swing.pick).forEach(tex => { tex.repeat.x = face; tex.offset.x = face < 0 ? 1 : 0; });
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
     r.label.style.left = sx + 'px'; r.label.style.top = sy + 'px'; r.label.style.display = 'block';
