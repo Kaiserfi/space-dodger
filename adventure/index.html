@@ -1833,6 +1833,7 @@ function setRemote(id, p){
   if (p.t && Date.now() - p.t > 30000) { removeRemote(id); return; }   // a left-behind entry from a closed browser
   let r = remote[id];
   if (!r) {
+    if (ONLINE.announce) addSystemLine(`${p.n || 'A player'} has joined the village.`);   // only after the list of who is here has loaded
     const lookJson = JSON.stringify(p.l || {});
     const frames = [0, 1, 2, 3].map(f => { const t = new THREE.CanvasTexture(adventurerCanvas(p.l || look, f)); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; });
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], transparent: true, alphaTest: 0.5 }));
@@ -1886,6 +1887,14 @@ let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
 const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing' };
 const ACT_TIME = { chop: 3600, mine: 3600, smelt: 2200, fish: 2200 };
+// a grey line in the chat for things that happen in the village (not from a player)
+function addSystemLine(text){
+  const line = document.createElement('div');
+  const body = document.createElement('i'); body.textContent = text; body.style.color = '#c9b27a';
+  line.append(body); chatLog.appendChild(line);
+  while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
 function sayRemote(r, text){
   r.bubbleEl.textContent = text; r.bubbleEl.style.display = 'block';
   clearTimeout(r.bubbleTimer); r.bubbleTimer = setTimeout(() => { r.bubbleEl.style.display = 'none'; }, 6000);
@@ -1895,6 +1904,7 @@ function applyPlayersEvent(ev, d){
     const all = d.data || {};
     if (ev === 'put') Object.keys(remote).forEach(id => { if (!(id in all)) removeRemote(id); });
     Object.keys(all).forEach(id => setRemote(id, all[id]));
+    ONLINE.announce = true;   // the first list is the people already here
     return;
   }
   const parts = d.path.split('/').filter(Boolean);
