@@ -49,11 +49,11 @@
   .gearList { padding:6px 10px 8px; }
   .gearRow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #3a2a16; }
   .gearRow b { color:#f0c35a; font-weight:normal; }
-  #setPanel { position:fixed; right:58px; top:52px; width:240px; border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
+  #setPanel { position:fixed; right:58px; top:52px; width:240px; box-sizing:border-box; overflow:hidden; border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
   #setPanel[hidden] { display:none; }
   .setRow { display:flex; align-items:center; gap:8px; padding:8px 10px; }
-  .setRow label { width:52px; }
-  .setRow input[type=range] { flex:1; accent-color:#f0c35a; }
+  .setRow label { width:52px; flex:none; }
+  .setRow input[type=range] { flex:1; min-width:0; width:100%; margin:0; accent-color:#f0c35a; }
   .muteBtn { width:30px; height:30px; flex:none; padding:0; background:#1d150b; border:1px solid #5b4324; border-radius:5px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .muteBtn svg { width:18px; height:18px; }
   .muteBtn.muted { border-color:#d64b3c; }
@@ -2061,8 +2061,8 @@ function scatterOaks(){
     if (oakSpots.some(o => Math.hypot(o[0] - x, o[1] - z) < 4)) return false;   // oaks keep a little room between them
     return true;
   };
-  // three oaks, just south of the spawn hall
-  const oakSpots = [[9, 17], [19, 18], [13, 22]];
+  // three oaks in a small grove south-west of the spawn hall, in the open ground between the hall road and the turned house
+  const oakSpots = [[-4, 28], [6, 31], [0, 37]];
   oakSpots.forEach(([x, z]) => makeTree(x, z, 1.5, true));
   // the rest of the village trees are ordinary trees
   let placed = 0, tries = 0;
