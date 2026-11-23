@@ -107,6 +107,7 @@
     <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
   </div>
 </div>
+<button id="logoutBtn" style="position:fixed;left:12px;top:92px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
 <div id="hint">Drag to turn the camera. Scroll or pinch to zoom.</div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
@@ -1815,6 +1816,18 @@ async function enterVillage(name){
   ONLINE.ready = true;
   document.getElementById('online').hidden = true;
 }
+// log out: save everything, including where you are, and leave the village
+async function logOut(){
+  if (!ONLINE.ready) return;
+  ONLINE.saveJson = '';
+  await saveNow(false);            // the save goes through while we are still in the village
+  ONLINE.ready = false;
+  try { await fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'DELETE' }); } catch (e) {}
+  for (const id in remote) removeRemote(id);
+  document.getElementById('nameInput').value = ONLINE.name;
+  showJoin('Logged out. Your progress and position are saved.', true);
+}
+document.getElementById('logoutBtn').addEventListener('click', logOut);
 // remove players left behind by closed browsers (no update for a minute)
 async function cleanStalePlayers(){
   try {
@@ -1969,6 +1982,8 @@ function applyPlayersEvent(ev, d){
   if (parts.length === 1) { if (d.data === null) removeRemote(parts[0]); else setRemote(parts[0], d.data); }
 }
 function startStreams(){
+  if (ONLINE.streamsOn) return;   // one connection, even after logging out and back in
+  ONLINE.streamsOn = true;
   const ps = new EventSource(DB + '/adventure/players.json');
   ps.addEventListener('put', e => applyPlayersEvent('put', JSON.parse(e.data)));
   ps.addEventListener('patch', e => applyPlayersEvent('patch', JSON.parse(e.data)));
