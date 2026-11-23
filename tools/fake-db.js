@@ -21,7 +21,7 @@ class FakeDb {
       const req = route.request(), url = new URL(req.url()), path = decodeURIComponent(url.pathname.replace(/\.json$/, '')), m = req.method();
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,PUT,PATCH,POST,DELETE', 'access-control-expose-headers': 'ETag' };
       if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-      const etag = () => '"' + this.ver + ':' + JSON.stringify(this.get(path)).length + '"';
+      const etag = () => { const j = JSON.stringify(this.get(path)); let h = 0; for (let i = 0; i < j.length; i++) h = (h * 31 + j.charCodeAt(i)) | 0; return '"' + h + '"'; };   // like Firebase: changes only when this spot's value does
       if (m === 'GET' && (req.headers()['accept'] || '').includes('text/event-stream'))
         return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }, body: 'retry: 300\nevent: put\ndata: ' + JSON.stringify({ path: '/', data: this.get(path) }) + '\n\n' });
       if (m === 'GET') { let v = this.get(path); if (url.searchParams.get('shallow') && v && typeof v === 'object') v = Object.fromEntries(Object.keys(v).map(k => [k, true]));
