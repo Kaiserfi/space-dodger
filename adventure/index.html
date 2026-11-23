@@ -252,16 +252,17 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const HORIZON = 0xcfe6ea;
+const GLOW_MATS = [], LIGHT_SPOTS = [];   // window and lamp glass, and where light comes from at night
 scene.background = new THREE.Color(HORIZON);
 scene.fog = new THREE.Fog(HORIZON, 50, 120);
 // a gradient sky dome with a soft sun glow
 const skyMat = new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { top: { value: new THREE.Color(0x3d7fc9) }, mid: { value: new THREE.Color(0x8cc4e6) }, bot: { value: new THREE.Color(HORIZON) }, sunDir: { value: new THREE.Vector3(12, 22, 8).normalize() } },
+  uniforms: { top: { value: new THREE.Color(0x3d7fc9) }, mid: { value: new THREE.Color(0x8cc4e6) }, bot: { value: new THREE.Color(HORIZON) }, sunDir: { value: new THREE.Vector3(12, 22, 8).normalize() }, sunCol: { value: new THREE.Color(1, 0.85, 0.6) } },
   vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform vec3 top, mid, bot, sunDir; varying vec3 vP;
+  fragmentShader: `uniform vec3 top, mid, bot, sunDir, sunCol; varying vec3 vP;
     void main(){ float h = vP.y; vec3 c = h > 0.25 ? mix(mid, top, smoothstep(0.25, 0.9, h)) : mix(bot, mid, smoothstep(-0.05, 0.25, h));
-      float s = max(dot(vP, sunDir), 0.0); c += vec3(1.0, 0.85, 0.6) * (pow(s, 64.0) * 0.9 + pow(s, 6.0) * 0.18);
+      float s = max(dot(vP, sunDir), 0.0); c += sunCol * (pow(s, 64.0) * 0.9 + pow(s, 6.0) * 0.18);
       gl_FragColor = vec4(c, 1.0); }`,
 });
 const sky = new THREE.Mesh(new THREE.SphereGeometry(180, 32, 16), skyMat);
@@ -292,7 +293,7 @@ function placeCamera(){
     target.z + dist * Math.cos(yaw) * Math.sin(pitch));
   camera.lookAt(target);
 }
-scene.add(new THREE.HemisphereLight(0xdff0ff, 0x4a5a2a, 0.9));
+const hemi = new THREE.HemisphereLight(0xdff0ff, 0x4a5a2a, 0.9); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe7c2, 2.1);
 sun.position.set(12, 22, 8);
 sun.castShadow = true;
@@ -301,7 +302,7 @@ sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
 Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 90 });
 scene.add(sun, sun.target);
 // keep the shadow area centred on the player and give new meshes shadows
-const SUN_OFF = new THREE.Vector3(18, 33, 12);
+const SUN_OFF = new THREE.Vector3(18, 33, 12);   // moved round by the day and night cycle
 let shadowScan = 0;
 function updateSun(){
   sun.position.copy(target).add(SUN_OFF); sun.target.position.copy(target);
@@ -405,7 +406,7 @@ function house(x, z, w, d, wall, roofCol, rot = 0, furnish = null){
   for (const sx of [-1, 1]) deco(B(0.4, 2.3 * S, t + 0.25), timber, sx * (dw / 2 + 0.2), 1.15 * S, d / 2);   // the door frame
   deco(B(dw + 0.8, 0.4, t + 0.25), timber, 0, 2.3 * S, d / 2);
   // windows: a dark frame, warm glass, a cross bar, painted shutters and a flower box
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0x7a5a20, emissiveIntensity: 0.6, roughness: 0.3 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0x7a5a20, emissiveIntensity: 0.6, roughness: 0.3 }); GLOW_MATS.push(glassMat);
   const shutterCol = new THREE.Color(roofCol).lerp(new THREE.Color(0x3a5a7a), 0.35).getHex();
   const flowerCols = [0xe8506a, 0xf4d03f, 0xffffff, 0xb070e0];
   function windowAt(x, z, side){   // side: 'z' for the front and back walls, 'x' for the side walls; the sign of x or z says which face
@@ -458,7 +459,8 @@ function house(x, z, w, d, wall, roofCol, rot = 0, furnish = null){
     solidBoxes.push({ x0: p.x - ax, x1: p.x + ax, z0: p.z - az, z1: p.z + az });
   });
   const hw = (Math.abs(c) * w / 2 + Math.abs(sn) * d / 2) * k, hd = (Math.abs(sn) * w / 2 + Math.abs(c) * d / 2) * k;
-  const h = { roof, smoke, x, z, hw, hd, k, toWorld, door: toWorld(0, d / 2 + 0.6) };   // the door is just outside the front
+  const h = { roof, smoke, x, z, hw, hd, k, toWorld, door: toWorld(0, d / 2 + 0.6) };
+  LIGHT_SPOTS.push([x, 2.6, z], [h.door.x, 2.4, h.door.z]);   // light spills from inside the house and out of the door   // the door is just outside the front
   houses.push(h);
   // the closed door blocks the doorway; opening it removes that block
   const dc = toWorld(0, d / 2);
@@ -614,12 +616,14 @@ function signpost(x, z){
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.3, 3), mat(0xb08a58)); tip.rotation.z = -Math.PI / 2; tip.position.set(1.55, 0, 0); arm.add(tip); });
 }
 const lampGlass = new THREE.MeshStandardMaterial({ color: 0xffd070, emissive: 0xffb040, emissiveIntensity: 1.3 });
+GLOW_MATS.push(lampGlass);
 function lamp(x, z){
   solidAt(x, z, 0.35);
   const g = new THREE.Group(); g.position.set(x, 0, z); town.add(g);
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 3.6, 6), mat(0x2e2e34)); post.position.y = 1.8; g.add(post);
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.08), mat(0x2e2e34)); arm.position.set(0.3, 3.5, 0); g.add(arm);
   const glass = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.45, 0.34), lampGlass); glass.position.set(0.6, 3.2, 0); g.add(glass);
+  LIGHT_SPOTS.push([x + 0.6, 3.0, z]);
   const top = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.25, 4), mat(0x2e2e34)); top.position.set(0.6, 3.55, 0); top.rotation.y = Math.PI / 4; g.add(top);
 }
 function barrel(x, z){
@@ -766,6 +770,58 @@ function windowAt(x, y, z, facesZ){
   const glass = new THREE.Mesh(new THREE.BoxGeometry(facesZ ? 0.9 : 0.1, 1.1, facesZ ? 0.1 : 0.9), glassMat);
   glass.position.set(x, y, z); hallGroup.add(glass);   // flush with the wall face
 }
+// ----- day and night, on Eastern time: the sun rises about 6am and sets about 7:30pm, crossing the sky from east to west;
+// at night the moon comes up, the stars come out, the world goes dark blue, and lamps and windows light the village.
+// For testing, ?hour=21 in the address sets the time.
+const HOUR_OVERRIDE = (() => { const h = parseFloat(new URLSearchParams(location.search).get('hour')); return isNaN(h) ? null : h; })();
+function hourNow(){
+  if (HOUR_OVERRIDE !== null) return HOUR_OVERRIDE;
+  try { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
+    return +p.find(x => x.type === 'hour').value + p.find(x => x.type === 'minute').value / 60; } catch (e) { return new Date().getHours(); }
+}
+const SKY = { day: [0x3d7fc9, 0x8cc4e6, 0xcfe6ea], dusk: [0x2e3c7a, 0xe0906a, 0xf2b880], night: [0x050816, 0x0c1530, 0x18223e] };
+const nightLights = [];
+let stars = null, moon = null, DAY = { light: 1, night: 0 };
+function updateDayNight(){
+  const h = hourNow(), RISE = 6, SET = 19.5;
+  const dayFrac = (h - RISE) / (SET - RISE), up = dayFrac >= 0 && dayFrac <= 1;
+  const elev = up ? Math.sin(Math.PI * dayFrac) : -Math.sin(Math.PI * (((h - SET) + 24) % 24) / (24 - (SET - RISE)));
+  const light = THREE.MathUtils.smoothstep(elev, -0.08, 0.3), night = 1 - THREE.MathUtils.smoothstep(elev, -0.1, 0.25), dusk = Math.max(0, 1 - Math.abs(elev) / 0.3);
+  DAY = { light, night };
+  // the sun (or, at night, the moon) travels from east to west across the southern sky
+  const f = up ? dayFrac : (((h - SET) + 24) % 24) / (24 - (SET - RISE));
+  const dir = new THREE.Vector3(Math.cos(Math.PI * f), Math.max(0.12, Math.abs(Math.sin(Math.PI * f))), 0.45).normalize();
+  SUN_OFF.copy(dir).multiplyScalar(40);
+  sun.color.set(up ? (dusk > 0.5 ? 0xffb070 : 0xffe7c2) : 0x9ab0e0);
+  sun.intensity = up ? 0.3 + 1.8 * light : 0.35;
+  hemi.intensity = 0.18 + 0.72 * light; hemi.color.set(light > 0.3 ? 0xdff0ff : 0x6a80b0);
+  renderer.toneMappingExposure = 0.85 + 0.2 * light;
+  // sky colours: day, sunset and night, blended
+  const c = (i) => new THREE.Color(SKY.night[i]).lerp(new THREE.Color(SKY.day[i]), light).lerp(new THREE.Color(SKY.dusk[i]), dusk * 0.7);
+  skyMat.uniforms.top.value.copy(c(0)); skyMat.uniforms.mid.value.copy(c(1)); skyMat.uniforms.bot.value.copy(c(2));
+  skyMat.uniforms.sunDir.value.copy(dir); skyMat.uniforms.sunCol.value.setRGB(1, 0.85, 0.6).multiplyScalar(up ? 1 : 0.15);
+  scene.fog.color.copy(c(2)); scene.background.copy(c(2));
+  clouds.traverse(o => { if (o.isMesh) { o.material.emissiveIntensity = 0.05 + 0.3 * light; o.material.color.setScalar(0.35 + 0.65 * light); } });
+  if (grass) grass.uni.lightK.value = 0.1 + 0.9 * Math.pow(light, 1.3);   // the grass darkens with the ground
+  // stars and the moon
+  if (!stars) {
+    const pos = []; for (let i = 0; i < 700; i++) { const a = Math.random() * Math.PI * 2, y = 0.1 + Math.random() * 0.9, r = Math.sqrt(1 - y * y); pos.push(Math.cos(a) * r * 170, y * 170, Math.sin(a) * r * 170); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false })); sky.add(stars); stars.scale.setScalar(1 / 180);
+    moon = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf0f0e0, fog: false, transparent: true })); sky.add(moon); moon.scale.setScalar(1 / 180);
+  }
+  stars.material.opacity = night; moon.material.opacity = night; moon.visible = night > 0.02;
+  if (!up) moon.position.copy(dir).multiplyScalar(150 / 180 * 180);
+  // windows and lamps glow brighter after dark, and the nearest few actually light the ground round them
+  for (const m of GLOW_MATS) m.emissiveIntensity = (m === lampGlass ? 0.5 : 0.5) + 2.4 * night;
+  if (!nightLights.length) for (let i = 0; i < 8; i++) { const L = new THREE.PointLight(0xffb060, 0, 13, 1.6); scene.add(L); nightLights.push(L); }
+  const now = performance.now();
+  if (!updateDayNight.next || now > updateDayNight.next) { updateDayNight.next = now + 700;
+    const c0 = hero ? hero.position : target;
+    const near = LIGHT_SPOTS.slice().sort((a, b) => Math.hypot(a[0] - c0.x, a[2] - c0.z) - Math.hypot(b[0] - c0.x, b[2] - c0.z));
+    nightLights.forEach((L, i) => { const sp = near[i]; if (sp) L.position.set(sp[0], sp[1], sp[2]); }); }
+  nightLights.forEach(L => { L.intensity = 6 * night * (0.92 + Math.random() * 0.08); });
+}
 // ----- the hall's facelift: warm cut stone, buttresses, an arched doorway, glowing windows, a bell tower,
 // village banners waving outside, and a proper great hall inside (built once the emblem drawing is ready)
 let hallBanners = [], hallLight = null;
@@ -792,9 +848,10 @@ function hallOverhaul(){
   const glow = new THREE.MeshStandardMaterial({ color: 0xffd48a, emissive: 0xc07a20, emissiveIntensity: 0.8, roughness: 0.4 });
   const win = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, 2.35, z); g.rotation.y = ry; H.add(g);
     const add = (geo, m, px, py, pz) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); g.add(o); hallWallMats.push(o.material); folds.push(o); return o; };
-    add(B(1.1, 1.5, 0.2), glow.clone(), 0, 0, 0); add(new THREE.CylinderGeometry(0.55, 0.55, 0.2, 16, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), glow.clone(), 0, 0.75, 0);
+    GLOW_MATS.push(add(B(1.1, 1.5, 0.2), glow.clone(), 0, 0, 0).material, add(new THREE.CylinderGeometry(0.55, 0.55, 0.2, 16, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), glow.clone(), 0, 0.75, 0).material);
     add(B(0.08, 2, 0.24), M(0x3a2a1a), 0, 0.25, 0); add(B(1.1, 0.08, 0.24), M(0x3a2a1a), 0, 0.2, 0);
     add(B(1.45, 0.2, 0.4), stoneM(0.6, 0.2, 0xb0a288), 0, -0.85, 0.06); };
+  LIGHT_SPOTS.push([HALL.x, 2.6, HALL.z], [HALL.x, 2.6, HALL.z + 9]);
   win(-4.1, 5.85, 0); win(4.1, 5.85, 0); win(-6.85, -1.8, Math.PI / 2); win(-6.85, 2.2, Math.PI / 2); win(6.85, -1.8, -Math.PI / 2); win(6.85, 2.2, -Math.PI / 2); win(-3.4, -5.85, Math.PI); win(3.4, -5.85, Math.PI);
   // a little bell tower on the roof ridge (it rides on the roof, so it lifts away with it indoors)
   const tower = new THREE.Group(); tower.position.set(0, 7.2, 0); roofMesh.add(tower);
@@ -1684,7 +1741,7 @@ function renderStep(){
     name.textContent = ONLINE.name || 'You'; text.textContent = typeof st.me === 'function' ? st.me() : st.me; cont.style.display = '';
     R.innerHTML = headImg(look, null, -0.45);
   } else {
-    name.textContent = dlg.name; text.textContent = typeof st === 'function' ? st() : st; cont.style.display = '';
+    name.textContent = dlg.name + (dlg.level ? ` (level ${dlg.level})` : ''); text.textContent = typeof st === 'function' ? st() : st; cont.style.display = '';
     L.innerHTML = headImg(dlg.look || {}, dlg.hat, 0.45, dlg.gear);
   }
   document.getElementById('dialog').hidden = false;
@@ -2657,7 +2714,7 @@ const VILLAGERS = [
 ];
 // the people outside, each with their own place, manner and things to say
 const TOWNSFOLK = [
-  { name: 'Aldric', title: 'the guard', x: 11, z: 16, rad: 1.5,
+  { name: 'Aldric', title: 'the guard captain', level: 20, x: 11, z: 16, rad: 1.5,
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     look: { gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0x8a6a3a, shirt: 0x8a9099, pants: 0x3a3a44 },
     talks: [
@@ -2666,6 +2723,38 @@ const TOWNSFOLK = [
       ["Goblins have been seen past the western woods. Probably nothing.", "...Probably."],
       ["I once stood here nine hours without blinking. Pip says it doesn't count because I was asleep. Pip is wrong."] ],
     barks: ['All quiet.', 'Move along.', '*straightens helmet*'] },
+  { name: 'Osric', title: 'the guard', level: 15, x: -45, z: 3, rad: 3,
+    look: { gender: 'male', skin: 0xd09a70, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x8a9099, pants: 0x3a3a44 },
+    gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
+    talks: [
+      ["Evening. Or morning. Hard to tell under this helmet.", "Osric. I watch the green. Mostly I watch Pip not falling down the well."],
+      ["Mara's prices are fair. Don't tell her I said that. She'll put 'em up."],
+      ["Quiet patrol's a good patrol. Loud patrol means geese."] ],
+    barks: ['Keep it moving.', 'All clear here.', '*adjusts shield*'] },
+  { name: 'Edda', title: 'the guard', level: 14, x: -68, z: 13, rad: 3,
+    look: { gender: 'female', skin: 0xe8c39c, hair: 'long', hairCol: 0x7a4a22, shirt: 0x8a9099, pants: 0x3a3a44 },
+    gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
+    talks: [
+      ["Stop right there. ...Oh, you're one of ours. Carry on.", "Edda. I keep the west road. Anything that comes out of those woods meets me first."],
+      ["Hobb swears the goblins are stealing his socks. I've seen his socks. Nobody's stealing those."],
+      ["Stay sharp past the woods. Something's been moving out there after dark."] ],
+    barks: ['Eyes on the woods.', 'West road, all clear.', 'Hm.'] },
+  { name: 'Bertram', title: 'the guard', level: 12, x: 35, z: 11, rad: 3,
+    look: { gender: 'male', skin: 0xb07a50, hair: 'short', hairCol: 0x1a1a1a, shirt: 0x8a9099, pants: 0x3a3a44 },
+    gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
+    talks: [
+      ["Bertram. I guard the farm road. Mostly from Truffle.", "That pig has escaped four times this month. Four."],
+      ["Bram keeps offering me cabbages. I keep accepting. It's becoming a problem."],
+      ["There's a goblin been sniffing round the quarry. You'd do us a favour if you sorted it out."] ],
+    barks: ['Watch the pig.', 'All quiet on the farm road.', '*yawns*'] },
+  { name: 'Godwin', title: 'the guard', level: 10, x: 29.5, z: 46, rad: 2.5,
+    look: { gender: 'male', skin: 0xf1cba0, hair: 'short', hairCol: 0xc0442a, shirt: 0x8a9099, pants: 0x3a3a44 },
+    gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
+    talks: [
+      ["First week on the job! Godwin. They've put me outside the smithy. Very important post. Probably.", "Dunmore says I'm guarding the forge. I think I'm just standing near it."],
+      ["Aldric says one day I'll be as good as him. He also says that to Pip."],
+      ["If you see anything suspicious, shout. Loudly. I'm still getting used to the helmet."] ],
+    barks: ['Very important post, this.', 'Hot by the forge...', 'Halt! ...Sorry, carry on.'] },
   { name: 'Wenna', title: 'the old gossip', x: -30, z: 13.8, rad: 0.01, sit: true,
     look: { gender: 'female', skin: 0xe8c39c, hair: 'topknot', hairCol: 0xd8d8d8, shirt: 0x6a5a8a, pants: 0x4a3a5a },
     talks: [
@@ -2994,9 +3083,9 @@ function addWorldNpc(x, z, npc){
   const sp = makeChibi(npc.look);
   sp.position.set(x, 0, z);
   scene.add(sp);
-  const rec = { kind: 'npc', name: npc.name, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', name: npc.name, level: npc.level, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
-  Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
+  Object.assign(sp.userData, { action: 'Talk', name: npc.level ? `${npc.name} (level ${npc.level})` : npc.name, rec });
   trees.push(sp);
   const rad = npc.rad !== undefined ? npc.rad : 2.5;
   addWander(sp, rec, frames, { lx: x, lz: z, rad, box: { x0: x - rad, x1: x + rad, z0: z - rad, z1: z + rad }, k: 1, ox: 0, oz: 0 });
@@ -3222,7 +3311,7 @@ function buildGrass(){
   for (let i = 0; i < N; i++) off.set([(Math.random() * 2 - 1) * R, (Math.random() * 2 - 1) * R, 0.75 + Math.random() * 0.5, Math.random() * 6.283], i * 4);
   geo.setAttribute('off', new THREE.InstancedBufferAttribute(off, 4)); geo.instanceCount = N;
   const pushers = []; for (let i = 0; i < 12; i++) pushers.push(new THREE.Vector3(9999, 0, 9999));
-  const uni = { time: { value: 0 }, center: { value: new THREE.Vector2() }, R: { value: R }, mask: { value: grassMaskTexture() },
+  const uni = { lightK: { value: 1 }, time: { value: 0 }, center: { value: new THREE.Vector2() }, R: { value: R }, mask: { value: grassMaskTexture() },
     mBox: { value: new THREE.Vector4(GM.x0, GM.z0, GM.x1 - GM.x0, GM.z1 - GM.z0) }, push: { value: pushers },
     sun: { value: new THREE.Vector3(0.5, 0.75, 0.35).normalize() } };
   const mat2 = new THREE.ShaderMaterial({ uniforms: uni, side: THREE.DoubleSide, fog: false, vertexShader: `
@@ -3253,7 +3342,7 @@ function buildGrass(){
       vec4 wp = vec4(p + vec3(root.x, 0.0, root.y), 1.0);
       vec4 mv = viewMatrix * wp; vFog = smoothstep(50.0, 120.0, -mv.z);
       gl_Position = projectionMatrix * mv;
-    }`, fragmentShader: `varying vec3 vCol; varying float vFog; void main(){ gl_FragColor = vec4(mix(vCol, pow(vec3(0.81, 0.9, 0.92), vec3(2.2)), vFog), 1.0);
+    }`, fragmentShader: `uniform float lightK; varying vec3 vCol; varying float vFog; void main(){ gl_FragColor = vec4(mix(vCol, pow(vec3(0.81, 0.9, 0.92), vec3(2.2)), vFog), 1.0); gl_FragColor.rgb *= lightK;
 #include <colorspace_fragment>
 }` });
   const mesh = new THREE.Mesh(geo, mat2); mesh.frustumCulled = false; mesh.userData.shadowSet = true; scene.add(mesh);
@@ -3970,6 +4059,7 @@ function frame(){
   updateBarks();
   updateAnimals();
   updateGrass();
+  updateDayNight();
   updateHall();
   updateFight();
   checkDialogDistance();

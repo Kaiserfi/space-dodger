@@ -15,6 +15,10 @@ async function offlineDb(page){
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
   });
+  // a safety net: if any request to the database still leaves the browser (say, another route caught it first and fetched it),
+  // stop the test straight away rather than touch the live game
+  page.on('request', req => { if (/firebase(io)?\.(com|app)/i.test(req.url()) && !req.url().startsWith('http://localhost')) {
+    req.response().then(res => { if (res && res.headers()['server']) { console.error('LIVE DATABASE REQUEST ESCAPED: ' + req.method() + ' ' + req.url()); process.exit(2); } }).catch(() => {}); } });
   return { count: () => caught };
 }
 module.exports = { offlineDb };
