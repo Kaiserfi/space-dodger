@@ -137,6 +137,7 @@
 </div>
 <button id="logoutBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
 <div id="hint">Tap to walk. Two fingers pinch to zoom and slide to turn. Mouse: middle-drag to turn, scroll to zoom.</div>
+<div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center">Smelting bronze...<div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
 <div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
 <button id="lookBtn">Change look</button>
 <div id="creator" hidden>
@@ -827,6 +828,7 @@ function levelUpSound(){
   }
 }
 function cancelChop(){
+  stopSmelting();
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
@@ -838,6 +840,7 @@ function clickNode(rec){
   if (rec.state === 'growing') { showToast('It is still growing back. Give it a moment.'); return; }
   if (rec.state === 'claiming') { showToast('Someone else is taking this right now.'); return; }
   if (rec.state !== 'standing') return;
+  if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door') { /* no tool needed */ }
@@ -865,14 +868,43 @@ function removeItem(name){
   if (--it.qty <= 0) bag.splice(bag.indexOf(it), 1);
   renderBag(); return true;
 }
+// smelting takes time: one bar every SMELT_MS, carrying on by itself while there is ore and room in the bag.
+// Clicking the furnace again while it works does nothing, and walking away stops it.
+const SMELT_MS = 2400;
+let smelting = null;   // { rec, t0 } while a bar is in the furnace
+const canSmelt = () => hasItem('Copper ore') && hasItem('Tin ore') && (bag.length < BAG_SIZE || hasItem('Bronze bar'));
 function smelt(rec){
+  if (smelting) return;
   if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; }
-  if (bag.length >= BAG_SIZE && !hasItem('Bronze bar')) { showToast('Your bag is full.'); return; }   // check room before taking the ores
+  if (!canSmelt()) { showToast('Your bag is full.'); return; }   // check room before starting
+  smelting = { rec, t0: performance.now() };
+  setAct({ k: 'smelt', t: Date.now() });
+  document.getElementById('smeltBar').style.display = 'block';
+}
+function stopSmelting(msg){
+  if (!smelting) return;
+  smelting = null;
+  document.getElementById('smeltBar').style.display = 'none';
+  if (ONLINE.act && ONLINE.act.k === 'smelt') setAct(null);
+  if (msg) showToast(msg);
+}
+function updateSmelt(){
+  if (!smelting) return;
+  const k = (performance.now() - smelting.t0) / SMELT_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, smelting.rec.x, smelting.rec.z);
+  heroAnim.mode = 'work';
+  if (k < 1) return;
+  // the bar is done: the ores go in, a bar comes out
+  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting('You have run out of ore.'); return; }
   removeItem('Copper ore'); removeItem('Tin ore');
-  setAct({ k: 'smelt', t: Date.now() }); setTimeout(() => setAct(null), 2000);
   clinkSound();
   addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6);
-  showToast('You smelt a bronze bar.  +6 Smithing XP');
+  showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6 Smithing XP`);
+  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting(); return; }
+  if (!canSmelt()) { stopSmelting('Your bag is full.'); return; }
+  smelting.t0 = performance.now();   // the next bar goes in
+  setAct({ k: 'smelt', t: Date.now() });
 }
 // ----- smithing at the anvil: bronze bars become gear, and gear is worn from the bag -----
 function openSmithing(){ document.getElementById('smithPanel').hidden = false; renderSmith(); }
@@ -1444,6 +1476,12 @@ function poseChibi(g, mode, t, tool = 'axe'){
     AL.rotation.x = -s * 0.55; AR.rotation.x = s * 0.55;
     c.body.position.y = Math.abs(Math.cos(t * 9)) * 0.07;   // a little hop in each step
     c.head.rotation.z = s * 0.05;
+  } else if (mode === 'work') {
+    // tending the furnace: both hands forward, working the bellows
+    const w = Math.sin(now * 5);
+    AL.rotation.set(-1.1 + w * 0.15, 0, -0.15); AR.rotation.set(-1.1 - w * 0.15, 0, 0.15);
+    c.body.rotation.x = 0.08; c.body.position.y = Math.abs(w) * 0.02;
+    L.rotation.x = R.rotation.x = 0;
   } else if (mode === 'swing') {
     const arm = swingArm(t, tool);
     AR.rotation.set(arm, 0, -0.08); AL.rotation.set(arm + 0.12, 0, 0.32);   // both hands on the handle
@@ -1603,7 +1641,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -2315,7 +2353,7 @@ function removeRemote(id){
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
 const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 2200, fish: 2200 };
+const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 2200 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -2384,7 +2422,7 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else poseChibi(r.sprite, moving ? 'walk' : 'idle', r.tick / 60);
+    } else poseChibi(r.sprite, act && act.k === 'smelt' ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -2423,6 +2461,7 @@ function updateMotes(now){
 }
 function frame(){
   updateWalk();
+  updateSmelt();
   updateHeroAnim();
   updateTrees();
   updateDebris();
