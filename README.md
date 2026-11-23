@@ -42,7 +42,7 @@ A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 - **Skills:** chop trees with an axe, mine copper and tin with a pickaxe, smelt bronze at the furnace, smith at the anvil, fish shrimp at the river with a net, and cook them on any cottage fireplace (low levels burn some). Click food in your bag to eat it.
 - **The farm:** east of the hall, run by Bram the farmer and Hilde. Cows, sheep, a pig and hens wander about and make a sound now and then. Click an animal to meet it.
 - **Villagers:** the village has a baker, a woodcutter, an angler, a smith, a trader, a guard, an old gossip, a kid, a bard, a forester, a miner and an old fisherman. Click one to talk: each has a personality, and what they say changes the more you talk to them (and sometimes mentions your skills). Walk near them and they make remarks out loud. Doors open and close when clicked.
-- **Chat:** press Enter to type. Your line shows above your character in yellow.
+- **Chat:** press Enter to type. Your line shows above your character in yellow. Rude words are masked with `*` before they're sent and again when they're shown, including letters spaced out or swapped for numbers. Rude names are refused when you join.
 - **Settings:** the settings tab (under the Gear tab on the right) has Music and Sounds volume sliders; tap the speaker icon next to either to mute it. Settings are saved in your browser.
 - **Log out:** the button in the top left saves your progress and returns you to the arcade.
 
@@ -84,5 +84,5 @@ By default scores are saved **on that device only**. To make a shared **online**
 
 Each name keeps only its best score, and only higher scores can replace it. Note: this is a friends-and-family leaderboard. Anyone technical could still post a fake score, and two people using the same name share one entry.
 
-## 🛡️ Name filter
-Pilot names are checked against a block list so the leaderboard stays kid-friendly. Names that match are refused when entered and shown as `*****` if one ever reaches the board. The list (stored encoded in `index.html`) combines a hand-made list with entries from [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) (CC BY 4.0) and [zacanger/profane-words](https://github.com/zacanger/profane-words) (MIT).
+## 🛡️ Name and chat filter
+The shared list lives in `word-filter.js` and also filters ITAP Adventure's chat and names. Pilot names are checked against a block list so the leaderboard stays kid-friendly. Names that match are refused when entered and shown as `*****` if one ever reaches the board. The list (stored encoded in `index.html`) combines a hand-made list with entries from [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) (CC BY 4.0) and [zacanger/profane-words](https://github.com/zacanger/profane-words) (MIT).
