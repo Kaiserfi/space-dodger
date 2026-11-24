@@ -210,7 +210,7 @@
   <div class="bagHead">Gear</div>
   <div class="gearList" id="gearList"></div>
 </div>
-<div id="smithPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
+<div id="smithPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;max-width:calc(100vw - 32px);background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Anvil</span><button id="smithClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
   <div id="smithList" style="padding:6px 10px"></div>
 </div>
@@ -1483,13 +1483,14 @@ function barCount(){ const b = bag.find(i => i.name === 'Bronze bar'); return b 
 function renderSmith(){
   const lvl = levelOf(SKILL_XP.Smithing), bars = barCount();
   document.getElementById('smithList').innerHTML = RECIPES.map((r, i) => {
-    const ok = lvl >= r.level && bars >= r.bars;
+    const ok = lvl >= r.level && bars >= r.bars, most = Math.floor(bars / r.bars);
+    const btn = (n, label) => `<button data-r="${i}" data-n="${n}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 7px;cursor:pointer;${ok ? '' : 'opacity:.45;cursor:default'}">${label}</button>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ITEMS[r.name].icon}
       <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} bronze bar${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small><br><small style="color:#9ac87a">${statText(r.name)}</small></span>
-      <button data-r="${i}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Make</button></div>`;
+      <span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;max-width:112px">${btn(1, '1')}${btn(5, '5')}${btn('x', 'X')}${btn('all', 'All' + (ok ? ' (' + most + ')' : ''))}</span></div>`;
   }).join('');
 }
-function makeGear(r){
+function makeGear(r, n = 1){
   if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
   if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
@@ -1498,12 +1499,13 @@ function makeGear(r){
   // hammering takes a moment: the bars are used when the piece is finished, so walking away wastes nothing
   document.getElementById('smithPanel').hidden = true;
   const anvil = trees.find(t => t.userData.rec && t.userData.rec.kind === 'anvil');
-  smithing = { r, t0: performance.now(), rec: anvil && anvil.userData.rec, hits: 0 };
-  document.getElementById('smeltLabel').textContent = `Smithing a ${r.name.toLowerCase()}...`;
+  smithing = { r, t0: performance.now(), rec: anvil && anvil.userData.rec, hits: 0, left: n, total: n };   /* a batch: one piece after another */
+  smithLabel();
   document.getElementById('smeltBar').style.display = 'block';
   setAct({ k: 'smith', t: Date.now() });
 }
 let smithing = null;
+function smithLabel(){ const s = smithing; document.getElementById('smeltLabel').textContent = s.total > 1 ? `Smithing ${s.r.name.toLowerCase()}s (${s.total - s.left + 1} of ${s.total})...` : `Smithing a ${s.r.name.toLowerCase()}...`; }
 function smithTime(r){ return 1800 + r.bars * 700; }
 function stopSmithing(){ if (!smithing) return; smithing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'smith') setAct(null); }
 function updateSmith(){
@@ -1514,11 +1516,15 @@ function updateSmith(){
   heroAnim.mode = 'work';
   const hits = Math.floor(k * 4); if (hits > smithing.hits && k < 1) { smithing.hits = hits; anvilSound(); }   // a clang every so often
   if (k < 1) return;
-  const r = smithing.r; stopSmithing();
-  if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
+  const r = smithing.r;
+  if (barCount() < r.bars) { stopSmithing(); showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
+  if (bag.length >= BAG_SIZE && !hasItem(r.name)) { stopSmithing(); showToast('Your bag is full.'); return; }
   for (let i = 0; i < r.bars; i++) removeItem('Bronze bar');
   addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); anvilSound();
   showToast(`You make a ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
+  smithing.left--;
+  if (smithing.left <= 0 || barCount() < r.bars || (bag.length >= BAG_SIZE && !hasItem(r.name))) { stopSmithing(); return; }   // done, or out of bars or room
+  smithing.t0 = performance.now(); smithing.hits = 0; smithLabel(); setAct({ k: 'smith', t: Date.now() });   // straight on to the next one
 }
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
@@ -1537,7 +1543,10 @@ function gearBonus(stat){
 }
 document.getElementById('smithClose').addEventListener('click', () => { document.getElementById('smithPanel').hidden = true; });
 document.getElementById('smithList').addEventListener('click', e => {
-  const b = e.target.closest('button[data-r]'); if (b && !b.disabled) makeGear(RECIPES[+b.dataset.r]);
+  const b = e.target.closest('button[data-r]'); if (!b || b.disabled) return;
+  const r = RECIPES[+b.dataset.r], most = Math.floor(barCount() / r.bars), v = b.dataset.n;
+  let n = v === 'all' ? most : v === 'x' ? parseInt(prompt(`How many ${r.name.toLowerCase()}s? (up to ${most})`, String(most)), 10) : +v;
+  if (!(n > 0)) return; makeGear(r, Math.min(n, most));
 });
 // drag an item to another slot to move it; dropping it on another item swaps the two
 let bagDrag = null, bagDragged = false;
