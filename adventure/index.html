@@ -4731,9 +4731,10 @@ function delveExitSpot(){ return { x: RUIN.cellar.x, z: RUIN.cellar.z + 2.7 }; }
 function askDelve(){
   const pd = PARTY.d && PARTY.d.dv;
   if (pd && SNOW() - pd.on < 40 * 60000 && !pd.done && Object.keys(pd.who || {}).some(id => id !== ONLINE.id && !(pd.left && pd.left[id]) && !(pd.dead && pd.dead[id]) && remote[id] && inDelveZone(remote[id].tx, remote[id].tz))) { showToast("Your party is already down there. Wait for them to come back up."); return; }
-  const near = partyNearCellar();
+  const near = partyNearCellar(), shut = partyNearCellar(true).filter(id => !near.includes(id)).map(id => escapeHtml(remote[id].name));
+  const left = shut.length ? `<br><br>${shut.join(', ')} ${shut.length > 1 ? "haven't" : "hasn't"} unlocked the cellar yet and will stay up top.` : '';
   if (near.length) {
-    delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Lead your party down: ${near.map(id => escapeHtml(remote[id].name)).join(', ')} will be asked to join you.<br><br>The creatures grow tougher with every one of you. Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', () => startPartyDelve(near), 'Cancel');
+    delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Lead your party down: ${near.map(id => escapeHtml(remote[id].name)).join(', ')} will be asked to join you.${left}<br><br>The creatures grow tougher with every one of you. Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', () => startPartyDelve(near), 'Cancel');
     return;
   }
   delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Defeat 8 grueling waves using only what's in your bag!<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', startDelve, 'Cancel');
@@ -5291,12 +5292,12 @@ async function saveNow(keepalive){
 function writePresence(force){
   if (!ONLINE.ready || !hero) return;
   const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
-  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr), HP.cur, maxHp(), combatLevel(), PARTY.id].join('|');
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr), HP.cur, maxHp(), combatLevel(), cellarOpen(), PARTY.id].join('|');
   const now = Date.now();
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), pt: PARTY.id || null, t: now };   // e: what you're wearing and holding, so others see it
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), dl: cellarOpen() ? 1 : 0, pt: PARTY.id || null, t: now };   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -5348,7 +5349,7 @@ function setRemote(id, p){
   r.name = p.n && window.isBadName && isBadName(p.n) ? 'Traveller' : (p.n || 'Traveller');
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
-  r.cb = typeof p.cb === 'number' ? p.cb : null; r.pt = p.pt || null;
+  r.cb = typeof p.cb === 'number' ? p.cb : null; r.pt = p.pt || null; r.dl = !!p.dl;
   r.st = typeof p.st === 'number' ? p.st : -1; r.rd = p.rd || null; r.tr = p.tr || null; r.hp = Array.isArray(p.hp) ? p.hp : null;
   registerPlayerSprite(id, r);   // clickable, for the player menu   // sitting at the bonfire, and out of the goblin raid
   r.face = p.f === -1 ? -1 : 1;
@@ -6011,7 +6012,8 @@ function onParties(){
   // my party is going down the cellar, and I've been asked along
   const dv = PARTY.d && PARTY.d.dv;
   if (dv && dv.ask && dv.ask[me] && !DELVE && dv.on !== dvAskSeen && SNOW() - dv.on < 25000 && !(dv.who && dv.who[me])) {
-    dvAskSeen = dv.on; const lead = remote[dv.host] ? remote[dv.host].name : 'Your party leader';
+    dvAskSeen = dv.on;
+    if (!cellarOpen()) { showToast("Your party is heading down into the cellar, but you haven't unlocked it yet."); return; } const lead = remote[dv.host] ? remote[dv.host].name : 'Your party leader';
     delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">${escapeHtml(lead)} is leading your party down into the cellar.<br><br>Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Will you go with them?</div>`, 'Accept', () => {
       const d2 = PARTY.d && PARTY.d.dv; if (!d2 || d2.on !== dv.on || d2.done) { showToast("Too late, they've gone ahead."); return; }
       pput(partyPath(PARTY.id, '/dv/who/' + me), 1); startDelve({ party: PARTY.id, on: dv.on }); }, 'Stay behind');
@@ -6049,9 +6051,9 @@ function leaveParty(quiet){
 }
 function partyMark(what){ if (DELVE && DELVE.party) pput(partyPath(DELVE.party, `/dv/${what}/${ONLINE.id}`), 1); }
 // party members (online) waiting by the cellar doors
-function partyNearCellar(){
+function partyNearCellar(all){   /* only those who've earned their way in, unless all is asked for */
   if (!PARTY.d) return [];
-  return Object.keys(PARTY.d.m || {}).filter(id => id !== ONLINE.id && remote[id] && Math.hypot(remote[id].tx - RUIN.cellar.x, remote[id].tz - RUIN.cellar.z) < 18);
+  return Object.keys(PARTY.d.m || {}).filter(id => id !== ONLINE.id && remote[id] && (all || remote[id].dl) && Math.hypot(remote[id].tx - RUIN.cellar.x, remote[id].tz - RUIN.cellar.z) < 18);
 }
 // ----- party frames: each member's name, combat level and health, down the left of the screen -----
 let partyFramesDirty = true, partyFramesAt = 0;

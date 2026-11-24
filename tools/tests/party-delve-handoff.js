@@ -8,7 +8,7 @@ const HOOK = `window.__t = {
   yes: () => { const el = document.getElementById('delveAsk'); if (el && !el.hidden) el.querySelector('[data-a=y]').click(); return !!el; },
   cellar: () => { hero.position.set(RUIN.cellar.x + 1, 0, RUIN.cellar.z + 3); walkTarget = null; },
   lead: () => startPartyDelve(partyNearCellar()),
-  strong: () => { SKILL_XP.Melee = 25 * 60 * 60; SKILL_XP.Hitpoints = 25 * 60 * 60; HP.cur = maxHp(); },
+  strong: () => { for (const k in KILLS) KILLS[k] = 10; SKILL_XP.Melee = 25 * 60 * 60; SKILL_XP.Hitpoints = 25 * 60 * 60; HP.cur = maxHp(); },
   smite: () => { for (const m of DELVE.mons) if (m.state !== 'dying' && m.state !== 'dead') { if (m.ghost) partyHit(m, 50); else { m.hp = 0; m.state = 'dying'; m.dieT = performance.now(); } } },
   fx: () => JSON.stringify(fxSeen),
   attack: () => { const m = DELVE.mons.find(q => q.state === 'standing' || q.state === 'engaged'); if (m && !FIGHT) startFight(m); return !!m; },
