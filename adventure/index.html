@@ -373,7 +373,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 98 && z > -11 && z < 16);   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 112 && z > -11 && z < 50);   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
@@ -3158,7 +3158,8 @@ function roadPath(pts, w = 2.2){
   PATHS.push({ pts: sp.map(v => [v.x, v.z]), w });
 }
 function paintPaths(){
-  const X0 = -114, X1 = 66, Z0 = -14, Z1 = 62, PPU = 16, W = (X1 - X0) * PPU, H = (Z1 - Z0) * PPU;
+  const X0 = -114, X1 = 112, Z0 = -14, Z1 = 62, PPU = 16,   // wide enough for the fields, the windmill and the pens out east
+    W = (X1 - X0) * PPU, H = (Z1 - Z0) * PPU;
   const toPx = ([x, z]) => [(x - X0) * PPU, (z - Z0) * PPU];
   const r = (() => { let q = 31; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
   // a mask of every path: a few strokes from wide and faint to the full width, so the edges fade into the grass
@@ -3694,10 +3695,128 @@ function makeGoblin(o = {}){
   return g;
 }
 
+// ----- the farm biome's creatures, from Idle Tap Adventure: chickens, cows, giant rats and angry farmers -----
+// The animals are their own toon-shaded models with a pose function; the farmer is one of our chibi people with a pitchfork.
+function makeFarmMonster(kind){
+  const g = new THREE.Group(), P = (parent, geo, col, x, y, z, ol = true) => chibiPart(parent, geo, col, x, y, z, ol);
+  const parts = {}; let pose;
+  if (kind === 'chicken') {   // a plump white hen: red comb and wattle, yellow beak and legs, a fan of tail feathers
+    const body = new THREE.Group(); g.add(body); parts.body = body;
+    P(body, gRound(0.45, 16), 0xf3ead6, 0, 0.72, 0).scale.set(1, 0.88, 1.25);
+    for (let i = 0; i < 3; i++) { const f = P(body, geo('henTail', () => new THREE.ConeGeometry(0.16, 0.6, 6)), 0xe6dac0, (i - 1) * 0.14, 1.0, -0.55); f.rotation.x = -0.9; f.rotation.z = (i - 1) * 0.25; }
+    parts.wings = [-1, 1].map(s => { const w = new THREE.Group(); w.position.set(s * 0.4, 0.82, 0.02); body.add(w); P(w, gRound(0.24, 10), 0xe9dcc2, 0, -0.08, -0.06).scale.set(0.35, 0.8, 1.2); return w; });
+    const head = new THREE.Group(); head.position.set(0, 1.12, 0.42); body.add(head); parts.head = head;
+    P(head, gRound(0.24, 14), 0xf6efe0, 0, 0, 0);
+    for (let i = 0; i < 3; i++) P(head, gRound(0.07, 8), 0xd8282a, 0, 0.24 + (i === 1 ? 0.04 : 0), -0.08 + i * 0.09, false);
+    P(head, geo('henBeak', () => new THREE.ConeGeometry(0.07, 0.2, 6)), 0xf0b030, 0, -0.02, 0.27).rotation.x = Math.PI / 2;
+    P(head, gRound(0.06, 8), 0xc81e22, 0, -0.14, 0.18, false).scale.set(0.8, 1.4, 0.8);
+    for (const s of [-1, 1]) P(head, gRound(0.035, 6), 0x15110d, s * 0.17, 0.05, 0.13, false);
+    parts.legs = [-1, 1].map(s => { const l = new THREE.Group(); l.position.set(s * 0.16, 0.42, 0); g.add(l); P(l, geo('henLeg', () => new THREE.CylinderGeometry(0.035, 0.035, 0.38, 5)), 0xe8b030, 0, -0.2, 0);
+      for (const a of [-0.5, 0, 0.5]) { const t = P(l, geo('henToe', () => new THREE.BoxGeometry(0.04, 0.03, 0.16)), 0xe8b030, Math.sin(a) * 0.06, -0.4, 0.06, false); t.rotation.y = a; } return l; });
+    pose = (mode, k, now) => { const H = parts.head, [WL, WR] = parts.wings, [LL, LR] = parts.legs;
+      body.rotation.set(0, 0, 0); body.position.y = 0; H.rotation.set(0, 0, 0); H.position.set(0, 1.12, 0.42); WL.rotation.z = WR.rotation.z = 0; LL.rotation.x = LR.rotation.x = 0;
+      if (mode === 'walk') { const s = Math.sin(now * 14); LL.rotation.x = s * 0.6; LR.rotation.x = -s * 0.6; H.position.z = 0.42 + Math.max(0, s) * 0.08; body.position.y = Math.abs(s) * 0.04; }
+      else if (mode === 'swing') { const p = k < 0.45 ? k / 0.45 : 1 - (k - 0.45) / 0.55; H.position.set(0, 1.12 - 0.35 * p, 0.42 + 0.35 * p); H.rotation.x = 0.9 * p; body.rotation.x = 0.25 * p; WL.rotation.z = -1.1 * Math.sin(k * Math.PI * 3); WR.rotation.z = 1.1 * Math.sin(k * Math.PI * 3); }   // a sharp peck, wings beating
+      else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.x = -0.35 * b; WL.rotation.z = -1.3 * b; WR.rotation.z = 1.3 * b; }
+      else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.y = 0.25 * b; WL.rotation.z = -0.9 * b; WR.rotation.z = 0.9 * b; }   // a startled hop
+      else if (mode === 'dead') { body.rotation.z = 1.4 * k; body.position.y = -0.25 * k; }
+      else if (mode === 'ready') { H.rotation.x = -0.2 + Math.sin(now * 6) * 0.1; WL.rotation.z = -0.3; WR.rotation.z = 0.3; }
+      else { const peck = (now % 4) < 0.5 ? Math.sin((now % 4) / 0.5 * Math.PI) : 0; H.rotation.x = peck * 0.8; H.position.z = 0.42 + peck * 0.1; } };   // pecking at the ground now and then
+    g.scale.setScalar(1.1);
+  } else if (kind === 'cow') {   // a black-and-white dairy cow: patches, a pink muzzle and udder, little horns
+    const body = new THREE.Group(); g.add(body); parts.body = body;
+    const torso = P(body, gCapsule(0.62, 1.25), 0xf0eee8, 0, 1.3, 0); torso.rotation.x = Math.PI / 2;
+    for (const [x, y, z, s] of [[0.5, 1.45, 0.3, 0.42], [-0.52, 1.3, -0.35, 0.48], [0.45, 1.15, -0.75, 0.3], [-0.2, 1.88, 0.2, 0.38], [0.15, 1.85, -0.6, 0.3], [-0.55, 1.4, 0.65, 0.26]]) {
+      const pt = P(body, gRound(s, 10), 0x1e1c1a, x, y, z, false); const nx = x / Math.hypot(x, y - 1.3) || 0; pt.scale.set(Math.abs(x) > 0.3 ? 0.35 : 1, Math.abs(x) > 0.3 ? 1 : 0.35, 1.1); }
+    const head = new THREE.Group(); head.position.set(0, 1.65, 1.2); body.add(head); parts.head = head;
+    P(head, geo('cowHead', () => new THREE.BoxGeometry(0.62, 0.62, 0.72)), 0xf0eee8, 0, 0, 0.1);
+    P(head, geo('cowCrown', () => new THREE.BoxGeometry(0.64, 0.24, 0.5)), 0x1e1c1a, 0, 0.22, -0.02, false);
+    P(head, geo('cowMuzzle', () => new THREE.BoxGeometry(0.5, 0.34, 0.24)), 0xf0a8a8, 0, -0.16, 0.52);
+    for (const s of [-1, 1]) { P(head, gRound(0.04, 6), 0x5a2a2a, s * 0.1, -0.12, 0.65, false); P(head, gRound(0.05, 6), 0x15110d, s * 0.25, 0.08, 0.38, false);
+      const horn = P(head, geo('cowHorn', () => new THREE.ConeGeometry(0.06, 0.28, 6)), 0xe8dcb0, s * 0.28, 0.42, 0); horn.rotation.z = -s * 0.6;
+      P(head, gRound(0.12, 8), 0x1e1c1a, s * 0.4, 0.18, -0.12, false).scale.set(1.4, 0.6, 0.5); }
+    P(body, gRound(0.26, 10), 0xf0a0a8, 0, 0.72, -0.45).scale.set(1, 0.7, 1);
+    for (const [x, z] of [[-0.1, -0.38], [0.1, -0.38], [-0.1, -0.55], [0.1, -0.55]]) P(body, geo('teat', () => new THREE.CylinderGeometry(0.03, 0.025, 0.14, 5)), 0xe88a96, x, 0.55, z, false);
+    const tail = new THREE.Group(); tail.position.set(0, 1.6, -1.25); body.add(tail); parts.tail = tail;
+    P(tail, geo('cowTail', () => new THREE.CylinderGeometry(0.03, 0.04, 0.9, 5)), 0xf0eee8, 0, -0.45, -0.05); P(tail, gRound(0.09, 8), 0x1e1c1a, 0, -0.92, -0.05, false).scale.set(1, 1.6, 1);
+    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.36, 0.85, sz * 0.75); g.add(l);
+      P(l, geo('cowLeg', () => new THREE.CylinderGeometry(0.13, 0.11, 0.8, 7)), 0xf0eee8, 0, -0.4, 0); P(l, geo('hoof', () => new THREE.CylinderGeometry(0.12, 0.13, 0.12, 7)), 0x2a2420, 0, -0.82, 0); parts.legs.push(l); }
+    pose = (mode, k, now) => { const H = parts.head, L = parts.legs;
+      body.rotation.set(0, 0, 0); body.position.set(0, 0, 0); H.rotation.set(0, 0, 0); L.forEach(l => l.rotation.x = 0); parts.tail.rotation.x = Math.sin(now * 2) * 0.3;
+      if (mode === 'walk') { const s = Math.sin(now * 6); L[0].rotation.x = L[3].rotation.x = s * 0.35; L[1].rotation.x = L[2].rotation.x = -s * 0.35; H.rotation.x = Math.sin(now * 6) * 0.06; }
+      else if (mode === 'swing') { const lower = k < 0.35 ? k / 0.35 : 1, hit = k > 0.35 && k < 0.6 ? Math.sin((k - 0.35) / 0.25 * Math.PI) : 0, back = k >= 0.6 ? 1 - (k - 0.6) / 0.4 : 1;
+        H.rotation.x = 0.55 * lower * back; body.position.z = 0.6 * hit - 0.15 * (k < 0.35 ? lower : 0); body.rotation.x = 0.08 * hit; }   // head down, then a charging butt
+      else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.x = -0.12 * b; H.rotation.x = -0.4 * b; }
+      else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.z = 0.08 * b; }
+      else if (mode === 'dead') { body.rotation.z = 1.35 * k; body.position.y = -0.4 * k; L.forEach(l => l.rotation.z = 1.2 * k); }
+      else if (mode === 'ready') { H.rotation.x = 0.3; L[0].rotation.x = Math.max(0, Math.sin(now * 5)) * -0.4; }   // head lowered, pawing the ground
+      else { H.rotation.x = 0.35 + Math.sin(now * 0.8) * 0.15; } };   // grazing
+    g.scale.setScalar(1.05);
+  } else if (kind === 'rat') {   // a giant rat: mangy dark grey, hunched, glowing red eyes, bared teeth and a long pink tail
+    const body = new THREE.Group(); g.add(body); parts.body = body;
+    P(body, gRound(0.55, 16), 0x4a4a50, 0, 0.62, 0).scale.set(1, 0.82, 1.55);
+    P(body, gRound(0.4, 12), 0x55555c, 0, 0.92, -0.2).scale.set(1, 0.8, 1.3);   // the hunched back
+    for (const [x, y, z] of [[0.48, 0.75, 0.1], [-0.3, 1.05, -0.35], [0.35, 0.6, -0.55]]) P(body, gRound(0.12, 8), 0x9a4a3a, x, y, z, false).scale.set(0.5, 1, 1.4);   // wounds
+    const head = new THREE.Group(); head.position.set(0, 0.7, 0.85); body.add(head); parts.head = head;
+    P(head, geo('ratSnout', () => new THREE.ConeGeometry(0.3, 0.75, 10)), 0x4e4e55, 0, 0, 0.3).rotation.x = Math.PI / 2;
+    P(head, gRound(0.06, 8), 0xd88a8a, 0, 0, 0.68, false);
+    const jaw = new THREE.Group(); jaw.position.set(0, -0.12, 0.1); head.add(jaw); parts.jaw = jaw;
+    P(jaw, geo('ratJaw', () => new THREE.BoxGeometry(0.28, 0.08, 0.45)), 0x3e3e44, 0, -0.04, 0.22);
+    for (const s of [-1, 1]) { P(head, geo('ratFang', () => new THREE.ConeGeometry(0.03, 0.12, 5)), 0xf4ecd8, s * 0.06, -0.12, 0.52, false).rotation.x = Math.PI;
+      const eye = new THREE.Mesh(gRound(0.05, 8), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); eye.position.set(s * 0.17, 0.12, 0.25); head.add(eye);
+      P(head, gRound(0.12, 8), 0xc8807a, s * 0.22, 0.26, -0.05).scale.set(1, 1, 0.4); }
+    const tail = new THREE.Group(); tail.position.set(0, 0.55, -0.82); body.add(tail); parts.tailSegs = [];
+    let prev = tail; for (let i = 0; i < 8; i++) { const sg = new THREE.Group(); sg.position.z = i ? -0.22 : 0; prev.add(sg); P(sg, gCapsule(0.06 - i * 0.005, 0.18), 0xc8807a, 0, 0, -0.11).rotation.x = Math.PI / 2; parts.tailSegs.push(sg); prev = sg; }
+    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.35, 0.35, sz * 0.5); g.add(l);
+      P(l, geo('ratLeg', () => new THREE.CylinderGeometry(0.07, 0.06, 0.34, 6)), 0x3e3e44, 0, -0.15, 0); P(l, geo('ratPaw', () => new THREE.BoxGeometry(0.12, 0.05, 0.16)), 0xc8807a, 0, -0.32, 0.05, false); parts.legs.push(l); }
+    pose = (mode, k, now) => { const H = parts.head, L = parts.legs;
+      body.rotation.set(0, 0, 0); body.position.set(0, 0, 0); H.rotation.set(0, 0, 0); parts.jaw.rotation.x = 0; L.forEach(l => l.rotation.x = 0);
+      parts.tailSegs.forEach((sg, i) => { sg.rotation.y = Math.sin(now * 3 - i * 0.6) * 0.18; sg.rotation.x = 0.06; });
+      if (mode === 'walk') { const s = Math.sin(now * 16); L[0].rotation.x = L[3].rotation.x = s * 0.6; L[1].rotation.x = L[2].rotation.x = -s * 0.6; body.position.y = Math.abs(s) * 0.03; }
+      else if (mode === 'swing') { const wind = k < 0.4 ? k / 0.4 : 0, lunge = k >= 0.4 && k < 0.65 ? Math.sin((k - 0.4) / 0.25 * Math.PI) : 0;
+        body.position.z = -0.25 * wind + 0.7 * lunge; body.rotation.x = -0.15 * wind + 0.15 * lunge; parts.jaw.rotation.x = 0.7 * Math.max(wind, lunge); H.rotation.x = -0.2 * wind; }   // crouch back, then lunge and snap
+      else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.z = -0.25 * b; parts.jaw.rotation.x = 0.4 * b; }
+      else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.x = 0.3 * b; }
+      else if (mode === 'dead') { body.rotation.z = 1.5 * k; body.position.y = -0.2 * k; L.forEach(l => l.rotation.z = 1.3 * k); }
+      else if (mode === 'ready') { parts.jaw.rotation.x = 0.35 + Math.sin(now * 9) * 0.1; body.position.y = Math.sin(now * 5) * 0.03; }   // teeth bared, twitching
+      else { H.rotation.y = Math.sin(now * 1.3) * 0.35; H.rotation.x = Math.sin(now * 7) * 0.05; } };   // sniffing about
+    g.scale.setScalar(1.15);
+  } else {   // the angry farmer: one of us, in a straw hat and blue overalls, scowling, gripping a pitchfork
+    const f = makeChibi({ gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0x5a3a1a, shirt: 0xc8b490, pants: 0x3a5a8a, boots: 0x5a3a22, eye: 0x1e1a2a, cheeks: 'none' });
+    wearHat(f, 'straw');
+    const c = f.userData.chibi;
+    chibiPart(c.body, geo('bib', () => new THREE.BoxGeometry(0.46, 0.42, 0.12)), 0x3a5a8a, 0, 1.08, 0.3);   // the overall bib and its straps
+    for (const s of [-1, 1]) chibiPart(c.body, geo('strap', () => new THREE.BoxGeometry(0.08, 0.5, 0.1)), 0x3a5a8a, s * 0.2, 1.32, 0.25, false).rotation.x = -0.2;
+    for (const s of [-1, 1]) { const brow = chibiPart(c.head, geo('brow', () => new THREE.BoxGeometry(0.2, 0.05, 0.04)), 0x3a2a1a, s * 0.22, 0.17, 0.56, false); brow.rotation.z = s * 0.45; }   // furious eyebrows
+    c.head.children.forEach(m => { if (m.geometry && m.geometry.type === 'TorusGeometry') { m.rotation.z = 0; m.position.y = -0.2; } });   // the smile turned into a scowl
+    const fork = new THREE.Group(); fork.userData.isClub = true; fork.position.set(0, -0.45, 0); fork.rotation.x = -Math.PI / 2 + 0.3; c.arms[1].add(fork);
+    chibiPart(fork, geo('forkHandle', () => new THREE.CylinderGeometry(0.04, 0.05, 1.9, 6)), 0x8a5a2a, 0, -0.55, 0);
+    chibiPart(fork, geo('forkBar', () => new THREE.BoxGeometry(0.36, 0.05, 0.05)), 0x8a9099, 0, -1.5, 0);
+    for (const x of [-0.16, 0, 0.16]) chibiPart(fork, geo('forkTine', () => new THREE.CylinderGeometry(0.022, 0.012, 0.42, 5)), 0x9aa0a8, x, -1.72, 0);
+    f.userData.farmer = true;
+    return f;
+  }
+  g.userData.pose = pose; g.userData.parts = parts;
+  return g;
+}
+// pose any monster: chibi ones (goblins, farmers) use the people's poses; animals use their own
+function monsterPose(m, mode, k = 0){
+  const now = performance.now() / 1000, c = m.g.userData.chibi;
+  if (c) { if (mode === 'walk' || mode === 'idle') poseChibi(m.g, mode, now); else fightPose(c, mode, k); if (mode === 'walk' || mode === 'idle') c.arms[1].children.forEach(o => { if (o.userData.isClub) o.visible = true; }); return; }
+  if (m.g.userData.pose) m.g.userData.pose(mode, k, now);
+}
+
 function combatLevel(){ return Math.floor((levelOf(SKILL_XP.Melee) * 2 + levelOf(SKILL_XP.Hitpoints)) / 3); }
 function maxHp(){ return levelOf(SKILL_XP.Hitpoints); }
 const MONSTERS = [];
-const MONSTER_TYPES = { goblin: { name: 'Goblin', level: 2, hp: 6, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2600, respawn: 25000 } };
+const MONSTER_TYPES = {
+  goblin: { name: 'Goblin', level: 2, hp: 6, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2600, respawn: 25000, snd: 'goblin' },
+  // the farm biome, from Idle Tap Adventure's monster list (hit points and max hits as there)
+  chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [1, 3] },
+  cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [2, 6] },
+  rat: { name: 'Giant Rat', level: 3, hp: 10, melee: 2, atk: 2, def: 2, maxHit: 2, speed: 2400, respawn: 25000, snd: 'rat', coins: [2, 6] },
+  farmer: { name: 'Angry Farmer', level: 10, hp: 25, melee: 10, atk: 10, def: 10, maxHit: 3, speed: 2400, respawn: 60000, snd: 'farmer', coins: [25, 60] },
+};
 // the classic accuracy roll: compare an attack roll against a defence roll
 function hitChance(attRoll, defRoll){ return attRoll > defRoll ? 1 - (defRoll + 2) / (2 * (attRoll + 1)) : attRoll / (2 * (defRoll + 1)); }
 function playerRolls(){
@@ -3705,13 +3824,13 @@ function playerRolls(){
   return { att: lv * (atk + 64), def: lv * (def + 64), maxHit: Math.max(1, Math.floor(1 + lv * (atk + 64) / 450)) };
 }
 function monsterRolls(t){ const lv = t.melee + 8; return { att: lv * (t.atk + 64), def: lv * (t.def + 64), maxHit: t.maxHit }; }
-function spawnMonster(kind, x, z){
+function spawnMonster(kind, x, z, rad = 3, box = null){
   const t = MONSTER_TYPES[kind];
-  const g = makeGoblin({ skin: [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3] }); g.position.set(x, 0, z); scene.add(g);
+  const g = kind === 'goblin' ? makeGoblin({ skin: [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3] }) : makeFarmMonster(kind); g.position.set(x, 0, z); scene.add(g);
   const rec = { kind: 'monster', type: kind, t, name: `${t.name} (level ${t.level})`, x, z, s: 0.75, state: 'standing', hp: t.hp, home: [x, z], g };
   g.userData.action = 'Attack'; g.userData.name = rec.name; g.userData.rec = rec; trees.push(g);
   rec.bar = document.createElement('div'); rec.bar.className = 'hpBar'; rec.bar.innerHTML = '<i></i>'; rec.bar.style.display = 'none'; document.body.appendChild(rec.bar);
-  rec.wander = { tx: x, tz: z, pause: 60 };
+  rec.wander = { tx: x, tz: z, pause: 60 + Math.random() * 200 }; rec.rad = rad; rec.box = box;   // how far from home it wanders, and the pen it stays in
   MONSTERS.push(rec); return rec;
 }
 let FIGHT = null;
@@ -3763,7 +3882,7 @@ function playerSwing(m){
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(me.att, it.def)) {
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
-      if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); combatSound('hit'); combatSound('goblinHurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
+      if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', Math.round(dmg * 4 / 3)); }
       else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound('clang'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
@@ -3773,7 +3892,7 @@ function playerSwing(m){
 function monsterSwing(m){
   const me = playerRolls(), it = monsterRolls(m.t);
   FIGHT.mAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
-  combatSound('goblinAttack');
+  combatSound((m.t.snd || 'goblin') + 'Attack');
   setTimeout(() => {
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(it.att, me.def)) {
@@ -3785,9 +3904,9 @@ function monsterSwing(m){
   }, 480);
 }
 function killMonster(m){
-  m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie');
-  const coins = 3 + Math.floor(Math.random() * 8);
-  setTimeout(() => { if (addItem('Coins', coins, COIN_ICON)) showToast(`The goblin is defeated! It dropped ${coins} coins.`); }, 900);
+  m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
+  const [c0, c1] = m.t.coins || [3, 10], coins = c0 + Math.floor(Math.random() * (c1 - c0 + 1));
+  setTimeout(() => { if (addItem('Coins', coins, COIN_ICON)) showToast(`The ${m.t.name.toLowerCase()} is defeated! It dropped ${coins} coins.`); }, 900);
   endFight();
 }
 function playerDies(){
@@ -3806,18 +3925,22 @@ function updateFight(){
   for (const m of MONSTERS) {
     const c = m.g.userData.chibi;
     if (m.raid && m.state !== 'dying' && m.state !== 'dead') { /* raiders are moved by updateRaiders */ }
-    else if (m.state === 'dying') { const k = Math.min(1, (now - m.dieT) / 700); fightPose(c, 'dead', k); if (now - m.dieT > 3000) { m.g.visible = false; m.state = 'dead'; } }
-    else if (m.state === 'dead') { if (!m.raid && now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); fightPose(c, 'ready', 0); } }
+    else if (m.state === 'dying') { const k = Math.min(1, (now - m.dieT) / 700); monsterPose(m, 'dead', k); if (now - m.dieT > 3000) { m.g.visible = false; m.state = 'dead'; } }
+    else if (m.state === 'dead') { if (!m.raid && now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); monsterPose(m, 'idle'); } }
     else if (!FIGHT || FIGHT.m !== m) {
       if (m.state === 'standing') {
         const w = m.wander, x = m.g.position.x, z = m.g.position.z;
-        if (w.pause > 0) { w.pause--; poseChibi(m.g, 'idle', 0); }
+        if (w.pause > 0) { w.pause--; monsterPose(m, 'idle'); }
         else { const dx = w.tx - x, dz = w.tz - z, d = Math.hypot(dx, dz);
-          if (d < 0.05) { w.tx = m.home[0] + (Math.random() * 2 - 1) * 3; w.tz = m.home[1] + (Math.random() * 2 - 1) * 3; w.pause = 120 + Math.random() * 200; }
-          else { const st = Math.min(d, 0.022); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); poseChibi(m.g, 'walk', now / 1000); } }
+          if (d < 0.05) { for (let tries = 0; tries < 6; tries++) {   // somewhere near home, inside its pen, and not inside anything solid
+              let tx = m.home[0] + (Math.random() * 2 - 1) * (m.rad || 3), tz = m.home[1] + (Math.random() * 2 - 1) * (m.rad || 3);
+              if (m.box) { tx = Math.max(m.box.x0, Math.min(m.box.x1, tx)); tz = Math.max(m.box.z0, Math.min(m.box.z1, tz)); }
+              if (!hardHit(tx, tz)) { w.tx = tx; w.tz = tz; break; } }
+            w.pause = 120 + Math.random() * 200; }
+          else { const st = Math.min(d, 0.022); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); } }
         m.x = m.g.position.x; m.z = m.g.position.z;
-      } else if (m.state === 'engaged') { poseChibi(m.g, 'idle', 0); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
-      c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
+      } else if (m.state === 'engaged') { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
+      if (c) c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
     }
     // the health bar shows while it is hurt or fighting
     const show = m.state !== 'dead' && (m.hp < m.t.hp || (FIGHT && FIGHT.m === m));
@@ -3842,7 +3965,8 @@ function updateFight(){
   if (FIGHT && now > FIGHT.nextM) { FIGHT.nextM = now + m.t.speed; monsterSwing(m); }
   if (!FIGHT) return;
   const anim = (a, c) => { if (a && now - a.t0 < a.dur) fightPose(c, a.kind, (now - a.t0) / a.dur); else fightPose(c, 'ready', 0); };
-  anim(FIGHT.pAnim, hero.userData.chibi); anim(FIGHT.mAnim, m.g.userData.chibi);
+  anim(FIGHT.pAnim, hero.userData.chibi);
+  if (FIGHT.mAnim && now - FIGHT.mAnim.t0 < FIGHT.mAnim.dur) monsterPose(m, FIGHT.mAnim.kind, (now - FIGHT.mAnim.t0) / FIGHT.mAnim.dur); else monsterPose(m, 'ready');
 }
 // combat sounds, made in code like the rest
 function combatSound(kind){
@@ -3866,6 +3990,19 @@ function combatSound(kind){
   if (kind === 'goblinAttack') voice(0.42, 230, 330, [[700, 3, 1.2], [1600, 4, 0.7]], 0.6, 0.25);
   if (kind === 'goblinHurt') voice(0.28, 520, 760, [[1000, 4, 1.2], [2200, 5, 0.7]], 0.6, 0.12);
   if (kind === 'goblinDie') voice(0.9, 420, 140, [[800, 4, 1.2], [1800, 5, 0.6]], 0.7, 0.15);
+  // the farm's creatures: a squawking hen, a bellowing cow, a screeching rat, and a farmer who shouts at you
+  if (kind === 'chickenAttack') { voice(0.18, 900, 1300, [[1500, 5, 1.2], [3000, 6, 0.6]], 0.55, 0.3); setTimeout(() => voice(0.14, 1100, 900, [[1700, 5, 1]], 0.4, 0.3), 120); }
+  if (kind === 'chickenHurt') voice(0.35, 1300, 800, [[1600, 4, 1.2], [3200, 6, 0.5]], 0.65, 0.4);
+  if (kind === 'chickenDie') voice(0.7, 1200, 500, [[1400, 4, 1.1], [2800, 6, 0.4]], 0.6, 0.35);
+  if (kind === 'cowAttack') voice(0.7, 120, 95, [[300, 4, 1.4], [800, 5, 0.6]], 0.9, 0.08);
+  if (kind === 'cowHurt') voice(0.45, 160, 120, [[350, 4, 1.3], [900, 5, 0.5]], 0.8, 0.1);
+  if (kind === 'cowDie') voice(1.3, 140, 70, [[300, 4, 1.4], [700, 5, 0.5]], 0.8, 0.08);
+  if (kind === 'ratAttack') { voice(0.25, 2200, 2800, [[3000, 6, 1], [5500, 7, 0.5]], 0.45, 0.35); noiseThrough(0.3, 'highpass', 3000, 4000, 0.7, 0.35, 0.01); }
+  if (kind === 'ratHurt') voice(0.22, 2600, 1800, [[3200, 6, 1]], 0.5, 0.4);
+  if (kind === 'ratDie') voice(0.5, 2400, 900, [[2800, 6, 1], [5000, 7, 0.4]], 0.5, 0.4);
+  if (kind === 'farmerAttack') { voice(0.3, 140, 110, [[600, 4, 1.2], [1200, 5, 0.6], [2500, 6, 0.2]], 0.8, 0.06); noiseThrough(0.3, 'bandpass', 600, 2200, 1.4, 0.45, 0.1); }   // a shout and the whoosh of the fork
+  if (kind === 'farmerHurt') voice(0.3, 160, 115, [[520, 4, 1.2], [1150, 5, 0.6]], 0.8, 0.05);
+  if (kind === 'farmerDie') voice(0.9, 150, 80, [[500, 4, 1.2], [1100, 5, 0.5]], 0.8, 0.05);
 }
 // remarks villagers say out loud now and then when you are nearby
 const BARKERS = [], NPC_SPOTS = [];
@@ -3930,13 +4067,14 @@ function populateVillage(){
   // the fishing spot in the river
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
-  buildFarmland(); farmRoads();   // the fields east of the farm, before the props are placed
+  buildFarmland(); farmRoads(); buildFarmPens();   // the fields east of the farm, before the props are placed
   bonfireRoads();   // laid before the props, so lamps, benches and barrels keep off these paths too
   const off = (x, z, r) => offPath(x, z, 1.1 + r);
   const [wbx, wbz] = off(-30, 14.6, 1.6);
   const wenna = TOWNSFOLK.find(f => f.name === 'Wenna'); wenna.x = wbx; wenna.z = wbz;
   for (const f of TOWNSFOLK) addWorldNpc(f.x, f.z, f);
   buildFarm();
+  spawnFarmMonsters();
   // trees and oaks scattered between the hall, the farm and the smithy, kept clear of roads and buildings
   const nearRoad = (x, z) => ROADS.some(([x0, z0, x1, z1]) => { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - x0 - dx * t, z - z0 - dz * t) < 3.2; });
   [[30, 25], [33, 30, 1], [25, 28], [29, 36], [40, 27], [46, 22, 1], [50, 28], [55, 21], [57, 32, 1], [45, 35], [50, 40], [54, 37, 1], [60, 26],
@@ -4556,6 +4694,37 @@ function buildFarmland(){
   add(new THREE.CylinderGeometry(0.75, 0.35, 0.8, 4), texMat(woodTex(), 1, 1, 0x8a6438), 0, 1.4, 0, hop).rotation.y = Math.PI / 4;
   solidAt(M.x + 1.9, M.z + 3.4, 0.6);
   hop.userData = { action: 'Mill wheat', name: 'Windmill hopper', rec: { kind: 'hopper', state: 'standing', x: M.x + 1.9, z: M.z + 3.4, onClick: () => hopperClick() } }; trees.push(hop);
+}
+// the farm biome, south of the windmill path: a chicken pen and a cow pen, giant rats loose about the place, and angry farmers on patrol.
+// None of them start a fight; they only fight back.
+function buildFarmPens(){
+  const add = (geo, m, x, y, z, parent = town) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  const fence = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(L / 2.2)), a = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) add(new THREE.BoxGeometry(0.24, 1.45, 0.24), 0x7a5a36, x0 + (x1 - x0) * i / n, 0.72, z0 + (z1 - z0) * i / n);
+    for (const y of [0.55, 1.15]) add(new THREE.BoxGeometry(0.12, 0.14, L), 0x8a6a42, (x0 + x1) / 2, y, (z0 + z1) / 2).rotation.y = a;
+    solidBoxes.push({ x0: Math.min(x0, x1) - 0.2, x1: Math.max(x0, x1) + 0.2, z0: Math.min(z0, z1) - 0.2, z1: Math.max(z0, z1) + 0.2 }); };
+  const pen = (X0, X1, Z0, Z1, gx) => { fence(X0, Z0, gx - 1.3, Z0); fence(gx + 1.3, Z0, X1, Z0); fence(X0, Z1, X1, Z1); fence(X0, Z0, X0, Z1); fence(X1, Z0, X1, Z1); };   // the gate faces the path to the north
+  // the chicken pen, with a little coop in the corner
+  pen(64, 78, 17, 27, 71);
+  const coop = new THREE.Group(); coop.position.set(75, 0, 24.3); town.add(coop);
+  add(new THREE.BoxGeometry(2.6, 1.6, 2), texMat(woodTex(), 2, 1, 0xb08458), 0, 0.8, 0, coop);
+  add(new THREE.BoxGeometry(0.6, 0.6, 0.06), mat(0x2a1a10), -0.6, 0.5, 1.02, coop);
+  const roof = add(new THREE.ConeGeometry(2.05, 1.1, 4), new THREE.MeshStandardMaterial({ map: roofTex, color: 0x7a4a3a, flatShading: true }), 0, 2.15, 0, coop); roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 0.8);
+  add(new THREE.BoxGeometry(0.2, 0.08, 1.4), mat(0x7a5530), -0.6, 0.12, 1.6, coop).rotation.x = -0.35;   // a ramp up to the hatch
+  solidBoxes.push({ x0: 73.4, x1: 76.6, z0: 23, z1: 25.6 });
+  // the cow pen, with a trough and hay
+  pen(84, 104, 17, 33, 93);
+  add(new THREE.BoxGeometry(2.6, 0.7, 0.9), texMat(woodTex(), 2, 1, 0x7a5a3a), 100, 0.35, 19.6); add(new THREE.BoxGeometry(2.4, 0.06, 0.7), new THREE.MeshStandardMaterial({ color: 0x3a7ab0, roughness: 0.1 }), 100, 0.68, 19.6);
+  solidBoxes.push({ x0: 98.6, x1: 101.4, z0: 19, z1: 20.2 });
+  for (const [x, z, r] of [[87, 30.5, 0.3], [89.2, 31, -0.2]]) { add(new THREE.CylinderGeometry(0.8, 0.8, 1.3, 9), 0xd8b850, x, 0.8, z).rotation.set(Math.PI / 2, 0, r); solidAt(x, z, 0.9); }
+  // paths from the windmill path down to each gate
+  roadPath([[71, 11], [71, 16.2]]); roadPath([[93, 11], [93, 16.2]]);
+}
+function spawnFarmMonsters(){
+  [[68, 20], [70, 23.5], [73, 20.5], [67, 25], [72, 25.5], [75.5, 20]].forEach(([x, z]) => spawnMonster('chicken', x, z, 2.5, { x0: 65, x1: 77, z0: 18, z1: 26 }));
+  [[88, 21], [96, 23], [100, 28], [91, 28]].forEach(([x, z]) => spawnMonster('cow', x, z, 4, { x0: 85.5, x1: 102.5, z0: 18.5, z1: 31.5 }));
+  [[68, 37], [80, 35], [90, 41], [101, 39], [75, 45], [84, 46]].forEach(([x, z]) => spawnMonster('rat', x, z, 4));
+  [[81, 29, 4], [95, 42, 7], [69, 41, 5]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r));
 }
 function farmRoads(){
   roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
