@@ -3647,9 +3647,58 @@ function talkerOf(rec){
       best = { x: r.sprite.position.x, z: r.sprite.position.z, t: r.actAt }; }
   return best;
 }
+// ----- the guards' day: on watch at their post, out patrolling their stretch of road, a torch after dark.
+// Worked out from the clock alone, so every player sees each guard in the same place.
+const GUARD_DAY = [[0, 6, 'post'], [6, 7.5, 'post'], [7.5, 12, 'patrol'], [12, 13, 'post'], [13, 19, 'patrol'], [19, 22, 'patrol'], [22, 24, 'post']];
+const GUARD_NAMES = ['Osric', 'Edda', 'Bertram', 'Godwin'], GUARD_SPEED = 1.5, GUARD_REST = 5000;
+const guardDark = h => h >= 19.5 || h < 6.5;
+// their beat: the road beside their post, as far as about 18 units one way (the other way if that's too short)
+function guardBeat(w){
+  if (w.beat !== undefined) return w.beat;
+  const px = w.lx, pz = w.lz; let bi = -1, bd = 1e9, bq = null;
+  ROADS.forEach(([x0, z0, x1, z1], i) => { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / (dx * dx + dz * dz || 1))), qx = x0 + dx * t, qz = z0 + dz * t, d = Math.hypot(px - qx, pz - qz); if (d < bd) { bd = d; bi = i; bq = [qx, qz]; } });
+  if (bi < 0 || bd > 8) return (w.beat = null);
+  const walk = dir => { const pts = [bq]; let len = 0, i = bi, end = dir > 0 ? [ROADS[i][2], ROADS[i][3]] : [ROADS[i][0], ROADS[i][1]];
+    for (let n = 0; n < 40 && len < 18; n++) { const last = pts[pts.length - 1], seg = Math.hypot(end[0] - last[0], end[1] - last[1]);
+      if (len + seg > 18) { const k = (18 - len) / seg; pts.push([last[0] + (end[0] - last[0]) * k, last[1] + (end[1] - last[1]) * k]); len = 18; break; }
+      pts.push(end); len += seg; const nx = ROADS[i + dir]; if (!nx) break;
+      const join = dir > 0 ? [nx[0], nx[1]] : [nx[2], nx[3]]; if (Math.hypot(join[0] - end[0], join[1] - end[1]) > 0.05) break;
+      i += dir; end = dir > 0 ? [nx[2], nx[3]] : [nx[0], nx[1]]; }
+    return { pts, len }; };
+  let b = walk(1); if (b.len < 10) { const b2 = walk(-1); if (b2.len > b.len) b = b2; }
+  // keep only the part someone can walk along without bumping into anything
+  const ok = [b.pts[0]]; let len = 0;
+  for (let i = 1; i < b.pts.length; i++) { const [ax, az] = ok[ok.length - 1], [bx, bz] = b.pts[i], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.4)); let cut = -1;
+    for (let j = 1; j <= n; j++) if (npcHit(ax + (bx - ax) * j / n, az + (bz - az) * j / n)) { cut = j - 1; break; }
+    if (cut >= 0) { if (cut > 0) { ok.push([ax + (bx - ax) * cut / n, az + (bz - az) * cut / n]); len += L * cut / n; } break; }
+    ok.push([bx, bz]); len += L; }
+  return (w.beat = len > 4 ? { pts: ok, len } : null);
+}
+function beatPoint(b, d){ for (let i = 1; i < b.pts.length; i++) { const [ax, az] = b.pts[i - 1], [bx, bz] = b.pts[i], L = Math.hypot(bx - ax, bz - az); if (d <= L || i === b.pts.length - 1) { const k = L ? Math.min(1, d / L) : 0; return [ax + (bx - ax) * k, az + (bz - az) * k]; } d -= L; } return b.pts[0]; }
+// where the timetable has them right now: up and down the beat with a rest at each end, or at the post
+function guardWhere(w, h){
+  const slot = GUARD_DAY.find(([a, b2]) => h >= a && h < b2), b = guardBeat(w);
+  if (!slot || slot[2] !== 'patrol' || !b) return [w.lx, w.lz];
+  const leg = b.len / GUARD_SPEED * 1000, cycle = 2 * (leg + GUARD_REST), t = (SNOW() + GUARD_NAMES.indexOf(w.rec.name) * 9173) % cycle;
+  const d = t < GUARD_REST ? 0 : t < GUARD_REST + leg ? (t - GUARD_REST) / leg * b.len : t < 2 * GUARD_REST + leg ? b.len : b.len * (1 - (t - 2 * GUARD_REST - leg) / leg);
+  return beatPoint(b, d);
+}
+function updateGuard(w, talker, dt){
+  const sp = w.sp, h = hourNow(), [tx, tz] = guardWhere(w, h), dx = tx - sp.position.x, dz = tz - sp.position.z, d = Math.hypot(dx, dz);
+  let moving = false;
+  if (!talker && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const st = Math.min(d, (d > 2 ? 3 : GUARD_SPEED) * dt); sp.position.x += dx / d * st; sp.position.z += dz / d * st; moving = true; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }   /* catching up after a chat, or walking the beat */
+  const dark = guardDark(h);
+  if (w.dark !== dark) { w.dark = dark; const gear = w.rec.gear; if (gear) dressChibi(sp, dark ? { ...gear, shield: 'Torch' } : gear); }   // a torch after dark instead of the shield
+  return moving;
+}
 function updateWanderers(){
+  const nowW = performance.now(), dtW = Math.min(0.25, (nowW - (updateWanderers.last || nowW)) / 1000); updateWanderers.last = nowW;
   for (const w of WANDER) {
     const sp = w.sp, x = sp.position.x, z = sp.position.z;
+    if (GUARD_NAMES.includes(w.rec.name) && w.k === 1) { const talker = talkerOf(w.rec), moving = updateGuard(w, talker, dtW);
+      const wx = sp.position.x, wz = sp.position.z;
+      if (talker) w.yaw = yawTo(wx, wz, talker.x, talker.z); else if (moving) w.yaw = Math.atan2(w.dx, w.dz); else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z);
+      turnChibi(sp, w.yaw || 0); poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90); w.rec.x = wx; w.rec.z = wz; continue; }
     let moving = false;
     const talker = talkerOf(w.rec);   // someone is talking to them: stand still and face whoever spoke to them last
     if (talker) w.pause = Math.max(w.pause, 40);
