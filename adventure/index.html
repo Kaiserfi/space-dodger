@@ -638,6 +638,7 @@ function furnishHome(g, h, w, d, t, rot){
   put(B(2.5, 0.18, 2.4), [0x8a3a3a, 0x3a5a8a, 0x4a7a3a, 0x7a4a8a][houses.length % 4], bx, 1.15, bz + 0.6);
   put(B(1.6, 0.3, 0.8), 0xf4f0e6, bx, 1.2, bz - 1.3); put(B(2.6, 1.6, 0.3), dark, bx, 1.0, BK + 0.15);
   block(bx, bz, 1.3, 1.9);
+  h.bed = h.toWorld(bx, bz); h.bedTop = 1.25 * h.k;   // for whoever sleeps in it
   // the fireplace on the back wall, with a fire and a mantel
   const fx = R - 2.2;
   put(B(2.8, 3.4, 1.2), texMat(wallStone, 1, 1.4, 0x9a948a), fx, 1.7, BK + 0.6);
@@ -3875,6 +3876,10 @@ function guardState(w, h){
   return mode === 'sleep' ? { mode, at: R.bed } : mode === 'eat' ? { mode, at: R.seat } : { mode: 'duty', at: guardWhere(w, h) };
 }
 let ZZZ_MAT = null;
+function zzzMat(){   // the floating Zs over a sleeper, drawn once and shared
+  if (!ZZZ_MAT) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g2 = cv.getContext('2d'); g2.fillStyle = '#e8eefa'; g2.strokeStyle = '#2a3048'; g2.lineWidth = 3; g2.font = 'bold 26px Georgia';
+    g2.strokeText('z', 8, 56); g2.fillText('z', 8, 56); g2.font = 'bold 34px Georgia'; g2.strokeText('Z', 30, 34); g2.fillText('Z', 30, 34); const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace; ZZZ_MAT = new THREE.SpriteMaterial({ map: tx2, transparent: true, depthWrite: false }); }
+  return ZZZ_MAT; }
 const GUARD_LIE = { y: 4.2, dz: 1.6 };   /* where a sleeping guard's figure goes, from their bunk's middle: up on the top deck, nudged towards the foot */
 function updateGuard(w, talker, dt){
   const sp = w.sp, h = hourNow(), st = guardState(w, h), [tx, tz] = st.at, c = sp.userData.chibi;
@@ -3890,17 +3895,105 @@ function updateGuard(w, talker, dt){
   const lying = asleep && d < 0.3;
   sp.rotation.x = lying ? -Math.PI / 2 : 0; sp.position.y = lying ? GUARD_LIE.y : 0;   // on the top deck: a lying chibi is too tall for the gap under it
   if (lying) sp.position.z = tz + GUARD_LIE.dz;   // the feet towards the foot of the bunk, the head on the pillow
-  if (lying && !w.zzz) { if (!ZZZ_MAT) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g2 = cv.getContext('2d'); g2.fillStyle = '#e8eefa'; g2.strokeStyle = '#2a3048'; g2.lineWidth = 3; g2.font = 'bold 26px Georgia';
+  if (lying && !w.zzz) { zzzMat(); if (!ZZZ_MAT) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g2 = cv.getContext('2d'); g2.fillStyle = '#e8eefa'; g2.strokeStyle = '#2a3048'; g2.lineWidth = 3; g2.font = 'bold 26px Georgia';
       g2.strokeText('z', 8, 56); g2.fillText('z', 8, 56); g2.font = 'bold 34px Georgia'; g2.strokeText('Z', 30, 34); g2.fillText('Z', 30, 34); const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace; ZZZ_MAT = new THREE.SpriteMaterial({ map: tx2, transparent: true, depthWrite: false }); }
     w.zzz = new THREE.Sprite(ZZZ_MAT.clone()); w.zzz.scale.set(0.9, 0.9, 1); scene.add(w.zzz); }
   if (w.zzz) { w.zzz.visible = lying; if (lying) { const k = (performance.now() / 2400 + GUARD_NAMES.indexOf(w.rec.name) * 0.3) % 1; w.zzz.position.set(tx + 0.3, 5.6 + k * 1.2, tz - 1.4 - k * 0.3); w.zzz.material.opacity = Math.sin(k * Math.PI); } }
   w.sitting = sitting && d < 0.3; w.lying = lying; w.rec.sitting = w.sitting;
   return moving;
 }
+// ----- the villagers' day: Tobin, Ysolde and Dunmore leave their houses to work, eat, fish, shop and sit at the bonfire,
+// and come home to sleep. Like the guards, it all comes from the clock and routes worked out once, so everyone sees the same.
+const VSEAT_TAKEN = new Set();
+const VILLAGER_DAY = {
+  Tobin: { seat: 2, ev: [[0, 'home', 'sleep'], [7, 'woods', 'chop'], [12, 'seat', 'sit'], [13, 'home', 'sleep'], [16, 'woods', 'chop'], [18.5, 'seat', 'sit'], [22, 'home', 'sleep']] },
+  Ysolde: { seat: 5, ev: [[0, 'home', 'sleep'], [6.5, 'river', 'fish'], [12, 'pond', 'look'], [14, 'market', 'look'], [17, 'river', 'fish'], [19, 'seat', 'sit'], [22.5, 'home', 'sleep']] },
+  Dunmore: { seat: 8, ev: [[0, 'home', 'sleep'], [7, 'home', 'work'], [18.5, 'seat', 'sit'], [22, 'home', 'sleep']] },
+};
+const VSTOPS = { woods: { x: -89.6, z: 4, yaw: -Math.PI / 2 }, river: { x: -26.5, z: -10.4, yaw: Math.PI }, pond: { x: -71, z: 80, yaw: -Math.PI / 2 }, market: { x: 107.5, z: 6.6, yaw: Math.PI } };
+// a door swung open without a sound, for a villager walking through it (doors are each player's own, so this is only on your screen)
+function openDoorQuiet(rec){ if (rec.open) return; rec.open = true; rec.pivot.rotation.y = -Math.PI / 2; rec.leaf.userData.action = 'Close'; const i = solidBoxes.indexOf(rec.box); if (i >= 0) solidBoxes.splice(i, 1); }
+function vStop(w, name){
+  if (name === 'home') return { x: w.home[0], z: w.home[1] };
+  if (name === 'seat') { const st = BF.seats[VILLAGER_DAY[w.rec.name].seat]; return { x: st.ax, z: st.az, seat: st }; }
+  return VSTOPS[name];
+}
+// the route between two stops, with every house door open so it can leave and enter homes: worked out once, then kept
+function villagerRoute(w, a, b){
+  const key = a + '>' + b; w.vroutes = w.vroutes || {}; if (w.vroutes[key]) return w.vroutes[key];
+  const A = vStop(w, a), Bp = vStop(w, b), doors = houses.map(h => h.doorRec && h.doorRec.box).filter(x => x && solidBoxes.includes(x));
+  for (const d of doors) solidBoxes.splice(solidBoxes.indexOf(d), 1);
+  const pts = a === b ? [[A.x, A.z], [Bp.x, Bp.z]] : [...findPath(new THREE.Vector3(A.x, 0, A.z), new THREE.Vector3(Bp.x, 0, Bp.z)).map(q => [q.x, q.z]), [Bp.x, Bp.z]];
+  for (const d of doors) solidBoxes.push(d);
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return (w.vroutes[key] = { pts, cum, len: cum[cum.length - 1] });
+}
+// where they are and what they're doing at this hour
+function villagerState(w, h){
+  const ev = VILLAGER_DAY[w.rec.name].ev; let i = 0; for (let k = 0; k < ev.length; k++) if (ev[k][0] <= h) i = k;
+  const e = ev[i], prev = ev[(i - 1 + ev.length) % ev.length], r = villagerRoute(w, prev[1], e[1]), d = (h - e[0]) * 3600 * GUARD_SPEED;
+  if (prev[1] !== e[1] && d < r.len) return { mode: 'walk', at: routeAt(r, d) };
+  const st = vStop(w, e[1]); return { mode: e[2], at: [st.x, st.z], stop: st, where: e[1] };
+}
+// Ysolde's fly rod: held out over the water from her right hand, with the line hanging straight down to a float
+function fishRod(c){
+  if (c.rod) return c.rod;
+  const g = new THREE.Group(); g.position.set(0, -0.45, 0); g.rotation.x = 2.15; c.arms[1].add(g);   // from the hand, forward and up over the water
+  chibiPart(g, new THREE.CylinderGeometry(0.03, 0.06, 3.4, 6).translate(0, 1.7, 0), 0x7a4d22, 0, 0, 0);
+  chibiPart(g, new THREE.CylinderGeometry(0.09, 0.09, 0.14, 10).rotateZ(Math.PI / 2), 0x5a5a60, 0, 0.35, 0.08);   // the reel
+  const line = new THREE.Group(); line.position.set(0, 3.4, 0); g.add(line);
+  const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1, 4).translate(0, -0.5, 0), new THREE.MeshBasicMaterial({ color: 0xe8e0c8 })); line.add(thread);
+  const bob = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xe04a3a })); line.add(bob);
+  c.rod = { g, line, thread, bob }; return c.rod;
+}
+const rodQ = new THREE.Quaternion(), rodV = new THREE.Vector3();
+function fishPose(sp, t){
+  const c = sp.userData.chibi, R = fishRod(c); R.g.visible = true; poseChibi(sp, 'idle', t);
+  const k = (t % 9) / 9, cast = k > 0.9 ? (k - 0.9) / 0.1 : 0;   // every nine seconds: draw the rod back over the shoulder and flick it out again
+  c.arms[1].rotation.set(cast ? -1.1 - Math.sin(cast * Math.PI) * 1.3 : -1.1 + Math.sin(t * 1.3) * 0.04, 0, 0.12);
+  c.arms[0].rotation.set(-0.7, 0, -0.25);   // the other hand steadies the line
+  sp.updateMatrixWorld(true);
+  R.line.getWorldQuaternion(rodQ); R.line.quaternion.multiply(rodQ.invert());   // the line hangs straight down whatever the rod does
+  R.line.getWorldPosition(rodV); const s = R.line.getWorldScale(new THREE.Vector3()).y, drop = Math.max(0.3, rodV.y - WATER_Y + Math.sin(t * 2) * 0.03) / s;
+  R.thread.scale.y = cast ? drop * 0.3 : drop; R.bob.position.y = -(cast ? drop * 0.3 : drop);
+}
+function updateVillager(w, talker, dt){
+  const sp = w.sp, c = sp.userData.chibi, now = performance.now(), t = now / 1000;
+  if (sp.parent !== scene) {   // first time: lift them out of their house's group, into the world, so they can walk out of the door
+    const p = sp.getWorldPosition(new THREE.Vector3()); sp.removeFromParent(); scene.add(sp); sp.position.set(p.x, 0, p.z); sp.scale.setScalar(CHIBI_SCALE);
+    w.k = 1; w.ox = 0; w.oz = 0; w.parentYaw = 0; w.home = [p.x, p.z]; w.house = houses.find(h => Math.abs(p.x - h.x) < h.hw && Math.abs(p.z - h.z) < h.hd) || null; }
+  const st = villagerState(w, hourNow()), asleep = st.mode === 'sleep';
+  let [tx, tz] = st.at; const bed = asleep && w.house && w.house.bed; if (bed) { tx = bed.x; tz = bed.z; }
+  // undo last frame's lying or sitting offsets before measuring where they are
+  sp.rotation.x = 0; sp.position.y = 0; if (w.lieDz) { sp.position.z -= w.lieDz; w.lieDz = 0; } if (w.seatAt) { sp.position.x = w.seatAt[0]; sp.position.z = w.seatAt[1]; w.seatAt = null; }
+  const dx = tx - sp.position.x, dz = tz - sp.position.z, d = Math.hypot(dx, dz); let moving = false;
+  if (!(talker && !asleep) && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const step = Math.min(d, (st.mode === 'walk' ? GUARD_SPEED * 1.15 : d > 2 ? 3 : GUARD_SPEED) * dt); sp.position.x += dx / d * step; sp.position.z += dz / d * step; moving = step > 0.2 * dt; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }
+  for (const h of houses) if (h.doorRec && !h.doorRec.open && Math.hypot(h.doorRec.x - sp.position.x, h.doorRec.z - sp.position.z) < 2.2) openDoorQuiet(h.doorRec);   // let themselves out (and in)
+  const here = d < 0.3, rod = c.rod; if (rod) rod.g.visible = false;
+  w.rec.asleep = asleep && here; const seatSt = st.stop && st.stop.seat;
+  if (seatSt) { if (here) VSEAT_TAKEN.add(seatSt.idx); else VSEAT_TAKEN.delete(seatSt.idx); } else VSEAT_TAKEN.delete(BF.seats[VILLAGER_DAY[w.rec.name].seat].idx);
+  if (w.zzz) w.zzz.visible = false;
+  if (moving || !here) { if (moving) w.yaw = Math.atan2(w.dx, w.dz); turnChibi(sp, w.yaw || 0); poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90); }
+  else if (talker && !asleep) { turnChibi(sp, yawTo(sp.position.x, sp.position.z, talker.x, talker.z)); poseChibi(sp, 'idle', t); }
+  else if (st.mode === 'sit') { w.seatAt = [sp.position.x, sp.position.z]; sitPoseAt(sp, seatSt, t, w.rec.name.length, false); }
+  else if (st.mode === 'chop') { turnChibi(sp, st.stop.yaw); poseChibi(sp, 'swing', (t / 0.75) % 1, 'axe'); }
+  else if (st.mode === 'fish') { turnChibi(sp, st.stop.yaw); fishPose(sp, t); }
+  else if (asleep) {   // in bed, or for Dunmore (the smithy has no bed) nodding off sat by the forge
+    poseChibi(sp, 'idle', 0); c.eyes.forEach((e, i) => { if (i % 2 === 0) e.scale.y = 0.15; else e.visible = false; });
+    if (bed) { sp.rotation.set(-Math.PI / 2 + 0.3, 0, 0);   /* propped up on the pillow: the big head would otherwise hold the legs in the air */ sp.position.y = w.house.bedTop + 1.28 + (w.lieFix || 0); w.lieDz = 1.6 * w.house.k / 1.3; sp.position.z += w.lieDz;
+      if (w.lieFix === undefined) { sp.updateMatrixWorld(true); const bx = new THREE.Box3(), tmp = new THREE.Box3(); sp.traverseVisible(o => { if (o.isMesh) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bx.union(tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld)); } });   /* visible parts only: their hidden tools hang lower */
+        w.lieFix = w.house.bedTop - bx.min.y - 0.05; sp.position.y += w.lieFix; }   /* resting on the blanket */ }   // measured once, so they lie right on the mattress
+    else { c.legs.forEach(l => l.rotation.x = -1.45); c.head.rotation.x = 0.35; }
+    if (!w.zzz) { w.zzz = new THREE.Sprite(zzzMat().clone()); w.zzz.scale.set(0.9, 0.9, 1); scene.add(w.zzz); }
+    const k = (t / 2.4 + w.rec.name.length * 0.3) % 1; w.zzz.visible = true; w.zzz.position.set(tx + 0.3, (bed ? w.house.bedTop + 2.6 : 3.6) + k * 1.2, tz - (bed ? 1.4 : 0) - k * 0.3); w.zzz.material.opacity = Math.sin(k * Math.PI); }
+  else { turnChibi(sp, st.stop && st.stop.yaw !== undefined ? st.stop.yaw : (hero && Math.hypot(hero.position.x - sp.position.x, hero.position.z - sp.position.z) < 7 ? yawTo(sp.position.x, sp.position.z, hero.position.x, hero.position.z) : sp.rotation.y)); poseChibi(sp, 'idle', t); }
+  w.rec.x = w.seatAt ? w.seatAt[0] : sp.position.x; w.rec.z = w.seatAt ? w.seatAt[1] : sp.position.z - (w.lieDz || 0);
+}
 function updateWanderers(){
   const nowW = performance.now(), dtW = Math.min(0.25, (nowW - (updateWanderers.last || nowW)) / 1000); updateWanderers.last = nowW;
   for (const w of WANDER) {
     const sp = w.sp, x = sp.position.x, z = sp.position.z;
+    if (VILLAGER_DAY[w.rec.name]) { updateVillager(w, talkerOf(w.rec), dtW); continue; }
     if (GUARD_NAMES.includes(w.rec.name) && w.k === 1) { const talker = talkerOf(w.rec), moving = updateGuard(w, talker, dtW);
       const wx = sp.position.x, wz = sp.position.z;
       if (w.lying) w.yaw = 0; else if (w.sitting) w.yaw = Math.atan2(guardRoutes(w).faceX, 0); else if (talker) w.yaw = yawTo(wx, wz, talker.x, talker.z); else if (moving) w.yaw = Math.atan2(w.dx, w.dz); else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z);
@@ -7300,6 +7393,7 @@ const evSound = (name, x = BF.x, z = BF.z) => { const v = clamp01(1 - evDist(x, 
 
 // ----- sitting: click a bench, walk round behind it, sit; any other click stands you up -----
 function seatTaken(idx){
+  if (VSEAT_TAKEN.has(idx)) return true;   // a villager is sat there today
   if (VILLAGER_SEATS.has(idx) && evActive() && !EV.data.casual) return true;
   for (const id in remote) if (remote[id].st === idx) return true;
   return false;
