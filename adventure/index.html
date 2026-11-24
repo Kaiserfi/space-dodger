@@ -5295,9 +5295,9 @@ const itemMenu = document.createElement('div'); itemMenu.id = 'itemMenu'; itemMe
 const GROUND = [], GROUND_MS = 180000;
 function groundModel(name){
   const g = new THREE.Group(), P = (geo, col, x, y, z, outline = true) => chibiPart(g, geo, col, x, y, z, outline);
-  const meat = (col, seared) => { const m = P(new THREE.CylinderGeometry(0.34, 0.36, 0.12, 14), col, 0, 0.06, 0); m.scale.set(1.2, 1, 0.8);
-    const fat = P(new THREE.TorusGeometry(0.33, 0.045, 6, 18, Math.PI * 1.2).rotateX(Math.PI / 2), 0xe8c8a0, 0, 0.08, 0, false); fat.scale.set(1.2, 0.8, 1); fat.rotation.y = 1.9;
-    if (seared) for (const k of [-0.15, 0, 0.15]) P(new THREE.BoxGeometry(0.5, 0.01, 0.04), 0x3a1a0a, k * 0.5, 0.125, k, false).rotation.y = 0.7; };
+  const meat = (col, seared) => {   /* a plain steak: just the meat, seared or raw, no fat or bone */
+    const m = P(new THREE.CylinderGeometry(0.34, 0.36, 0.12, 16), col, 0, 0.07, 0); m.scale.set(1.2, 1, 0.8);
+    if (seared) for (const k of [-0.15, 0, 0.15]) P(new THREE.BoxGeometry(0.42, 0.01, 0.04), 0x3a1a0a, k * 0.5, 0.135, k, false).rotation.y = 0.7; };
   const roast = (col) => { const b = P(new THREE.SphereGeometry(0.3, 12, 9), col, 0, 0.2, 0); b.scale.set(1.15, 0.75, 0.9); for (const s of [-1, 1]) P(new THREE.SphereGeometry(0.12, 8, 6), col, s * 0.22, 0.12, 0.2).scale.set(0.8, 0.7, 1.3); };
   const sack = (col, tie) => { const b = P(new THREE.SphereGeometry(0.3, 12, 9), col, 0, 0.24, 0); b.scale.set(1, 0.9, 1); P(new THREE.CylinderGeometry(0.06, 0.12, 0.16, 8), col, 0, 0.5, 0); P(new THREE.TorusGeometry(0.08, 0.025, 5, 10).rotateX(Math.PI / 2), tie, 0, 0.47, 0, false); };
   if (name === 'Cooked beef') meat(0x7a3a1e, true); else if (name === 'Raw beef') meat(0xc04a44, false); else if (name === 'Burnt beef' || name === 'Burnt chicken') meat(0x2a1a12, false);
