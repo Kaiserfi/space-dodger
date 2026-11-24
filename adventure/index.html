@@ -2416,6 +2416,19 @@ function poseChibi(g, mode, t, tool = 'axe'){
     L.rotation.x = -0.15; R.rotation.x = 0.1;
     return;
   }
+  if (mode === 'pour') {   // both hands lift a bundle of wheat up over the hopper's lip and tip it in, then back down for the next
+    const ph = (now % 1.8) / 1.8, lift = ph < 0.45 ? ease(ph / 0.45) : ph < 0.7 ? 1 : 1 - ease((ph - 0.7) / 0.3);
+    const tip = ph > 0.45 && ph < 0.7 ? Math.sin((ph - 0.45) / 0.25 * Math.PI) : 0;
+    AR.rotation.set(-0.5 - 1.6 * lift - 0.3 * tip, 0, 0.2); AL.rotation.set(-0.5 - 1.6 * lift - 0.3 * tip, 0, -0.2);
+    c.body.rotation.x = -0.08 * lift + 0.12 * tip; c.head.rotation.x = -0.15 * lift;
+    L.rotation.x = -0.2 * lift; R.rotation.x = 0.15 * lift;
+    if (!c.sheaf) { c.sheaf = new THREE.Group(); c.sheaf.position.set(-0.42, -0.5, 0.22); c.arms[1].add(c.sheaf);   // the wheat, held between both hands
+      for (let i = 0; i < 7; i++) { const st = chibiPart(c.sheaf, geo('sheafStalk', () => new THREE.CylinderGeometry(0.02, 0.025, 0.7, 4)), 0xc8a850, (i - 3) * 0.05, 0, 0, false); st.rotation.z = (i - 3) * 0.06;
+        chibiPart(c.sheaf, geo('sheafEar', () => new THREE.ConeGeometry(0.05, 0.18, 5)), 0xe0b850, (i - 3) * 0.07, 0.42, 0, false); } c.sheaf.rotation.x = Math.PI / 2; }
+    c.sheaf.visible = true;
+    return;
+  }
+  if (c.sheaf) c.sheaf.visible = false;
   if (mode === 'plant') {   // crouched low, one hand pressing seeds into the soil, a little dip each time
     const dip = Math.abs(Math.sin(now * 4)) * 0.25;
     c.body.position.y = -0.32; c.body.rotation.x = 0.35 + dip * 0.4;
@@ -2609,7 +2622,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing && !farmBusy) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing && !farmBusy && !milling) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -4342,8 +4355,9 @@ function updateOnline(){
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
     } else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
+    else if (act && act.k === 'mill' && !moving) poseChibi(r.sprite, 'pour', 0);
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
-    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm' || act.k === 'mill') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
@@ -4405,6 +4419,7 @@ function frame(){
   updateBonfire();
   growCrops();
   updateFarmPose();
+  updateMilling();
   updateDrops();
   updateTorch();
   checkDialogDistance();
@@ -4617,19 +4632,42 @@ function troughClick(x, z){
   if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
   walkStart(new THREE.Vector3(x, 0, z + 1.6), () => { FARM_CAN.n = CAN_MAX; renderBag(); farmSound('fill'); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); saveNow(false); });
 }
+// milling: like cooking, a bar fills for each sack of wheat while you tip it into the hopper, and the sails turn faster
+const MILL_MS = 1800;
 let milling = null;
 function hopperClick(){
   if (!hasItem('Wheat')) { showToast('The windmill grinds wheat into flour. Put some wheat in the hopper.'); return; }
   if (milling) return;
   const M = FARMLAND.mill;
   walkStart(new THREE.Vector3(M.x + 1.9, 0, M.z + 5), () => {
-    milling = setInterval(() => {
-      if (!hasItem('Wheat') || Math.hypot(hero.position.x - M.x - 1.9, hero.position.z - M.z - 5) > 3) { clearInterval(milling); milling = null; if (ONLINE.act && ONLINE.act.k === 'mill') setAct(null); return; }
-      removeItem('Wheat'); addItem('Flour', 1, FLOUR_ICON); addXp('Farming', 4); farmSound('mill'); heroAnim.mode = 'work';
-      setAct({ k: 'mill', t: Date.now() }); showToast(`The millstones grind the wheat into flour (${countOf('Flour')}).  +4 Farming XP`);
-      if (!hasItem('Wheat')) { clearInterval(milling); milling = null; saveNow(false); }
-    }, 1500);
+    if (!hasItem('Wheat')) return;
+    milling = { t0: performance.now() };
+    setAct({ k: 'mill', t: Date.now() });
+    document.getElementById('smeltLabel').textContent = 'Milling...';
+    document.getElementById('smeltBar').style.display = 'block';
   });
+}
+function stopMilling(msg){
+  if (!milling) return;
+  milling = null; document.getElementById('smeltBar').style.display = 'none';
+  if (ONLINE.act && ONLINE.act.k === 'mill') setAct(null);
+  if (msg) showToast(msg); saveNow(false);
+}
+function updateMilling(){
+  if (FARMLAND && FARMLAND.sails) FARMLAND.sails.rotation.z -= milling ? 0.02 : 0;   // the sails turn faster while the stones grind
+  if (!milling || !hero) return;
+  const M = FARMLAND.mill;
+  if (walkTarget || Math.hypot(hero.position.x - M.x - 1.9, hero.position.z - M.z - 5) > 3) { stopMilling(); return; }
+  const k = (performance.now() - milling.t0) / MILL_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  heroAnim.yaw = yawTo(hero.position.x, hero.position.z, M.x + 1.9, M.z + 3.4);
+  heroAnim.mode = 'pour';
+  if (k < 1) return;
+  if (!hasItem('Wheat')) { stopMilling(); return; }
+  removeItem('Wheat'); addItem('Flour', 1, FLOUR_ICON); addXp('Farming', 4); farmSound('mill');
+  showToast(`The millstones grind the wheat into flour (${countOf('Flour')}).  +4 Farming XP`);
+  if (!hasItem('Wheat')) { stopMilling(); return; }
+  milling.t0 = performance.now(); setAct({ k: 'mill', t: Date.now() });
 }
 // flour and a splash of water from the can make bread dough
 CRAFTS['Flour'] = [{ label: 'Make bread dough', make: 'Bread dough', skill: 'Cooking', level: 1, xp: 10, needs: { Flour: 1 }, water: 1 }];
