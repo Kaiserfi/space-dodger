@@ -88,6 +88,15 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Down there only the boss theme plays, never the ordinary battle theme.
 - Unlocking it needs 10 kills of each farm monster (`KILLS`). The reward chest gives +400 Melee, +400 Hitpoints, ores, feathers and seeds, shown on the reward scroll (`showRewardScroll`).
 
+### Parties and the party delve
+
+- Parties live at `adventure/live/parties/<pid>` (`lead`, members `m`, and while delving `dv`, `hits`, `c`), with invites at `parties/_inv/<player id>`; all on the one live feed (`liveFeed('parties')`). Up to 4 players. Presence carries `cb` (combat level) and `pt` (party id).
+- Party frames (`renderPartyFrames`) show each member's name, combat level and health; tapping a member with a bandage heals them.
+- **Party delve:** whoever opens the cellar with party members nearby leads it. The leader's game runs the waves, targets and movement and shares them in `dv` (`mons`, `wave`, `next` in server time); everyone else's game shows copies (`m.ghost`) and posts its blows to `hits` for the leader to count. Each player's own game rolls the blows of the creatures targeting them. If the leader falls or leaves, the next player still down takes over.
+- Creatures get `1 + 0.6 × (players - 1)` times their health (`m.maxHp`). No per-creature drops in a party; rewards come from the chest.
+- Anyone who falls or flees is out for good (their own 25% coins and delve XP penalty). **No carrying:** at the end, a survivor needs damage plus healing of at least half an even share of the party's total, or they get no reward.
+- Other players are only visible when you're in the same world (`sameWorld`): both up top, or both in the same party's cellar.
+
 ### Quests
 
 - **Each quest is a number in `QUEST`** (for example `QUEST.hw` for A Hearty Welcome, `QUEST.rt` for Roots and Threads), saved with the rest of the save, so old saves start at 0.
