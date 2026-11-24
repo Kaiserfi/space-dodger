@@ -6658,13 +6658,13 @@ function mobUpdate(m, now){
   if (theirs) {   // someone else is fighting it: it stands where the fight is, facing them, and its health is theirs to tell
     const tx = st.x ?? m.x, tz = st.z ?? m.z; m.g.position.x += (tx - m.g.position.x) * 0.2; m.g.position.z += (tz - m.g.position.z) * 0.2;
     const r = remote[st.f]; if (r) m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, r.sprite.position.x, r.sprite.position.z);
-    if (typeof st.hp === 'number') m.hp = st.hp;
+    if (typeof st.hp === 'number' && st.hp > 0) m.hp = st.hp;
     if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur); else monsterPose(m, 'ready');
     m.x = m.g.position.x; m.z = m.g.position.z; return;
   }
   if (m.state === 'engaged') { if (!walkTarget && now - (m.engagedAt || 0) > 1500) m.state = 'standing'; else { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); return; } }
   // its health: hurt in a recent fight, otherwise back to full
-  m.hp = st && typeof st.hp === 'number' && SNOW() - (st.t || 0) < 60000 ? st.hp : m.t.hp;
+  m.hp = st && typeof st.hp === 'number' && st.hp > 0 && SNOW() - (st.t || 0) < 60000 && !(st.dead && (st.t || 0) <= st.dead) ? st.hp : m.t.hp;   /* a killing blow that landed after the death note mustn't bring it back at 0 */
   const p = mobPath(m, SNOW()), dx = p.x - m.g.position.x, dz = p.z - m.g.position.z, d = Math.hypot(dx, dz);
   if (d > 14) { m.g.position.x = p.x; m.g.position.z = p.z; }   // far off its path (just respawned): straight there
   else if (d > 0.03) { const step = Math.min(d, 3.2 * dt); m.g.position.x += dx / d * step; m.g.position.z += dz / d * step; }   // catching up after a fight, or walking with its path
