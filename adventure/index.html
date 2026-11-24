@@ -5106,7 +5106,7 @@ else openCreator();
 const DB = 'https://space-dodger-1a558-default-rtdb.firebaseio.com';
 // ----- signing in: every browser gets its own invisible Firebase account (anonymous sign-in), so the database rules can say
 // "only you can change your own save". With no key here it stays off and the game works as before.
-const FB_KEY = '';
+const FB_KEY = 'AIzaSyANcegZrOyf1O03SbLMBQVTGRJXuNIKLPA';   /* public by design: it only names the project */
 const AUTH = { token: '', uid: '', rt: '', at: 0 };
 { const plain = window.fetch.bind(window);   /* every database request carries the sign-in */
   window.fetch = (u, o) => plain(typeof u === 'string' && AUTH.token && u.startsWith(DB) ? u + (u.includes('?') ? '&' : '?') + 'auth=' + AUTH.token : u, o); }
@@ -5134,7 +5134,7 @@ async function moveOldSave(oldId){
   try {
     const mine = await fetch(`${DB}/adventure/saves/${AUTH.uid}.json`); if (!mine.ok) return false; if (await mine.json()) return true;   // already moved
     const claim = await fetch(`${DB}/adventure/claimed/${oldId}.json`, { method: 'PUT', body: JSON.stringify(AUTH.uid) });
-    if (!claim.ok) { const who = await (await fetch(`${DB}/adventure/claimed/${oldId}.json`)).json(); if (who !== AUTH.uid) { showToast("Your old progress couldn't be moved to this browser."); return true; } }
+    if (!claim.ok) { const who = await (await fetch(`${DB}/adventure/claimed/${oldId}.json`)).json(); if (!who) return false; if (who !== AUTH.uid) { showToast("Your old progress couldn't be moved to this browser."); return true; } }
     const old = await (await fetch(`${DB}/adventure/saves/${oldId}.json`)).json(); if (!old) return true;
     return (await fetch(`${DB}/adventure/saves/${AUTH.uid}.json`, { method: 'PUT', body: JSON.stringify(old) })).ok;
   } catch (e) { return false; }
@@ -5202,8 +5202,8 @@ async function enterVillage(name){
   let id = ''; try { id = localStorage.getItem('itapId') || ''; } catch (e) {}
   setStatus('Joining...');
   if (await signIn()) {   // from now on you're your account; the old id is kept until its save has moved
-    try { if (id && id !== AUTH.uid) localStorage.setItem('itapOld', id); if (await moveOldSave(localStorage.getItem('itapOld'))) localStorage.removeItem('itapOld'); } catch (e) {}
-    id = AUTH.uid; try { localStorage.setItem('itapId', id); } catch (e) {} }
+    let moved = false; try { if (id && id !== AUTH.uid) localStorage.setItem('itapOld', id); moved = await moveOldSave(localStorage.getItem('itapOld')); if (moved) localStorage.removeItem('itapOld'); } catch (e) {}
+    if (moved) { id = AUTH.uid; try { localStorage.setItem('itapId', id); } catch (e) {} } }   /* if the move failed, play on the old save and try again next time */
   if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem('itapId', id); } catch (e) {} }
   ONLINE.id = id;
   try { const r = await fetch(`${DB}/adventure/saves/${id}.json`); applySave(await r.json()); } catch (e) {}

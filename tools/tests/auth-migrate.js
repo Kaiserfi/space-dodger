@@ -12,7 +12,7 @@ const { chromium } = require('playwright'); const { FakeDb } = require('../fake-
     await p.route(/identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ idToken: 'tok-' + uid, id_token: 'tok-' + uid, refreshToken: 'rt-' + uid, refresh_token: 'rt-' + uid, localId: uid, user_id: uid }) }));
     await p.addInitScript(o => { try { localStorage.setItem('itapSettings', JSON.stringify({ music: 0, sfx: 0, grass: 'off' })); localStorage.setItem('itapName', 'Oldie'); localStorage.setItem('itapId', o); } catch (e) {} }, oldId);
     await p.route(/^http:\/\/localhost:8123\/adventure\/(\?(?!vcheck).*)?$/, async r => { const resp = await r.fetch(); let body = await resp.text();
-      body = body.replace("const FB_KEY = '';", "const FB_KEY = 'test-key';").replace('bootOnline();\nframe();', () => 'bootOnline();\nframe();\nwindow.__t = { ready: () => ONLINE.ready, me: () => ({ id: ONLINE.id, coins: COINS, bag: bag.map(i => i.name).join(","), old: localStorage.getItem("itapOld") }) };');
+      body = body.replace('bootOnline();\nframe();', () => 'bootOnline();\nframe();\nwindow.__t = { ready: () => ONLINE.ready, me: () => ({ id: ONLINE.id, coins: COINS, bag: bag.map(i => i.name).join(","), old: localStorage.getItem("itapOld") }) };');
       await r.fulfill({ response: resp, body }); });
     await p.goto('http://localhost:8123/adventure/', { waitUntil: 'domcontentloaded', timeout: 90000 });
     await p.waitForFunction(() => window.__t && window.__t.ready(), null, { timeout: 120000 }); await p.waitForTimeout(3000);
