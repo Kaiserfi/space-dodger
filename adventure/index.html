@@ -4389,7 +4389,7 @@ function startDelve(){
   writePresence(true);
 }
 function spawnWave(){
-  const w = DELVE_WAVES[DELVE.wave], kinds = w === 'r2' ? [0, 1].map(() => ['chicken', 'rat', 'cow', 'farmer'][Math.floor(Math.random() * 4)]) : w;
+  const w = DELVE_WAVES[DELVE.wave], kinds = w === 'r2' ? [0, 1].map(() => ['chicken', 'rat', 'cow'][Math.floor(Math.random() * 3)]) : w;
   const gates = [[DELVE_C.x, DELVE_C.z + DELVE_C.pit - 1.2], [DELVE_C.x + DELVE_C.pit - 1.2, DELVE_C.z]];
   DELVE.mons = kinds.map((k, i) => { const m = spawnMonster(k, gates[i % 2][0], gates[i % 2][1], 0); m.delve = true; return m; });
   showToast(`Wave ${DELVE.wave + 1} of 8: ${kinds.map(k => MONSTER_TYPES[k].name.toLowerCase()).join(' and ')}!`);
@@ -4407,6 +4407,20 @@ function delveLadder(){
   if (!DELVE) return;
   if (DELVE.done) { leaveDelve('You climb back up into the daylight, your pack heavier than before.'); return; }
   delveAsk('Climb out of the cellar now? You keep your coins, but you get no reward for the waves you have beaten.', 'Climb out', () => leaveDelve('You scramble up the ladder and slam the doors behind you.'), 'Keep fighting');
+}
+// a monster you aren't fighting still gets its blows in
+function sideSwing(m){
+  m.anim = { kind: 'swing', t0: performance.now(), dur: 900 }; combatSound((m.t.snd || 'goblin') + 'Attack');
+  setTimeout(() => {
+    if (!DELVE || m.state === 'dying' || m.state === 'dead' || HP.cur <= 0) return;
+    const me = playerRolls(), it = monsterRolls(m.t);
+    if (Math.random() < hitChance(it.att, me.def)) {
+      const dmg = Math.floor(Math.random() * (it.maxHit + 1));
+      if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); if (FIGHT) FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); }
+      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound(equipped.shield && equipped.shield !== 'Torch' || equipped.body || equipped.head ? 'clang' : 'thud'); }
+    } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); }
+    if (HP.cur <= 0) playerDies();
+  }, 480);
 }
 function delveFailed(){
   const lost = Math.floor(COINS * 0.25); COINS -= lost; renderBag();
@@ -4433,14 +4447,27 @@ function updateDelve(){
     if (now > DELVE.next) { const dead = DELVE.mons; clearDelveMonsters(); DELVE.mons = []; DELVE.wave++; DELVE.next = 0; spawnWave(); }
     return;
   }
-  // they come for you: the first one to reach you fights, the other waits its turn just behind
+  // multi-combat: they all come for you, each from its own side; you fight one, the others hit you too
+  const lead = FIGHT && alive.includes(FIGHT.m) ? FIGHT.m : null;
+  const leadA = lead ? Math.atan2(lead.g.position.x - hero.position.x, lead.g.position.z - hero.position.z) : 0;
   alive.forEach((m, i) => {
-    if (FIGHT && FIGHT.m === m) return;
-    const busy = FIGHT && FIGHT.m !== m, want = busy ? reachOf(m) + 1.3 : reachOf(m);
-    const dx = hero.position.x - m.g.position.x, dz = hero.position.z - m.g.position.z, d = Math.hypot(dx, dz);
-    if (d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st + (busy ? Math.cos(i * 2.4) * 0.01 : 0); m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); }
-    else { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
-      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now() }); } }
+    const reach = reachOf(m);
+    if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur);
+    if (lead === m) return;
+    // where to stand: straight at you if nobody is fighting you yet, otherwise round your other side
+    let tx = hero.position.x, tz = hero.position.z, want = reach;
+    if (lead) { const a = leadA + (i % 2 ? 1 : -1) * Math.PI * 0.6; tx += Math.sin(a) * reach; tz += Math.cos(a) * reach; want = 0.15; }
+    const dx = tx - m.g.position.x, dz = tz - m.g.position.z, d = Math.hypot(dx, dz);
+    if (d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'walk'); }
+    else {
+      m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
+      if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready');
+      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now() }); }
+      else if (FIGHT && FIGHT.m !== m && Math.hypot(hero.position.x - m.g.position.x, hero.position.z - m.g.position.z) < reach + 0.5) {
+        if (!m.nextHit) m.nextHit = now + 900 + Math.random() * 600;
+        if (now > m.nextHit) { m.nextHit = now + m.t.speed; sideSwing(m); }
+      }
+    }
     m.x = m.g.position.x; m.z = m.g.position.z;
   });
 }
