@@ -83,7 +83,9 @@
   #dragGhost { position:fixed; z-index:9999; pointer-events:none; width:40px; height:40px; margin:-20px 0 0 -20px; display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
   .slot .swatch { width:14px; height:14px; border-radius:3px; }
   .slot .qty { position:absolute; right:3px; bottom:0; font-size:10px; color:#f0c35a; }
-  .bagFoot { padding:0 10px 8px; font-size:12px; color:#c9b27a; }
+  .bagFoot { padding:0 10px 8px; font-size:12px; color:#c9b27a; display:flex; justify-content:space-between; align-items:center; }
+  .bagFoot .purse { display:flex; align-items:center; gap:4px; color:#f0c35a; font-size:13px; }
+  .bagFoot .purse svg, .bagFoot .purse img { width:18px; height:18px; }
   #gearPanel, #beltPanel { position:fixed; right:58px; top:52px; width:240px; background:rgba(20,16,10,.94); border:2px solid #5b4324; border-radius:6px; z-index:8; font:13px Georgia,serif; color:#e8efe6; }
   #gearPanel[hidden], #beltPanel[hidden] { display:none; }
   .gearList { padding:6px 10px 8px; }
@@ -1347,6 +1349,7 @@ function clickNode(rec){
 }
 // one copper ore and one tin ore make one bronze bar
 function removeItem(name, which){
+  if (name === 'Coins') { if (COINS <= 0) return false; COINS--; renderBag(); return true; }   /* coins live in their own purse, not a bag slot */
   const it = which && bag.includes(which) ? which : bag.find(i => i.name === name); if (!it) return false;
   if (--it.qty <= 0) bag.splice(bag.indexOf(it), 1);
   renderBag(); return true;
@@ -1547,10 +1550,10 @@ document.getElementById('bagGrid').addEventListener('click', e => {
 const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 },
   { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }, { name: 'Wheat seeds', price: 3, qty: 5 }];   // seeds come five to a packet
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
-function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
+function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
-function countOf(name){ let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
+function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
 function demandNow(name){ const d = DEMAND[name]; return d ? Math.max(0, d.n - Math.floor((Date.now() - d.t) / 90000)) : 0; }   // one sale fades every 90 seconds
@@ -1573,7 +1576,6 @@ function renderShop(){
 function sellItem(name, all){
   const have = countOf(name);
   if (!have) { showToast(`You have no ${name.toLowerCase()} to sell.`); return; }
-  if (!hasItem('Coins') && bag.length >= BAG_SIZE) { showToast('Your bag is full, so there is no room for the coins.'); return; }
   const n = all ? have : 1;
   const coins = sellQuote(name, n);
   for (let k = 0; k < n; k++) removeItem(name);
@@ -1586,7 +1588,7 @@ function buyItem(it){
   if (!it.qty && hasItem(it.name)) { showToast(`You already have a ${it.name.toLowerCase()}.`); return; }
   if (coinCount() < it.price) { showToast(`A ${it.name.toLowerCase()} costs ${it.price} coins. You have ${coinCount()}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(it.name)) { showToast('Your bag is full, so there is no room for another item.'); return; }
-  for (let i = 0; i < it.price; i++) removeItem('Coins');
+  COINS -= it.price;
   addItem(it.name, it.qty || 1, ICON_FOR[it.name]);
   showToast(it.qty ? `You buy a packet of ${it.qty} ${it.name.toLowerCase()} for ${it.price} coins.` : `You buy a ${it.name.toLowerCase()} for ${it.price} coins.`);
   renderShop();
@@ -2961,6 +2963,7 @@ const RECIPES = [
 ];
 const BAG_SIZE = 30;
 const bag = [];
+let COINS = 0;   /* the purse: coins have their own counter beside the bag, and take no slot */
 const AXE_NAME = "Bronze axe";
 const PICK_NAME = 'Bronze pickaxe';
 const ORE_NAME = 'Copper ore';
@@ -2968,6 +2971,7 @@ const ORE_NAME = 'Copper ore';
 const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Burnt shrimp', 'Raw chicken', 'Cooked chicken', 'Burnt chicken', 'Raw beef', 'Cooked beef', 'Burnt beef', 'Bread dough', 'Bread', 'Burnt bread', "Brenna's bread"]);
 const roomForOne = name => bag.length < BAG_SIZE || (!SINGLE.has(name) && hasItem(name));
 function addItem(name, qty = 1, icon = '') {
+  if (name === 'Coins') { COINS += qty; renderBag(); return true; }
   if (SINGLE.has(name)) {   // one slot each; as many as fit (and false if not all of them did)
     const n = Math.min(qty, BAG_SIZE - bag.length);
     for (let i = 0; i < n; i++) bag.push({ name, qty: 1, icon, slot: freeSlot() });
@@ -2983,7 +2987,7 @@ function addItem(name, qty = 1, icon = '') {
 }
 // each item keeps its own slot, so you can arrange your bag how you like
 function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.slot === i)) return i; return -1; }
-function hasItem(name){ return bag.some(i => i.name === name); }
+function hasItem(name){ if (name === 'Coins') return COINS > 0; return bag.some(i => i.name === name); }
 /* the toolbelt: one of each skilling tool, kept out of the bag; skilling works from the bag or the belt */
 const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', hoe: 'Hoe', can: 'Watering can' };
 const toolbelt = { axe: null, pick: null, hammer: null, net: null, hoe: null, can: null };
@@ -2999,7 +3003,7 @@ function renderBag() {
       : `<div class="slot" data-s="${i}"></div>`;
   }
   document.getElementById('bagGrid').innerHTML = html;
-  document.getElementById('bagFoot').textContent = `${bag.length} / ${BAG_SIZE} slots used`;
+  document.getElementById('bagFoot').innerHTML = `<span>${bag.length} / ${BAG_SIZE} slots used</span><span class="purse" title="Coins">${COIN_ICON}<b>${COINS.toLocaleString()}</b></span>`;
 }
 // no starting kit: the tools are handed out during A Hearty Welcome
 setTimeout(() => { const d = document.getElementById('questDone');
@@ -4515,7 +4519,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4528,7 +4532,9 @@ function openSpotNear(x, z){
 function applySave(d){
   if (d && d.bag) {
     bag.length = 0;
-    d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
+    COINS = typeof d.co === 'number' ? d.co : 0;
+    d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
+      if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
     for (const b of bag.slice()) while (SINGLE.has(b.name) && b.qty > 1 && bag.length < BAG_SIZE) { b.qty--; bag.push({ name: b.name, qty: 1, icon: b.icon, slot: freeSlot() }); }   // food from before it stopped stacking: spread into free slots (any left over stays together)
   }
@@ -5148,7 +5154,7 @@ function renderTrade(){
       <div class="trStatus">${status}</div>
       <div class="trBtns"><button data-t="confirm" ${tr.s === 2 ? 'disabled' : ''}>Confirm trade</button><button data-t="decline">Decline</button></div>`;
   } else {
-    const bagRows = bag.filter(i => !['Watering can'].includes(i.name) || true).map(i => { const left = i.qty - offered(i.name); if (left <= 0) return '';
+    const bagRows = [...(COINS > 0 ? [{ name: 'Coins', qty: COINS, icon: COIN_ICON }] : []), ...bag].map(i => { const left = i.qty - offered(i.name); if (left <= 0) return '';
       return `<div class="trBag">${i.icon}<span>${escapeHtml(i.name)}${left > 1 ? ' x' + left : ''}</span><button data-add="${escapeHtml(i.name)}" data-n="1">+1</button>${left > 1 ? `<button data-add="${escapeHtml(i.name)}" data-n="all">All</button>` : ''}</div>`; }).join('');
     tradePanel.innerHTML = `<div class="trHead">Trading with ${escapeHtml(r.name)}</div>
       <div class="trCols"><div><h4>Your offer</h4>${mine.map(i => itemRow(i, 'mine')).join('') || '<i>Click items below to offer them</i>'}</div><div><h4>${escapeHtml(r.name)}'s offer</h4>${theirs.map(i => itemRow(i)).join('') || '<i>Nothing yet</i>'}</div></div>
@@ -5175,7 +5181,7 @@ function closeTradeWindow(){ tradePanel.hidden = true; TRADE.open = false; }
 // will everything you're getting fit, once what you're giving has gone?
 function roomFor(give, get){
   const left = {}; for (const it of bag) left[it.name] = (left[it.name] || 0) + it.qty; for (const g of give) left[g.name] -= g.qty; for (const g of get) left[g.name] = (left[g.name] || 0) + g.qty;
-  let used = 0; for (const n in left) if (left[n] > 0) used += SINGLE.has(n) ? left[n] : 1;   // a slot per piece of food, a slot per stack of anything else
+  let used = 0; for (const n in left) if (left[n] > 0 && n !== 'Coins') used += SINGLE.has(n) ? left[n] : 1;   // a slot per piece of food, a slot per stack of anything else
   return used <= BAG_SIZE;
 }
 // the swap itself: give what you offered, take what they offered
@@ -5585,6 +5591,7 @@ function dropOnDeath(){
   for (const u of keep) { if (u.from === 'bag') keepBag[u.name] = (keepBag[u.name] || 0) + 1; else keepEq[u.from] = true; }
   for (const it of bag) { const kq = Math.min(it.qty, keepBag[it.name] || 0); keepBag[it.name] = (keepBag[it.name] || 0) - kq; const lq = it.qty - kq; if (lq > 0) lost[it.name] = (lost[it.name] || 0) + lq; it.qty = kq; }
   for (let i = bag.length - 1; i >= 0; i--) if (bag[i].qty <= 0) bag.splice(i, 1);
+  if (COINS > 0) { lost.Coins = COINS; COINS = 0; }
   for (const k in equipped) if (equipped[k] && !keepEq[k]) { lost[equipped[k]] = (lost[equipped[k]] || 0) + 1; equipped[k] = null; }
   dressChibi(hero, equipped); renderBag(); renderGear(); renderStats();
   const items = Object.keys(lost).map(name => ({ name, qty: lost[name] }));
