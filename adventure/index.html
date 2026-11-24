@@ -3578,7 +3578,7 @@ function updateWanderers(){
     w.rec.x = w.ox + sp.position.x * w.k; w.rec.z = w.oz + sp.position.z * w.k;
   }
 }
-function addNpc(g, h, lx, lz, npc){
+function addNpc(g, h, lx, lz, npc, keep = null){   /* keep: a box (in the house's own units) they stay inside, for shopkeepers behind a counter */
   const frames = null;
   const sp = makeChibi({ ...npc.look, pants: npc.look.pants || 0x3a3a3a });
   sp.scale.setScalar(CHIBI_SCALE / h.k);   // the house group is scaled up, so the villager is scaled back to its normal size
@@ -3590,7 +3590,7 @@ function addNpc(g, h, lx, lz, npc){
   Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
   const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
-  addWander(sp, rec, frames, { parentYaw: g.rotation.y, lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
+  addWander(sp, rec, frames, { parentYaw: g.rotation.y, lx, lz, rad: keep ? 1.2 : 1.6, box: keep || { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
 }
 const MARA = { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
     talks: [
@@ -3633,7 +3633,7 @@ function furnishStore(g, h){
   const sign = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.53, 0.06), new THREE.MeshStandardMaterial({ map: tex }));   // one material, so it folds away with the walls
   sign.scale.setScalar(S); sign.position.set(0, 2.55 * S, (h.hd / W + 0.12) * S); sign.castShadow = true; g.add(sign);   // on the wall itself, so it folds away with the walls when you go in
   sign.userData.deco = true;
-  addNpc(g, h, 0, -1.1 * S, MARA);
+  addNpc(g, h, 0, -1.1 * S, MARA, { x0: -1.2 * S, x1: 1.2 * S, z0: -1.3 * S, z1: -0.95 * S });   /* behind the counter, clear of it and of the shelves */
 }
 // the smithy's furnace and anvil, inside its walls
 function furnishSmithy(g, h){
