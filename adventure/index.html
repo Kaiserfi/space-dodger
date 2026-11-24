@@ -149,6 +149,12 @@
   #partyFrames .pfTop { display:flex; justify-content:space-between; gap:4px; } #partyFrames .pfTop span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #partyFrames .pfTop small { color:#c9b27a; }
   #partyFrames .pfBar { height:7px; margin-top:2px; background:#5a1a12; border:1px solid #2a1208; border-radius:3px; overflow:hidden; } #partyFrames .pfBar i { display:block; height:100%; background:linear-gradient(#5ad85a, #2a9a2a); }
   #partyFrames .pfHp { font-size:10px; color:#c9b27a; text-align:right; }
+  @media (max-width:600px) {   /* phones: a slim strip under the log out button; tap "Party" for the leave button */
+    #partyFrames { top:64px; transform:none; left:8px; width:104px; padding:3px 4px 4px; font-size:11px; }
+    #partyFrames .pfHead { font-size:11px; margin-bottom:1px; cursor:pointer; } #partyFrames .pfHead::after { content:' \25B8'; color:#c9b27a; } #partyFrames.pfOpen .pfHead::after { content:' \25BE'; }
+    #partyFrames .pfRow { padding:2px; } #partyFrames .pfTop small { font-size:9px; } #partyFrames .pfBar { height:5px; margin-top:1px; } #partyFrames .pfHp { display:none; }
+    #partyFrames .pfLeave { display:none; } #partyFrames.pfOpen .pfLeave { display:block; } #partyFrames.pfOpen .pfHp { display:block; font-size:9px; }
+  }
   #partyFrames .pfLeave { margin-top:4px; width:100%; font:11px Georgia,serif; color:#e8efe6; background:#1d150b; border:1px solid #5b4324; border-radius:4px; padding:3px; cursor:pointer; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
   #qMark { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:6; font:bold 30px Georgia,serif; color:#ffd24a; text-shadow:0 0 3px #000, 2px 2px 0 #5a3a10, -1px -1px 0 #5a3a10; display:none; }
@@ -4254,7 +4260,7 @@ function startFight(rec){
     mobClaim(rec);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, rec.x, rec.z);
     rec.g.rotation.y = yawTo(rec.x, rec.z, hero.position.x, hero.position.z);
-    setAct({ k: 'fight', n: rec.name, t: Date.now(), m: rec.sid });
+    setAct({ k: 'fight', n: rec.name, t: Date.now(), m: rec.sid, d: rec.delve && DELVE && DELVE.party ? rec.sp : undefined });
   });
 }
 function endFight(msg){
@@ -5359,8 +5365,8 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else if (act && act.k === 'fight' && act.m !== undefined && !moving) {
-      const mm = MONSTERS.find(q => q.sid === act.m); if (mm) r.yaw = yawTo(nx, nz, mm.g.position.x, mm.g.position.z);
+    } else if (act && act.k === 'fight' && (act.m !== undefined || act.d !== undefined) && !moving) {
+      const mm = act.d !== undefined ? DELVE && DELVE.mons.find(q => q.sp === act.d) : MONSTERS.find(q => q.sid === act.m);   /* a party delve's creatures go by their spawn tag */ if (mm) r.yaw = yawTo(nx, nz, mm.g.position.x, mm.g.position.z);
       const fa = r.fAnim, c = r.sprite.userData.chibi; if (c) fightPose(c, fa && t - fa.t0 < fa.dur ? fa.kind : 'ready', fa ? (t - fa.t0) / fa.dur : 0);
     } else if (act && act.k === 'heal') {   /* someone bandaging: pluses rise over whoever they're healing, you included */
       const who = act.p ? (act.p === ONLINE.id ? hero : remote[act.p] && remote[act.p].sprite) : r.sprite;
@@ -5947,6 +5953,7 @@ function renderPartyFrames(){
 document.addEventListener('click', e => {
   const el = document.getElementById('partyFrames'); if (!el || !el.contains(e.target)) return;
   if (e.target.closest('.pfLeave')) { leaveParty(false); return; }
+  if (e.target.closest('.pfHead')) { el.classList.toggle('pfOpen'); return; }
   const rowEl = e.target.closest('.pfRow[data-p]'); const id = rowEl && rowEl.dataset.p; if (!id) return;
   const b = bag.find(i => i.name === 'Bandage'); if (!b) { showToast('You need a bandage to patch them up.'); return; }
   if (!remote[id] || !sameWorld(remote[id])) { showToast("They're not here."); return; }
@@ -5968,8 +5975,12 @@ function updatePartyDelve(){
   DELVE.orphanAt = 0;
   const me = ONLINE.id, alive = partyAlive(dv);
   // the leader fell or left: the next one down takes over the creatures
-  if (!alive.includes(dv.host) && alive.slice().sort()[0] === me && DELVE.claimed !== dv.host) { DELVE.claimed = dv.host; pput(partyPath(DELVE.party, '/dv/host'), me); dv.host = me; for (const m of DELVE.mons) m.ghost = false; }
+  // ...or their game has stopped (a hidden tab or a phone put down): no word from it for a few seconds, so the next one takes over
+  const stale = dv.host !== me && dv.hb && SNOW() - dv.hb > 6000, claim = dv.host + ':' + (dv.hb || 0);
+  if ((!alive.includes(dv.host) || stale) && alive.filter(id => id !== dv.host).sort()[0] === me && DELVE.claimed !== claim) {
+    DELVE.claimed = claim; pput(partyPath(DELVE.party, '/dv'), { host: me, hb: SNOW() }, 'PATCH'); dv.host = me; dv.hb = SNOW(); for (const m of DELVE.mons) m.ghost = false; }
   const host = dv.host === me;
+  if (!host) for (const m of DELVE.mons) m.ghost = true;   /* someone else took over while my game was asleep: their count wins now */
   DELVE.wave = dv.wave; DELVE.next = dv.next && dv.next > SNOW() ? now + (dv.next - SNOW()) : 0;
   if (dv.done) { if (!DELVE.done) finishPartyDelve(dv); updateDelveChest(); return; }
   if (DELVE.done) { updateDelveChest(); return; }
@@ -6009,7 +6020,7 @@ function hostPartyDelve(dv, now, dt, alive){
       else { m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, q[0], q[1]); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready'); }
       m.x = m.g.position.x; m.z = m.g.position.z; } } }
   if (now - (DELVE.shareAt || 0) > 220 || write.wave !== undefined) { DELVE.shareAt = now;
-    write.mons = DELVE.mons.map(m => ({ k: m.type, sp: m.sp, x: +m.g.position.x.toFixed(2), z: +m.g.position.z.toFixed(2), hp: m.hp, mx: m.maxHp || m.t.hp, tg: m.tg || '', st: m.state === 'dying' || m.state === 'dead' ? 'd' : 'a' }));
+    write.hb = SNOW(); write.mons = DELVE.mons.map(m => ({ k: m.type, sp: m.sp, x: +m.g.position.x.toFixed(2), z: +m.g.position.z.toFixed(2), hp: m.hp, mx: m.maxHp || m.t.hp, tg: m.tg || '', st: m.state === 'dying' || m.state === 'dead' ? 'd' : 'a' }));
     pput(partyPath(DELVE.party, '/dv'), write, 'PATCH'); }
 }
 // everyone else: the creatures are where the leader says, with the health the leader says
@@ -6041,7 +6052,7 @@ function partyFight(now, dt, host){
     else if (Math.hypot(hero.position.x - m.g.position.x, hero.position.z - m.g.position.z) < reach + 0.6) {
       m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
       if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready');
-      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now() }); }
+      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now(), d: m.sp }); }
       else if (FIGHT && FIGHT.m !== m) { if (!m.nextHit) m.nextHit = now + 900 + Math.random() * 600; if (now > m.nextHit) { m.nextHit = now + m.t.speed; sideSwing(m); } }
     }
     m.x = m.g.position.x; m.z = m.g.position.z; });
