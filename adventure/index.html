@@ -1670,8 +1670,8 @@ function questTalk(name){
     if (s <= 1) return ['Oh! A new face! Come in, come in — mind the flour.', me("Aldric sent me. Said your oven's gone cold?"),
       "Stone cold. And the whole village is waiting on their bread!",
       { opts: [
-        ["I'll help. What do you need?", ["Oh, bless you! I need five good logs to get it going again.", "You'll want an axe for that. Mara on the green's got a spare — tell her I sent you.",
-          me("Five logs. I can do that."), 'Lovely. And mind the flour on your way out!', run(() => { QUEST.hw = 2; questStep('Get an axe from Mara the trader on the green.'); })]],
+        ["I'll help. What do you need?", ["Oh, bless you! I need five good logs to get it going again.", "You'll want an axe for that. Mara's got a spare. Her store's the cottage out south-west, past the last houses. Tell her I sent you.",
+          me("Five logs. I can do that."), 'Lovely. And mind the flour on your way out!', run(() => { QUEST.hw = 2; questStep("Get an axe from Mara at her general store, south-west of the village."); })]],
         ['What happened to your oven?', ["The fire went out in the night, and I've no wood left to light it.", "Tobin usually brings me kindling. But Tobin's usually asleep."], true],
         ['Tell me about the village.', ["Small. Friendly. Nosy. Wenna on the green knows everyone's business.", "Mara sells tools, Dunmore keeps the forge going, and the farm out east keeps us all fed."], true],
         ["Sorry, I'm busy right now.", ["Oh. Well, pop back when you've a minute. The oven's not going anywhere."]] ] }];
@@ -1680,7 +1680,7 @@ function questTalk(name){
         run(() => { for (let i = 0; i < 5; i++) removeItem('Logs'); }), "There — the fire's going!", "Now I need a filling for my pies. Three cooked shrimp.",
         me("Where do I get shrimp?"), "Fenwick, down on the riverbank. He's got a spare net. Catch 'em, cook 'em on a fireplace, and bring 'em here.",
         me("Any fireplace?"), "Any one in the village. Mine included.", run(() => { QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.'); })];
-      return [me("How's the oven?"), () => `Still cold, dear. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}.`, s === 2 ? "Mara on the green's got an axe for you." : 'The young trees round the village chop nice and easy.'];
+      return [me("How's the oven?"), () => `Still cold, dear. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}.`, s === 2 ? "Mara's got an axe for you. Her store's out south-west, past the last houses." : 'The young trees round the village chop nice and easy.'];
     }
     if (s <= 5) {
       if (cnt('Shrimp') >= 3) return [me("Three cooked shrimp, as promised."), "Ooh, they smell wonderful! And you didn't burn them all. I'm impressed.",
@@ -1719,7 +1719,7 @@ function questStep(text){ showToast('Quest updated: ' + text); renderStats(); sa
 // what to do next, for the tracker and the quest tab
 function questObjective(){
   const s = QUEST.hw;
-  return ['Talk to Aldric the guard at the hall door.', 'Talk to Brenna the baker, in the far west cottage.', 'Get an axe from Mara the trader on the green.',
+  return ['Talk to Aldric the guard at the hall door.', 'Talk to Brenna the baker, in the far west cottage.', "Get an axe from Mara at her general store, south-west of the village.",
     `Chop logs for Brenna (${Math.min(5, cnt('Logs'))}/5).`, 'Get a fishing net from Fenwick, by the river.',
     `Catch and cook shrimp for Brenna (${Math.min(3, cnt('Shrimp'))}/3 cooked).`, 'Get a pickaxe from Gertrude at the quarry.',
     cnt('Bronze bar') ? 'Give the bronze bar to Dunmore at the smithy.' : 'Mine copper and tin, then smelt a bronze bar.', 'Go back to Brenna.', 'Complete!'][Math.min(s, 9)];
@@ -3232,11 +3232,11 @@ function addNpc(g, h, lx, lz, npc){
 }
 const MARA = { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
     talks: [
-      ["Welcome, traveller! Mind the mud on the green — it's eaten better boots than yours.", "I'm Mara. Axes, pickaxes, hammers, nets... if it helps you work, I sell it.", "My prices are fair. Well, mostly fair. Fair enough, anyway."],
+      ["Welcome to my little store, traveller! Mind the step, it catches everyone.", "I'm Mara. Axes, pickaxes, hammers, nets... if it helps you work, I sell it.", "My prices are fair. Well, mostly fair. Fair enough, anyway."],
       ["Back again? Business must be good. Or bad. Either way, you'll be needing tools."],
       ["Pip keeps touching my pickaxes. I keep a sweet in my pocket to bribe him off."],
       ["Dunmore buys his hammers from me, then tells everyone he made 'em himself."] ],
-    barks: ["Axes, pickaxes, hammers and nets! Everything you need to get to work!", "Best prices on the green, and the only prices on the green!", "Need a tool? Come and have a look, no charge for looking."],
+    barks: ["Axes, pickaxes, hammers and nets! Everything you need to get to work!", "Best prices in the village, and the only prices in the village!", "Need a tool? Come and have a look, no charge for looking."],
     choice: { question: 'Fancy a look at what I\'ve got?' } };
 // Mara's general store: a cottage in the open ground south-west of the village, with a counter, shelves of tools, and a painted sign over the door
 function furnishStore(g, h){
