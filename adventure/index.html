@@ -1714,7 +1714,7 @@ function updateFightMusic(){
   const level = musicLevel(); FIGHT_MUSIC.want = want;
   for (const name of ['battle_theme', 'boss_battle_theme']) {
     const on = want === name, a = on ? fightTrack(name) : FIGHT_MUSIC.el[name]; if (!a) continue;
-    const target = on ? level * 0.8 : 0;
+    const target = on ? level * (name === 'battle_theme' ? 0.3 : 0.8) : 0;   /* the battle theme sits well under everything; the boss theme is left loud for now */
     a.volume = Math.max(0, Math.min(1, a.volume + Math.sign(target - a.volume) * Math.min(Math.abs(target - a.volume), 0.02)));   // a gentle fade either way
     if (on && a.paused) { if (now - (a.stoppedAt || 0) > 30000) a.currentTime = 0; a.play().catch(() => {}); }   // back after a long break: start from the top
     if (!on && !a.paused && a.volume <= 0.001) { a.pause(); a.stoppedAt = now; }
