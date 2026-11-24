@@ -15,7 +15,7 @@ const HOOK = `window.__t = {
   const db = new FakeDb(); const b = await chromium.launch(); const pages = [];
   for (const name of ['Anna', 'Ben']) {
     const ctx = await b.newContext({ viewport: { width: 560, height: 360 } }); const p = await ctx.newPage();
-    await db.attach(p); p.on('pageerror', e => console.log(name, 'PAGEERROR', e.message));
+    await db.attach(p, 'id' + name); p.on('pageerror', e => console.log(name, 'PAGEERROR', e.message));
     await p.addInitScript(n => { try { localStorage.setItem('itapSettings', JSON.stringify({ music: 0, sfx: 0, grass: 'off' })); localStorage.setItem('itapName', n); localStorage.setItem('itapId', 'id' + n); } catch (e) {} }, name);
     await p.route(/^http:\/\/localhost:8123\/adventure\/(\?(?!vcheck).*)?$/, async r => { const resp = await r.fetch(); let body = await resp.text();
       body = body.replace('bootOnline();\nframe();', () => 'bootOnline();\nframe();\n' + HOOK); await r.fulfill({ response: resp, body }); });
