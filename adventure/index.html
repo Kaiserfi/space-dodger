@@ -256,12 +256,11 @@ const LOOK = [
   {key: 'hairCol', label: 'Hair colour', values: [{id: 0x4a2a14, label: 'Brown'}, {id: 0x2e1a0e, label: 'Dark brown'}, {id: 0x1a1a1a, label: 'Black'}, {id: 0xe0c070, label: 'Blonde'}, {id: 0xd9a066, label: 'Strawberry'}, {id: 0x8a4a22, label: 'Auburn'}, {id: 0xa03a1e, label: 'Red'}, {id: 0x9a9aa0, label: 'Grey'}, {id: 0xeeeeee, label: 'White'}, {id: 0x3a6ad0, label: 'Blue'}, {id: 0xe070b0, label: 'Pink'}, {id: 0x3a9a5a, label: 'Green'}, {id: 0x7a4ac0, label: 'Purple'}]},
   {key: 'eye', label: 'Eyes', values: [{id: 0x1e1a2a, label: 'Dark'}, {id: 0x5a3418, label: 'Brown'}, {id: 0x2a5ab0, label: 'Blue'}, {id: 0x2a8a4a, label: 'Green'}, {id: 0x7a6a2a, label: 'Hazel'}, {id: 0x6a7a8a, label: 'Grey'}]},
   {key: 'cheeks', label: 'Cheeks', values: [{id: 'auto', label: 'Natural'}, {id: 'rosy', label: 'Rosy'}, {id: 'none', label: 'Plain'}]},
-  {key: 'face', label: 'Facial hair', values: [{id: 'none', label: 'None'}, {id: 'moustache', label: 'Moustache'}, {id: 'goatee', label: 'Goatee'}, {id: 'beard', label: 'Full beard'}]},
   {key: 'shirt', label: 'Top', values: [{id: 0x3d6fb8, label: 'Blue'}, {id: 0x3f8f4f, label: 'Green'}, {id: 0x8c2f2f, label: 'Red'}, {id: 0x7a5a2a, label: 'Brown'}, {id: 0x8a8f98, label: 'Grey'}, {id: 0xd8b040, label: 'Yellow'}, {id: 0x6a3a8a, label: 'Purple'}, {id: 0x2a8a8a, label: 'Teal'}, {id: 0xe8e4d8, label: 'White'}, {id: 0x2a2a30, label: 'Black'}, {id: 0xd8703a, label: 'Orange'}, {id: 0xd87aa0, label: 'Pink'}]},
   {key: 'pants', label: 'Trousers', values: [{id: 0x5c4a2a, label: 'Brown'}, {id: 0x2a3a5c, label: 'Navy'}, {id: 0x3a3a3a, label: 'Charcoal'}, {id: 0x6a4a8a, label: 'Plum'}, {id: 0x1e1e22, label: 'Black'}, {id: 0x7a7a80, label: 'Grey'}, {id: 0x3a5a2a, label: 'Green'}, {id: 0xb09a6a, label: 'Tan'}, {id: 0x3a5a9a, label: 'Blue'}, {id: 0x7a2a2a, label: 'Red'}]},
   {key: 'boots', label: 'Boots', values: [{id: 0x5a3a22, label: 'Brown'}, {id: 0x1e1a18, label: 'Black'}, {id: 0x6a6a70, label: 'Grey'}, {id: 0x7a2a22, label: 'Red'}, {id: 0x9a7a4a, label: 'Tan'}]},
 ];
-let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, eye: 0x1e1a2a, cheeks: 'auto', face: 'none', boots: 0x5a3a22};
+let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, eye: 0x1e1a2a, cheeks: 'auto', boots: 0x5a3a22};
 let lookMade = false;
 try { const d = JSON.parse(localStorage.getItem('lowpolyLook')); if (d) { look = {...look, ...d.look}; lookMade = !!d.made; } } catch (e) {}
 const saveLook = () => { try { localStorage.setItem('lowpolyLook', JSON.stringify({look, made: lookMade})); } catch (e) {} };
@@ -2240,19 +2239,6 @@ function makeChibi(o){
     chibiPart(head, gRound(0.17, 10), hc, Math.cos(a) * rr, y, z - 0.04);
   }
   const knot = hs === 'topknot' ? chibiPart(head, gRound(0.2, 14), hc, 0, 0.7, -0.15) : null;
-  // facial hair, under the smile so it never covers it
-  const fh = o.face || 'none', fc = hs === 'bald' ? 0x3a2a1a : hc;
-  if (fh === 'moustache' || fh === 'beard') for (const s of [-1, 1]) chibiPart(head, gRound(0.06, 8), fc, s * 0.08, -0.08, 0.6, false).scale.set(1.6, 0.7, 0.8);
-  if (fh === 'goatee') {   // a small pointed tuft hanging from the chin
-    chibiPart(head, gRound(0.09, 10), fc, 0, -0.42, 0.44, false).scale.set(1.1, 0.8, 0.8);
-    const tip = chibiPart(head, geo('goateeTip', () => new THREE.ConeGeometry(0.1, 0.26, 8)), fc, 0, -0.58, 0.42); tip.rotation.set(Math.PI - 0.35, 0, 0);
-  }
-  if (fh === 'beard') {   // a proper beard: hair along the jaw from ear to ear, falling into a rounded point below the chin, in front of the chest
-    const jaw = chibiPart(head, geo('beardJaw', () => new THREE.SphereGeometry(0.655, 24, 10, Math.PI * 0.08, Math.PI * 0.84, Math.PI * 0.7, Math.PI * 0.2)), fc, 0, -0.02, 0.02, false);
-    jaw.material = jaw.material.clone(); jaw.material.side = THREE.DoubleSide;
-    const fall = chibiPart(head, geo('beardFall', () => new THREE.SphereGeometry(0.32, 16, 12)), fc, 0, -0.6, 0.36); fall.scale.set(1.15, 1.15, 0.62); fall.rotation.x = -0.3;
-    const point = chibiPart(head, geo('beardPoint', () => new THREE.ConeGeometry(0.26, 0.42, 10)), fc, 0, -0.86, 0.42); point.rotation.set(Math.PI - 0.3, 0, 0); point.scale.set(1, 1, 0.6);
-  }
   // tools and worn gear
   const tools = { axe: makeTool('axe'), pick: makeTool('pick') };
   for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
@@ -2508,8 +2494,8 @@ document.getElementById('crRows').addEventListener('click', e => {
   renderCreator(); rebuildHero(); saveLook();
 });
 document.getElementById('crStart').addEventListener('click', closeCreator);
-document.getElementById('crRandom').addEventListener('click', () => {   // a random look: every option picked at random, facial hair less often
-  for (const o of LOOK) { const v = o.values; look[o.key] = o.key === 'face' && Math.random() < 0.6 ? 'none' : v[Math.floor(Math.random() * v.length)].id; }
+document.getElementById('crRandom').addEventListener('click', () => {   // a random look: every option picked at random
+  for (const o of LOOK) { const v = o.values; look[o.key] = v[Math.floor(Math.random() * v.length)].id; }
   renderCreator(); rebuildHero(); saveLook();
 });
 document.getElementById('lookBtn').addEventListener('click', openCreator);
