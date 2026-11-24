@@ -200,6 +200,7 @@
   <div class="setRow"><button class="muteBtn" id="muteMusic" title="Mute music"></button><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100"></div>
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
   <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
+  <div class="setRow"><label style="width:auto;flex:1">Battery saver</label><div class="grassOpts" id="saverOpts"><button data-s="off">Off</button><button data-s="on">On</button></div></div>
   <div class="setRow"><label style="width:auto;flex:1">Grass</label><div class="grassOpts" id="grassOpts"><button data-g="off">Off</button><button data-g="low">Low</button><button data-g="high">High</button></div></div>
 </div>
 <div id="beltPanel" hidden>
@@ -1695,7 +1696,8 @@ const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
 // the volume settings, saved in this browser
 const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false, grass: (matchMedia('(pointer: coarse)').matches ? 'low' : 'high') };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
-if (typeof SETTINGS.bright !== 'number') SETTINGS.bright = 50;   // brightness: 50 is as designed; higher lifts the night for dim screens
+if (typeof SETTINGS.bright !== 'number') SETTINGS.bright = 50;
+if (typeof SETTINGS.saver !== 'boolean') SETTINGS.saver = matchMedia('(pointer: coarse)').matches;   /* battery saver: on by default on phones and tablets */   // brightness: 50 is as designed; higher lifts the night for dim screens
 document.getElementById('volBright').addEventListener('input', e => { SETTINGS.bright = +e.target.value; applySettings(); });
 const musicLevel = () => SETTINGS.musicMute ? 0 : SETTINGS.music / 100;
 const MUSIC_BEAT = 60 / 76 / 2;                         // an eighth note at 76 beats a minute
@@ -1776,9 +1778,12 @@ function applySettings(){
     document.getElementById('vol' + id).value = SETTINGS[k];
   }
   document.querySelectorAll('#grassOpts button').forEach(b => b.classList.toggle('on', b.dataset.g === SETTINGS.grass));
+  document.querySelectorAll('#saverOpts button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'on') === SETTINGS.saver));
+  if (window.__powerReady) applyPower();   /* not before the renderer's effects are set up */
   document.getElementById('volBright').value = SETTINGS.bright;
   try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
+document.getElementById('saverOpts').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; SETTINGS.saver = b.dataset.s === 'on'; applySettings(); });
 document.getElementById('grassOpts').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; SETTINGS.grass = b.dataset.g; applySettings(); if (window.buildGrass) buildGrass(); });
 for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
   document.getElementById('vol' + id).addEventListener('input', e => { SETTINGS[k] = +e.target.value; SETTINGS[k + 'Mute'] = false; applySettings(); });
@@ -5222,6 +5227,26 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// ----- battery saver: fewer pixels, no glow, smaller shadows, and the scene drawn less often (the game itself still runs every frame) -----
+const POWER = { last: 0, input: 0, applied: null };
+function applyPower(){
+  const on = !!SETTINGS.saver; if (POWER.applied === on) return; POWER.applied = on;
+  const pr = on ? 1 : Math.min(devicePixelRatio, 2);
+  renderer.setPixelRatio(pr); composer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false); composer.setSize(innerWidth, innerHeight);
+  bloom.enabled = !on;
+  const size = on ? 1024 : 2048; if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  if (typeof fitView === 'function') fitView();
+}
+for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown']) addEventListener(ev, () => { POWER.input = performance.now(); }, { passive: true });
+// is anything happening that's worth drawing smoothly?
+function busyNow(now){ return now - POWER.input < 2500 || walkTarget || FIGHT || chop.rec || smelting || cooking || smithing || fishing || farmBusy || milling || spinning || bandaging || (typeof DELVE !== 'undefined' && DELVE) || Object.keys(remote).length > 0 && Object.values(remote).some(r => Math.hypot(r.tx - r.sprite.position.x, r.tz - r.sprite.position.z) > 0.05); }
+function shouldDraw(now){
+  if (!SETTINGS.saver) return true;
+  const gap = busyNow(now) ? 33 : 66;   // about 30 a second while something's happening, 15 when all is still
+  if (now - POWER.last < gap - 4) return false;
+  POWER.last = now; return true;
+}
+window.__powerReady = true; applyPower();
 // floating pollen and fireflies drifting around the player
 const MOTES = 160;
 const moteGeo = new THREE.BufferGeometry();
@@ -5287,8 +5312,7 @@ function frame(){
   riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
   clouds.rotation.y = now * 0.000006;
   sky.position.copy(camera.position);
-  updateMotes(now);
-  composer.render();
+  if (shouldDraw(now)) { updateMotes(now); if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
   requestAnimationFrame(frame);
 }
 // ----- a held torch: the flame flickers, and at night it lights the ground round you -----
