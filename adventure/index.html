@@ -1095,8 +1095,10 @@ function findPath(fromV, toV){
   return pts;
 }
 function walkStart(point, then, replan = false){
-  if (typeof farmChain !== 'undefined') farmChain = null;   // a new walk ends any farming run
-  if (typeof farmBusy !== 'undefined' && farmBusy) { farmBusy.cancelled = true; farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); }   /* and stops the job in hand: walking away means it doesn't get done */
+  if (!replan) {   /* only a walk the player starts; the game re-planning a route round something is not walking away */
+    if (typeof farmChain !== 'undefined') farmChain = null;   // a new walk ends any farming run
+    if (typeof farmBusy !== 'undefined' && farmBusy) { farmBusy.cancelled = true; farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); }   /* and stops the job in hand: walking away means it doesn't get done */
+  }
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   unstick();
   const path = findPath(hero.position, point);
@@ -1542,21 +1544,27 @@ let bagDrag = null, bagDragged = false;
 document.getElementById('bagGrid').addEventListener('pointerdown', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell || e.button > 0) return;
   bagDrag = { it: bag[+cell.dataset.i], cell, x: e.clientX, y: e.clientY, ghost: null, over: null };
+  const d = bagDrag; clearTimeout(bagHold); bagHold = setTimeout(() => { if (bagDrag === d && !d.ghost) { bagDrag = null; bagDragged = true; setTimeout(() => { bagDragged = false; }, 400); openDropMenu(d.it, d.x + 6, d.y - 10); } }, 550);   /* a long press: the drop menu */
 });
+let bagHold = 0;
+document.getElementById('bagGrid').addEventListener('contextmenu', e => { e.preventDefault(); const cell = e.target.closest('.slot[data-i]'); if (!cell) return; clearTimeout(bagHold); bagDrag = null; const it = bag[+cell.dataset.i]; if (it) openDropMenu(it, e.clientX + 6, e.clientY - 10); });
 addEventListener('pointermove', e => {
   const d = bagDrag; if (!d) return;
   if (!d.ghost) {
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+    clearTimeout(bagHold);
     d.ghost = document.createElement('div'); d.ghost.id = 'dragGhost'; d.ghost.innerHTML = d.it.icon; document.body.appendChild(d.ghost);
     d.cell.classList.add('lifted');
   }
   d.ghost.style.left = e.clientX + 'px'; d.ghost.style.top = e.clientY + 'px';
   const under = document.elementFromPoint(e.clientX, e.clientY), over = under && under.closest('#bagGrid .slot');
   if (over !== d.over) { if (d.over) d.over.classList.remove('dropOn'); d.over = over; if (over) over.classList.add('dropOn'); }
+  d.outside = !(under && under.closest('#bagPanel'));   // dragged right out of the bag: it goes on the ground
 });
 function endBagDrag(drop){
   const d = bagDrag; bagDrag = null; if (!d || !d.ghost) return;
   d.ghost.remove(); bagDragged = true; setTimeout(() => { bagDragged = false; }, 0);
+  if (drop && d.outside && bag.includes(d.it)) { d.cell.classList.remove('lifted'); dropItem(d.it, false); return; }
   if (drop && d.over && bag.includes(d.it)) {
     const to = +d.over.dataset.s, other = bag.find(x => x.slot === to);
     if (other) other.slot = d.it.slot;
@@ -1588,7 +1596,7 @@ let CUR_SHOP = SHOPS.mara;
 function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2178,7 +2186,8 @@ function applyNodeStates(nodes, animate){
   }
 }
 function giveLogs(rec){
-  if (addItem('Logs', 1, LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some logs.  +${rec.xp} Woodcutting XP`); }
+  const oak = rec.level >= 15, name = oak ? 'Oak logs' : 'Logs';   /* oaks give oak logs */
+  if (addItem(name, 1, oak ? OAK_LOG_ICON : LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some ${oak ? 'oak logs' : 'logs'}.  +${rec.xp} Woodcutting XP`); }
   else showToast('Your bag is full.');
 }
 // a rock that has been mined leaves rubble, gives ore, and comes back later
@@ -2608,9 +2617,9 @@ function poseChibi(g, mode, t, tool = 'axe'){
   c.tools.axe.visible = mode === 'swing' && tool === 'axe';
   c.tools.pick.visible = mode === 'swing' && tool === 'pick';
   c.tools.hoe.visible = mode === 'swing' && tool === 'hoe';
-  c.tools.can.visible = mode === 'water';
+  c.tools.can.visible = mode === 'water' || mode === 'fill';
   c.gear.visible = mode !== 'swing';
-  const handsBusy = mode === 'swing' || mode === 'water' || mode === 'pour';   /* a tool in hand: the sword, shield or torch is put away for the moment */
+  const handsBusy = !['idle', 'walk', 'fight', 'ready', 'block', 'hurt', 'dead'].includes(mode);   /* any skilling or everyday job: the sword, shield or torch is put away for the moment */
   for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = !handsBusy; });
   const [L, R] = c.legs, [AL, AR] = c.arms;
   c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
@@ -2638,6 +2647,14 @@ function poseChibi(g, mode, t, tool = 'axe'){
     return;
   }
   if (c.sheaf) c.sheaf.visible = false;
+  if (mode === 'fill') {   // bent over the trough, the can held down in the water and tipped on its side to fill
+    const bob = Math.sin(now * 3) * 0.08;
+    c.body.position.y = -0.18; c.body.rotation.x = 0.45; c.head.rotation.x = 0.3;
+    L.rotation.x = -0.5; R.rotation.x = 0.35;
+    AR.rotation.set(-1.15 + bob, 0, 0.2); AL.rotation.set(-1.05 - bob, 0, -0.2);
+    c.tools.can.rotation.set(1.0, 0, 1.1);   // held out over the water, on its side, its mouth dipped under the surface
+    return;
+  }
   if (mode === 'plant') {   // crouched low, one hand pressing seeds into the soil, a little dip each time
     const dip = Math.abs(Math.sin(now * 4)) * 0.25;
     c.body.position.y = -0.32; c.body.rotation.x = 0.35 + dip * 0.4;
@@ -3002,6 +3019,8 @@ const LOG_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
   <rect x="2" y="9" width="10" height="1" fill="#6b4220"/>
   <ellipse cx="12.5" cy="8" rx="2.2" ry="3" fill="#e0b97f" stroke="#7a4d22" stroke-width="0.8"/>
   <circle cx="12.5" cy="8" r="1" fill="none" stroke="#a9773f" stroke-width="0.6"/></svg>`;
+/* oak logs: darker, heavier bark and a richer heartwood */
+const OAK_LOG_ICON = LOG_ICON.replace('#8a5a2b', '#5e3c1c').replace('#a06d37', '#7a5228').replace('#6b4220', '#43290f').replace('#e0b97f', '#c8925a').replace('#a9773f', '#8a5a2b');
 const AXE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M3.5 13.5 L10 5.5" stroke="#7a4d22" stroke-width="2" stroke-linecap="round"/>
   <path d="M8.5 2.5 L13.5 2 L14 7 L10.5 7.5 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
@@ -3142,21 +3161,21 @@ const VILLAGERS = [
   { name: 'Tobin', title: 'the woodcutter', look: { gender: 'male', skin: 0xd9a070, hair: 'short', hairCol: 0x2a1a10, shirt: 0x3a7a3a, pants: 0x4a3a2a },
     talks: [
       ["Hm? Oh... hello. Sorry. I was just... resting my eyes.", "Tobin. I cut wood. Well... I teach the young ones to cut wood. Same thing, really. Just louder."],
-      [() => `Woodcutting level ${sk('Woodcutting')}, eh? ` + (sk('Woodcutting') < 15 ? "Stick to the young trees for now... the oaks'll just laugh at you till you're 15." : "Good arms on you. The oaks south of the hall are all yours."), "Swing from the hips... not the shoulders. Saves your back."],
+      [() => sk('Woodcutting') < 15 ? "Stick to the young trees for now. The oaks'll just laugh at your axe till you've a few more seasons of chopping behind you." : "Good arms on you. The oaks south of the hall are all yours, and their wood's worth twice the ordinary stuff.", "Swing from the hips... not the shoulders. Saves your back."],
       ["Don't tell Brenna, but... I've been paying her in kindling. She hasn't noticed. I think."],
       ["A good axe is only as good as your grip...", "...and a good grip's only as good as your lunch. Speaking of which..."] ],
     barks: ["I'm not asleep, I'm just resting my eyes for a bit.", "The young trees are best if you're just starting out.", "I'll get back to chopping in a minute. Probably."] },
   { name: 'Ysolde', title: 'the angler', look: { gender: 'female', skin: 0xf0c8a0, hair: 'topknot', hairCol: 0x1a1a1a, shirt: 0x4a6aa0, pants: 0x3a3a4a },
     talks: [
       ["Shh. You'll scare the fish. They can hear you through the walls, you know.", "...They can't, really. But you never know."],
-      [() => `Fishing level ${sk('Fishing')}, is it? ` + (sk('Fishing') < 5 ? "Still working out which end of the rod goes in the water, then." : "You've got the patience for it. I can tell."), "Shrimp come up by the bank first thing in the morning."],
+      [() => (sk('Fishing') < 5 ? "Still working out which end of the rod goes in the water, then." : "You've got the patience for it. I can tell."), "Shrimp come up by the bank first thing in the morning."],
       ["Fenwick swears he caught a fish as long as a horse. He didn't. I was there. It was a boot."],
       ["The river's different every day. Some mornings the shrimp practically jump in the net, other days you'll sit here for hours with nothing."] ],
     barks: ["Keep your voice down a little, please. The fish are biting.", "The river's lovely and calm today. Good day for shrimp.", "Fenwick's telling that horse-sized fish story again, isn't he?"] },
   { name: 'Dunmore', title: 'the smith', look: { gender: 'male', skin: 0xc08a60, hair: 'short', hairCol: 0x5a5a5a, shirt: 0x6a4a3a, pants: 0x2a2a2a },
     talks: [
       ["Mind the sparks, and your eyebrows, if you want to keep them.", "I'm Dunmore. I keep the forge hot while the master's away. Been away eleven years, mind."],
-      [() => `Smithing level ${sk('Smithing')}, is it? ` + (sk('Smithing') < 4 ? "Start with bars, then daggers. Swords can wait until you've stopped burning your fingers." : "You're getting the feel of the hammer."), "Remember, one copper ore and one tin ore in the furnace makes you a bronze bar."],
+      [() => (sk('Smithing') < 4 ? "Start with bars, then daggers. Swords can wait until you've stopped burning your fingers." : "You're getting the feel of the hammer."), "Remember, one copper ore and one tin ore in the furnace makes you a bronze bar."],
       ["Always strike the metal while it's still glowing. Let it cool and it'll crack on you, and then you've wasted a good bar."],
       ["Gertrude brings me the best ore in the valley. Don't tell her. Her head's big enough already."] ],
     barks: ["Stand back from the forge, the sparks fly further than you'd think.", "It's hot work in here, I'll tell you that for nothing.", "Has anyone seen my good hammer? I had it a minute ago."] },
@@ -3259,7 +3278,7 @@ const TOWNSFOLK = [
       ["A traveller! At last, someone who hasn't heard my songs yet!", "I'm Lyra. I sing of heroes. You're not one yet, but I'm patient."],
       ["♪ Oh, the river runs and the axes swing, and the baker bakes, and the smith goes ding... ♪", "...It's a work in progress."],
       ["Wenna says I only know three songs. I know four! The fourth's the third one, just faster."],
-      [() => `Total level ${Object.keys(SKILL_XP).reduce((t, n) => t + sk(n), 0)}? Get to fifty and I'll write you a verse. Promise.`] ],
+      [() => Object.keys(SKILL_XP).reduce((t, n) => t + sk(n), 0) < 50 ? "Turn your hand to a bit of everything, and one day I'll write you a verse. Promise." : "Is there anything you can't do now? Right, that's it. I'm starting on your verse tonight."] ],
     barks: ["♪ Oh, the river runs and the axes swing... ♪", "Any requests? I know three songs. Well, four.", "I'm still looking for a word that rhymes with pickaxe."] },
   { name: 'Hobb', title: 'the forester', x: -82, z: 11, rad: 2.5, hat: 'hood',
     look: { gender: 'male', skin: 0xd09a70, hair: 'short', hairCol: 0x5a3a1a, shirt: 0x4a6a3a, pants: 0x5a4a2a },
@@ -3273,7 +3292,7 @@ const TOWNSFOLK = [
     look: { gender: 'female', skin: 0xb07a50, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x7a5a3a, pants: 0x3a3a3a },
     talks: [
       ["You here to mine or to stand about? Either's fine. Only one of 'em pays.", "I'm Gertrude. The copper rocks are on the west side and the tin's on the east. You'll need one of each to make a bronze bar."],
-      [() => `Mining level ${sk('Mining')}, is it? ` + (sk('Mining') < 5 ? "Your hands are still soft, but they'll toughen up soon enough. Just keep swinging." : "You're getting the hang of it. Keep at it and you'll be out-mining me before long.")],
+      [() => (sk('Mining') < 5 ? "Your hands are still soft, but they'll toughen up soon enough. Just keep swinging." : "You're getting the hang of it. Keep at it and you'll be out-mining me before long.")],
       ["Dunmore pretends he doesn't rate my ore. Keeps the best bits on a shelf, he does. I've seen it."],
       ["Rocks grow back, y'know. Slowly. Like my patience."] ],
     barks: ["Copper's on the west side, tin's on the east. Help yourself.", "Mind your toes round the rocks, I'm not carrying anyone home.", "If a rock's been mined out, give it a minute and it'll come back."] },
@@ -4163,7 +4182,7 @@ function killMonster(m){
   setTimeout(() => {
     const got = [];
     if (coins > 0 && addItem('Coins', coins, COIN_ICON)) got.push(`${coins} coins`);
-    for (const [name, lo, hi] of m.t.drops || []) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (addItem(name, n, ICON_FOR[name])) got.push(n > 1 ? `${n} ${name.toLowerCase()}` : name.toLowerCase()); else { showToast('Your bag is full, so some of the drop is left behind.'); } }
+    for (const [name, lo, hi] of m.t.drops || []) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); const before = countOf(name); addItem(name, n, ICON_FOR[name]); const fit = countOf(name) - before; if (fit) got.push(fit > 1 ? `${fit} ${name.toLowerCase()}` : name.toLowerCase()); if (fit < n) { dropToGround(name, n - fit, m.x, m.z, true); showToast('Your bag is full, so some of the drop falls to the ground.'); } }
     showToast(got.length ? `The ${m.t.name.toLowerCase()} is defeated! It dropped ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : `The ${m.t.name.toLowerCase()} is defeated!`);
   }, 900);
   endFight();
@@ -4642,14 +4661,14 @@ function grantDelveRewards(){
   quietLevelUps = true; addXp('Melee', 400); addXp('Hitpoints', 150); quietLevelUps = false;
   const rows = [], left = [];
   for (const [name, n] of [['Copper ore', r(5, 10)], ['Tin ore', r(5, 10)], ['Feathers', r(25, 50)], ['Wheat seeds', r(5, 10)]]) {
-    const ok = addItem(name, n, ICON_FOR[name]); rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name]}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(bag full)</small>'}</div>`); if (!ok) left.push(name);
+    const before = countOf(name); addItem(name, n, ICON_FOR[name]); const ok = countOf(name) - before >= n; if (!ok) dropToGround(name, n - (countOf(name) - before), DELVE_C.x + 1.5, DELVE_C.z - 1.5, true); rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name]}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(on the ground)</small>'}</div>`); if (!ok) left.push(name);
   }
   if (DELVE && DELVE.chest) { const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); DELVE.chest.g.userData.action = null; }
   questJingle(); renderStats(); saveNow(false);
   showRewardScroll({ banner: 'Delve complete', title: 'The Cellar', sub: 'All eight waves beaten, alone in the dark.',
     rewards: rows.join(''), xp: '<div class="qr">Melee<b>+400</b></div><div class="qr">Hitpoints<b>+150</b></div>',
     quote: '&ldquo;Cleared the whole cellar? On your own? Well I never. Keep whatever you found down there, you earned it.&rdquo; &mdash; Ezra' });
-  if (left.length) addSystemLine('Your bag was too full for some of it, so it stayed in the chest.');
+  if (left.length) addSystemLine('Your bag was too full for some of it, so it spilled onto the sand by the chest.');
   addSystemLine('Climb the ladder to leave the cellar.');
 }
 // the quest-complete scroll, reused for other rewards (the welcome quest's own text is put back when it is needed)
@@ -4897,7 +4916,7 @@ const MULBERRY_LEAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><pat
 const COCOON_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><ellipse cx="8" cy="8.5" rx="4" ry="6" fill="#f4f0e2" stroke="#a09878" stroke-width="0.7" transform="rotate(-25 8 8.5)"/><path d="M5 6 Q8 8 11 6 M4.6 9 Q8 11 11.4 9 M5.4 12 Q8 13.5 10.6 12" stroke="#d4ccb0" stroke-width="0.6" fill="none" transform="rotate(-25 8 8.5)"/></svg>`;
 const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4" y="2" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="4" y="12" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="5" y="4" width="6" height="8" fill="#f8f2e6" stroke="#c8bca0" stroke-width="0.5"/><path d="M5 5.5 L11 5.5 M5 7.5 L11 7.5 M5 9.5 L11 9.5 M11 10.5 Q13 12 12 14" stroke="#e0d6c0" stroke-width="0.6" fill="none"/></svg>`;
 const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
-const ICON_FOR = { 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
+const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
@@ -5237,7 +5256,7 @@ function frame(){
   updateCellar(); updateDelve();
   updateTrade();
   updateFarmPose();
-  updateMilling(); updateSpinning(); updateBandage();
+  updateMilling(); updateSpinning(); updateBandage(); updateGround();
   updateDrops();
   updateTorch();
   checkDialogDistance();
@@ -5269,8 +5288,92 @@ function updateTorch(){
   let i = 1; for (const id in remote) { const rc = remote[id].sprite.userData.chibi; if (rc && rc.torch) flick(rc.torch, i++ * 1.7); }
 }
 // ----- crafting from the bag: click an item that can be made into something, and pick what to make -----
-const CRAFTS = { 'Logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 15, needs: { Logs: 1 } }] };
+const CRAFTS = { 'Logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 15, needs: { Logs: 1 } }], 'Oak logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 20, needs: { 'Oak logs': 1 } }] };
 const itemMenu = document.createElement('div'); itemMenu.id = 'itemMenu'; itemMenu.hidden = true; document.body.appendChild(itemMenu);
+
+// ===== items on the ground: dropped from the bag, or a drop or reward that didn't fit. Only you see yours; they last three minutes =====
+const GROUND = [], GROUND_MS = 180000;
+function groundModel(name){
+  const g = new THREE.Group(), P = (geo, col, x, y, z, outline = true) => chibiPart(g, geo, col, x, y, z, outline);
+  const meat = (col, seared) => { const m = P(new THREE.CylinderGeometry(0.34, 0.36, 0.12, 14), col, 0, 0.06, 0); m.scale.set(1.2, 1, 0.8);
+    const fat = P(new THREE.TorusGeometry(0.33, 0.045, 6, 18, Math.PI * 1.2).rotateX(Math.PI / 2), 0xe8c8a0, 0, 0.08, 0, false); fat.scale.set(1.2, 0.8, 1); fat.rotation.y = 1.9;
+    if (seared) for (const k of [-0.15, 0, 0.15]) P(new THREE.BoxGeometry(0.5, 0.01, 0.04), 0x3a1a0a, k * 0.5, 0.125, k, false).rotation.y = 0.7; };
+  const roast = (col) => { const b = P(new THREE.SphereGeometry(0.3, 12, 9), col, 0, 0.2, 0); b.scale.set(1.15, 0.75, 0.9); for (const s of [-1, 1]) P(new THREE.SphereGeometry(0.12, 8, 6), col, s * 0.22, 0.12, 0.2).scale.set(0.8, 0.7, 1.3); };
+  const sack = (col, tie) => { const b = P(new THREE.SphereGeometry(0.3, 12, 9), col, 0, 0.24, 0); b.scale.set(1, 0.9, 1); P(new THREE.CylinderGeometry(0.06, 0.12, 0.16, 8), col, 0, 0.5, 0); P(new THREE.TorusGeometry(0.08, 0.025, 5, 10).rotateX(Math.PI / 2), tie, 0, 0.47, 0, false); };
+  if (name === 'Cooked beef') meat(0x7a3a1e, true); else if (name === 'Raw beef') meat(0xc04a44, false); else if (name === 'Burnt beef' || name === 'Burnt chicken') meat(0x2a1a12, false);
+  else if (name === 'Cooked chicken') roast(0xb86a2a); else if (name === 'Raw chicken') roast(0xf0b8a8);
+  else if (/shrimp/i.test(name)) { const col = name === 'Raw shrimp' ? 0xe8a090 : name === 'Shrimp' ? 0xf06a3a : 0x2a1a12; const sh = P(new THREE.TorusGeometry(0.2, 0.08, 6, 12, Math.PI * 1.3), col, 0, 0.1, 0); sh.rotation.x = Math.PI / 2; }
+  else if (/bread|Bread|dough/i.test(name)) { const col = name === 'Bread dough' ? 0xf0e0c0 : name === 'Burnt bread' ? 0x3a2a1e : 0xc8843a; const l = P(new THREE.SphereGeometry(0.3, 12, 8), col, 0, 0.18, 0); l.scale.set(1.4, 0.7, 0.85); }
+  else if (name === 'Logs' || name === 'Oak logs') { for (const [z, y] of [[-0.14, 0.12], [0.14, 0.12], [0, 0.32]]) P(new THREE.CylinderGeometry(0.12, 0.12, 0.75, 8).rotateZ(Math.PI / 2), name === 'Oak logs' ? 0x5e3c1c : 0x8a5a2a, 0, y, z); }
+  else if (/ore$/.test(name)) { const r = P(new THREE.DodecahedronGeometry(0.24, 0), 0x6a645c, 0, 0.2, 0); for (let i = 0; i < 4; i++) P(new THREE.SphereGeometry(0.06, 5, 4), name.startsWith('Tin') ? 0xd8dce0 : 0xd8783a, Math.cos(i * 1.6) * 0.18, 0.22 + (i % 2) * 0.08, Math.sin(i * 1.6) * 0.18, false); }
+  else if (/bar$/.test(name)) P(new THREE.BoxGeometry(0.5, 0.14, 0.24), 0xc88a3a, 0, 0.07, 0);
+  else if (name === 'Wheat') { for (let i = 0; i < 5; i++) { const st = P(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 4).rotateZ(Math.PI / 2), 0xd8b050, 0, 0.06 + (i % 2) * 0.05, -0.12 + i * 0.06, false); st.rotation.y = (i - 2) * 0.08; } P(new THREE.TorusGeometry(0.09, 0.025, 4, 8).rotateY(Math.PI / 2), 0x8a6a30, 0, 0.1, 0, false); }
+  else if (name === 'Feathers') { for (let i = 0; i < 3; i++) { const f = P(new THREE.SphereGeometry(0.16, 8, 5), 0xf6f2ea, (i - 1) * 0.14, 0.04, (i % 2) * 0.1, false); f.scale.set(0.4, 0.12, 1.3); f.rotation.y = (i - 1) * 0.5; } }
+  else if (name === 'Aloe leaf') { for (const a of [-0.5, 0, 0.5]) { const l = P(new THREE.ConeGeometry(0.08, 0.6, 4).rotateZ(Math.PI / 2), 0x6aa080, 0, 0.06, 0); l.rotation.y = a; l.scale.z = 0.5; } }
+  else if (name === 'Mulberry leaves') { for (const a of [-0.6, 0.1, 0.8]) { const l = P(new THREE.SphereGeometry(0.2, 8, 5), 0x5a9a3a, Math.cos(a) * 0.12, 0.03, Math.sin(a) * 0.12, false); l.scale.set(1, 0.12, 0.75); l.rotation.y = a; } }
+  else if (name === 'Silk cocoon') { for (const x of [-0.12, 0.12]) P(new THREE.SphereGeometry(0.12, 8, 6), 0xf6f2e6, x, 0.1, 0).scale.set(0.75, 0.75, 1.3); }
+  else if (name === 'Silk thread') { P(new THREE.CylinderGeometry(0.14, 0.14, 0.26, 10).rotateZ(Math.PI / 2), 0xf8f2e6, 0, 0.14, 0); for (const x of [-0.16, 0.16]) P(new THREE.CylinderGeometry(0.17, 0.17, 0.04, 10).rotateZ(Math.PI / 2), 0xa07848, x, 0.14, 0); }
+  else if (name === 'Bandage') { P(new THREE.TorusGeometry(0.16, 0.08, 6, 12).rotateX(Math.PI / 2), 0xf4eee0, 0, 0.08, 0); }
+  else if (/seeds/.test(name)) sack(name.startsWith('Aloe') ? 0xa8c8a0 : name.startsWith('Mulberry') ? 0xc8a8c0 : 0xc8a870, 0x6a5030);
+  else if (name === 'Flour') sack(0xece4d0, 0x8a7a5a);
+  else sack(0x9a7448, 0x4a3018);   // anything else: wrapped in a cloth bundle
+  return g;
+}
+let groundGlow = null;
+function dropToGround(name, qty, x, z, quiet){
+  if (!qty || name === 'Coins') return;
+  const near = GROUND.find(gi => gi.name === name && Math.hypot(gi.x - x, gi.z - z) < 0.8);
+  if (near) { near.qty += qty; near.until = Date.now() + GROUND_MS; return; }   // onto the same pile
+  if (!groundGlow) { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d'), gr = c.createRadialGradient(32, 32, 4, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,230,150,.55)'); gr.addColorStop(0.6, 'rgba(255,210,120,.22)'); gr.addColorStop(1, 'rgba(255,210,120,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+    groundGlow = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }); }
+  for (let k = 0; k < 8 && GROUND.some(o => Math.hypot(o.x - x, o.z - z) < 0.9); k++) { const a = k * 2.4; x += Math.cos(a) * 0.9; z += Math.sin(a) * 0.9; }   // beside, not on top of, other things lying there
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  const ring = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9).rotateX(-Math.PI / 2), groundGlow); ring.position.y = 0.05; g.add(ring);
+  const m = groundModel(name); m.scale.setScalar(1.6); m.rotation.y = Math.random() * 6.28; g.add(m);
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.9, 8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.45; g.add(hit);   // easy to click
+  const gi = { name, qty, x, z, g, m, until: Date.now() + GROUND_MS, born: performance.now() };
+  g.userData = { action: 'Take', name, rec: { kind: 'ground', state: 'standing', x, z, onClick: () => pickUp(gi) } }; trees.push(g);
+  GROUND.push(gi);
+  if (!quiet) sfx((c, t, out) => nz(c, out, t, 0.12, 'lowpass', 500, 250, 0.8, 0.4, 0.004, 0.1));   // a soft thump on the grass
+}
+function removeGround(gi){ scene.remove(gi.g); const i = trees.indexOf(gi.g); if (i >= 0) trees.splice(i, 1); const j = GROUND.indexOf(gi); if (j >= 0) GROUND.splice(j, 1); }
+function pickUp(gi){
+  if (!GROUND.includes(gi)) return;
+  const take = () => {
+    if (!GROUND.includes(gi)) return;
+    const before = countOf(gi.name); addItem(gi.name, gi.qty, ICON_FOR[gi.name] || ''); const got = countOf(gi.name) - before;
+    if (!got) { showToast('Your bag is full.'); return; }
+    gi.qty -= got; if (gi.qty <= 0) removeGround(gi);
+    sfx((c, t, out) => nz(c, out, t, 0.1, 'bandpass', 1800, 2600, 1.2, 0.3, 0.005, 0.08));
+    showToast(got > 1 ? `You pick up ${got} ${gi.name.toLowerCase()}.` : `You pick up the ${gi.name.toLowerCase()}.`);
+  };
+  if (Math.hypot(hero.position.x - gi.x, hero.position.z - gi.z) < 1.8) { walkTarget = null; walkQueue = []; take(); return; }
+  walkStart(new THREE.Vector3(gi.x, 0, gi.z), take);
+}
+function updateGround(){
+  const now = Date.now(), t = performance.now() / 1000;
+  for (let i = GROUND.length - 1; i >= 0; i--) { const gi = GROUND[i];
+    if (now > gi.until) { removeGround(gi); continue; }
+    const k = Math.min(1, (performance.now() - gi.born) / 250); gi.m.position.y = 0.06 + Math.abs(Math.sin(t * 2 + i)) * 0.06 + (1 - k) * 0.8;   // drops in, then a gentle bob
+    gi.m.rotation.y += 0.004; }
+}
+// drop something from the bag at your feet (just in front of you)
+function dropItem(it, all){
+  if (!it || !bag.includes(it)) return;
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  const name = it.name, n = all ? countOf(name) : SINGLE.has(name) ? 1 : it.qty;
+  const a = heroAnim.yaw || 0, x = hero.position.x + Math.sin(a) * 1.1, z = hero.position.z + Math.cos(a) * 1.1;
+  if (all) for (const b of bag.filter(b => b.name === name)) bag.splice(bag.indexOf(b), 1);
+  else bag.splice(bag.indexOf(it), 1);
+  renderBag(); dropToGround(name, n, x, z); saveNow(false);
+}
+function openDropMenu(it, x, y){
+  const many = countOf(it.name) > 1;
+  itemMenu.innerHTML = `<div class="imHead">${it.name}</div><button data-o="d">Drop</button>${many ? '<button data-o="a">Drop all</button>' : ''}<button data-o="x">Cancel</button>`;
+  itemMenu.hidden = false; itemMenu.style.left = Math.min(innerWidth - 170, x) + 'px'; itemMenu.style.top = Math.min(innerHeight - itemMenu.offsetHeight - 8, y) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true; if (b.dataset.o === 'd') dropItem(it, false); else if (b.dataset.o === 'a') dropItem(it, true); };
+}
 function openItemMenu(name, x, y){
   const opts = CRAFTS[name]; if (!opts) return false;
   itemMenu.innerHTML = `<div class="imHead">${name}</div>` + opts.map((o, i) => `<button data-o="${i}">${o.label}</button>`).join('') + '<button data-o="x">Cancel</button>';
@@ -5443,10 +5546,11 @@ function growCrops(){
 }
 let farmBusy = null;
 let farmChain = null;   // the patch you're working through, one job after another, until you click somewhere else
-function farmAct(pt, ms, label, done){
+function farmAct(pt, ms, label, done, reach = 2.7){   /* reach: how far from it you stand */
   if (farmBusy) return;
   const go = () => {
     const job = farmBusy = { t0: performance.now(), ms, done, kind: label }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
+    if (label === 'fill') farmSound('fill');
     setAct({ k: 'farm', f: label, t: Date.now() });
     setTimeout(() => {
       if (job.cancelled) return;   /* you walked off before it was done */
@@ -5455,23 +5559,24 @@ function farmAct(pt, ms, label, done){
     }, ms);
   };
   // already beside it: start at once; otherwise walk to the nearest free side of the patch
-  if (Math.max(Math.abs(hero.position.x - pt.x), Math.abs(hero.position.z - pt.z)) < 3.4) { walkTarget = null; walkQueue = []; go(); return; }
-  const sides = [[-2.7, 0], [2.7, 0], [0, -2.7], [0, 2.7]].map(([dx, dz]) => [pt.x + dx, pt.z + dz]).filter(([x, z]) => !blocked(x, z))
+  if (Math.max(Math.abs(hero.position.x - pt.x), Math.abs(hero.position.z - pt.z)) < reach + 0.7) { walkTarget = null; walkQueue = []; go(); return; }
+  const sides = [[-reach, 0], [reach, 0], [0, -reach], [0, reach]].map(([dx, dz]) => [pt.x + dx, pt.z + dz]).filter(([x, z]) => !blocked(x, z))
     .sort((a, b) => Math.hypot(a[0] - hero.position.x, a[1] - hero.position.z) - Math.hypot(b[0] - hero.position.x, b[1] - hero.position.z));
   const [sx, sz] = sides[0] || [pt.x - 2.7, pt.z];
   walkStart(new THREE.Vector3(sx, 0, sz), go);
-  farmChain = pt;   // walkStart clears the chain, so set it again after
+  if (pt.i !== undefined) farmChain = pt;   // walkStart clears the chain, so set it again after (only for a patch: the trough is a one-off job)
 }
 function farmPose(g, kind, since){   // the pose for each farming job, for you and for others watching
   if (kind === 'till') poseChibi(g, 'swing', (since / 900) % 1, 'hoe');
   else if (kind === 'water') poseChibi(g, 'water', 0);
+  else if (kind === 'fill') poseChibi(g, 'fill', 0);
   else poseChibi(g, 'plant', 0);   // planting and harvesting: down low at the crops
 }
 function updateFarmPose(){
   if (!farmBusy || !hero) return;
   const since = performance.now() - farmBusy.t0;
   if (farmBusy.kind === 'till') setHeroSwing((since / 900) % 1, 'hoe', heroAnim.yaw);
-  else heroAnim.mode = farmBusy.kind === 'water' ? 'water' : 'plant';
+  else heroAnim.mode = farmBusy.kind === 'water' ? 'water' : farmBusy.kind === 'fill' ? 'fill' : 'plant';
 }
 // water pouring from the spout of any can being tipped, yours or another player's
 const DROPS = { n: 60, pos: null, vel: [], life: [], i: 0, pts: null }, dropV = new THREE.Vector3();
@@ -5767,7 +5872,7 @@ function healPlus(target){
 function troughClick(x, z){
   if (!hasTool('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
   if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
-  walkStart(new THREE.Vector3(x, 0, z + 1.6), () => { FARM_CAN.n = CAN_MAX; renderBag(); renderGear(); farmSound('fill'); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); saveNow(false); });
+  farmAct({ x, z }, 1500, 'fill', () => { FARM_CAN.n = CAN_MAX; renderBag(); renderGear(); renderBelt(); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); }, 2.0);   /* step right up, face the trough, and dip the can in */
 }
 // milling: like cooking, a bar fills for each sack of wheat while you tip it into the hopper, and the sails turn faster
 const MILL_MS = 1800;
@@ -6293,18 +6398,18 @@ async function bonfireClick(){
   if (ph === 'none' || (ph === 'casual' && f <= 0.02)) { lightCasualFire(); return; }
   if (f <= 0.02) { showToast('A ring of stones with cold ash in it.'); return; }
   if (ph === 'over' || ph === 'done') { showToast("The fire's burning down for the night now."); return; }
-  if (!hasItem('Logs')) { showToast('You need some logs to put on the fire. The trees by the hall will do.'); return; }
+  if (!hasItem('Logs') && !hasItem('Oak logs')) { showToast('You need some logs to put on the fire. The trees by the hall will do.'); return; }
   if (f > 0.97) { showToast("The fire's roaring already. Save your logs for later."); return; }
   if (EV.seat >= 0) { showToast("You'll need to get up off the bench to reach the fire."); return; }   // no tossing logs from your seat
   const dx = hero.position.x - BF.x, dz = hero.position.z - BF.z, L = Math.hypot(dx, dz) || 1;
   walkStart(new THREE.Vector3(BF.x + dx / L * 3, 0, BF.z + dz / L * 3), async () => {
-    if (!hasItem('Logs')) return;
-    removeItem('Logs');
+    const log = hasItem('Logs') ? 'Logs' : hasItem('Oak logs') ? 'Oak logs' : null; if (!log) return;   /* ordinary logs first; oak burns longer */
+    removeItem(log);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, BF.x, BF.z);
     tossLog = { t0: performance.now(), from: hero.position.clone().add(new THREE.Vector3(0, 1.6, 0)) };
     evSound('toss', hero.position.x, hero.position.z);
-    addXp('Firemaking', 40);
-    await addFuel(LOG_FUEL);
+    addXp('Firemaking', log === 'Oak logs' ? 60 : 40);
+    await addFuel(log === 'Oak logs' ? LOG_FUEL * 1.5 : LOG_FUEL);
     setTimeout(() => evSound('land'), 600);
     if (EV.warn > 0) { const b = npcSp('Bram'); if (b) evSay(b, "Ha! Nice one! That's more like it."); EV.warn = 0; }
   });
@@ -6313,14 +6418,14 @@ async function bonfireClick(){
 function isDark(){ const h = hourNow(); return h >= 19.3 || h < 6.2; }
 function lightCasualFire(){
   if (!isDark()) { showToast("It's too bright out to need a fire. Come back after sunset."); return; }
-  if (!hasItem('Logs')) { showToast('A ring of stones with cold ash in it. You need some logs to light a fire.'); return; }
+  if (!hasItem('Logs') && !hasItem('Oak logs')) { showToast('A ring of stones with cold ash in it. You need some logs to light a fire.'); return; }
   if (EV.seat >= 0) { showToast("You'll need to get up off the bench to reach the fire."); return; }
   const dx = hero.position.x - BF.x, dz = hero.position.z - BF.z, L = Math.hypot(dx, dz) || 1;
   walkStart(new THREE.Vector3(BF.x + dx / L * 3, 0, BF.z + dz / L * 3), async () => {
-    if (!hasItem('Logs')) return;
+    const log = hasItem('Logs') ? 'Logs' : hasItem('Oak logs') ? 'Oak logs' : null; if (!log) return;
     try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();   // never step on a real event, or a fire someone just lit
       if (cur && cur.start && !cur.done && Date.now() - cur.start < 75 * 60000 && (!cur.casual || fuelNow() > 0.02)) { bonfireClick(); return; } } catch (e) { return; }
-    removeItem('Logs');
+    removeItem(log);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, BF.x, BF.z);
     tossLog = { t0: performance.now(), from: hero.position.clone().add(new THREE.Vector3(0, 1.6, 0)) };
     const now = Date.now();
