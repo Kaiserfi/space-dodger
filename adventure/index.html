@@ -1054,6 +1054,7 @@ function findPath(fromV, toV){
   return pts;
 }
 function walkStart(point, then, replan = false){
+  if (typeof farmChain !== 'undefined') farmChain = null;   // a new walk ends any farming run
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   unstick();
   const path = findPath(hero.position, point);
@@ -4539,13 +4540,24 @@ function growCrops(){
   if (FARMLAND && FARMLAND.sails) FARMLAND.sails.rotation.z -= 0.004;
 }
 let farmBusy = null;
+let farmChain = null;   // the patch you're working through, one job after another, until you click somewhere else
 function farmAct(pt, ms, label, done){
   if (farmBusy) return;
-  walkStart(new THREE.Vector3(pt.x - 2.6, 0, pt.z), () => {
+  const go = () => {
     farmBusy = { t0: performance.now(), ms, done, kind: label }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
     setAct({ k: 'farm', f: label, t: Date.now() });
-    setTimeout(() => { farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); done(); saveNow(false); }, ms);
-  });
+    setTimeout(() => {
+      farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); done(); saveNow(false);
+      if (farmChain === pt && !walkTarget) setTimeout(() => { if (farmChain === pt && !walkTarget && !farmBusy) patchClick(pt, true); }, 250);   // straight on to the next job
+    }, ms);
+  };
+  // already beside it: start at once; otherwise walk to the nearest free side of the patch
+  if (Math.max(Math.abs(hero.position.x - pt.x), Math.abs(hero.position.z - pt.z)) < 3.4) { walkTarget = null; walkQueue = []; go(); return; }
+  const sides = [[-2.7, 0], [2.7, 0], [0, -2.7], [0, 2.7]].map(([dx, dz]) => [pt.x + dx, pt.z + dz]).filter(([x, z]) => !blocked(x, z))
+    .sort((a, b) => Math.hypot(a[0] - hero.position.x, a[1] - hero.position.z) - Math.hypot(b[0] - hero.position.x, b[1] - hero.position.z));
+  const [sx, sz] = sides[0] || [pt.x - 2.7, pt.z];
+  walkStart(new THREE.Vector3(sx, 0, sz), go);
+  farmChain = pt;   // walkStart clears the chain, so set it again after
 }
 function farmPose(g, kind, since){   // the pose for each farming job, for you and for others watching
   if (kind === 'till') poseChibi(g, 'swing', (since / 900) % 1, 'hoe');
@@ -4574,8 +4586,13 @@ function updateDrops(){
     if (DROPS.pos[i * 3 + 1] < 0.2) { DROPS.life[i] = 0; DROPS.pos[i * 3 + 1] = -50; } }
   DROPS.pts.geometry.attributes.position.needsUpdate = true;
 }
-function patchClick(pt){
+function patchClick(pt, auto){
   const p = FARM_PLOTS[pt.i];
+  farmChain = pt;
+  if (auto) {   // carrying on by itself: only the jobs you have what you need for, and stop quietly otherwise
+    const can = p.s === 'tilled' ? hasItem('Wheat seeds') : p.s === 'planted' && p.g < 3 && !p.w ? hasItem('Watering can') && FARM_CAN.n > 0 : false;
+    if (!can) { farmChain = null; return; }
+  }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   if (p.s === 'grass') {
     if (!hasItem('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
