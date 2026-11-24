@@ -5216,6 +5216,7 @@ function updateOnline(){
     if (moving) r.tick++;
     // what they are doing: the swing for chopping and mining, and a label for every action
     const act = r.act && t - r.actAt < ACT_TIME[r.act.k] ? r.act : null;
+    if (r.healingMe && !(act && act.k === 'heal' && act.p === ONLINE.id)) { r.healingMe = false; if (!bandaging) healFx(null); }   /* their bandaging on you has stopped */
     const verb = act ? ACT_LABEL[act.k] : '';
     if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
     if (moving) r.yaw = Math.atan2(nx - x, nz - z);   // face the way they walk
@@ -5226,6 +5227,11 @@ function updateOnline(){
     } else if (act && act.k === 'fight' && act.m !== undefined && !moving) {
       const mm = MONSTERS.find(q => q.sid === act.m); if (mm) r.yaw = yawTo(nx, nz, mm.g.position.x, mm.g.position.z);
       const fa = r.fAnim, c = r.sprite.userData.chibi; if (c) fightPose(c, fa && t - fa.t0 < fa.dur ? fa.kind : 'ready', fa ? (t - fa.t0) / fa.dur : 0);
+    } else if (act && act.k === 'heal') {   /* someone bandaging: pluses rise over whoever they're healing, you included */
+      const who = act.p ? (act.p === ONLINE.id ? hero : remote[act.p] && remote[act.p].sprite) : r.sprite;
+      if (who && t - (r.lastPlus || 0) > 380) { r.lastPlus = t; healPlus(who); }
+      if (act.p === ONLINE.id && who) { healFx(hero); r.healingMe = true; }
+      poseChibi(r.sprite, 'work', r.tick / 60);
     } else if (act && act.k === 'eat') poseChibi(r.sprite, 'eat', Math.min(1, (t - r.actAt) / EAT_MS));
     else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
     else if (act && act.k === 'mill' && !moving) poseChibi(r.sprite, 'pour', 0);
@@ -5936,7 +5942,7 @@ function updateBandage(){
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
     const r = remote[who]; fetch(`${DB}/adventure/live/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
-    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (r) hitsplat(r.sprite, BANDAGE_HEAL, 'heal'); silkSound('collect'); addXp('Crafting', 10);
+    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal');   /* what they'll really gain, the same number they see */ silkSound('collect'); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
   if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
