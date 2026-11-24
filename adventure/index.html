@@ -4437,14 +4437,15 @@ function delveWon(){
 // the reward chest: banded wood, a domed lid that swings open, and a golden glow inside
 function spawnDelveChest(){
   const g = new THREE.Group(), cx = DELVE_C.x, cz = DELVE_C.z; g.position.set(cx, 0, cz); scene.add(g);
-  const wood = texMat(woodTex(), 1, 1, 0x8a5a30), band = mat(0x3a3a40), gold = mat(0xe2b84c);
+  const wood = texMat(woodTex(), 1, 1, 0xc08850), band = mat(0x55555c), gold = mat(0xe2b84c);
+  wood.emissive = new THREE.Color(0x2a1808); gold.emissive = new THREE.Color(0x5a3a08);   /* a little glow of its own, so it reads in the dark pit */
   const add = (geo, m, x, y, z, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
   add(new THREE.BoxGeometry(1.6, 0.9, 1.0), wood, 0, 0.45, 0);
   for (const x of [-0.6, 0.6]) add(new THREE.BoxGeometry(0.12, 0.94, 1.04), band, x, 0.45, 0);
   const glow = add(new THREE.BoxGeometry(1.4, 0.05, 0.8), new THREE.MeshBasicMaterial({ color: 0xffd060 }), 0, 0.88, 0); glow.visible = false;
   const lid = new THREE.Group(); lid.position.set(0, 0.9, -0.5); g.add(lid);   // hinged at the back
-  add(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2), wood, 0, 0, 0.5, lid);
-  for (const x of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.53, 0.53, 0.12, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2), band, x, 0, 0.5, lid);
+  add(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), wood, 0, 0, 0.5, lid);
+  for (const x of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.53, 0.53, 0.12, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), band, x, 0, 0.5, lid);
   add(new THREE.BoxGeometry(0.22, 0.3, 0.08), gold, 0, -0.1, 1.02, lid);   // the clasp
   g.rotation.y = Math.PI;   // facing the ladder, where you come from
   g.scale.setScalar(0.01);
