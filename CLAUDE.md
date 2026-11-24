@@ -4,6 +4,15 @@
 
 The whole game is one file: a three.js module script inside `adventure/index.html`. Players share a live Firebase Realtime Database, so treat every change as going straight to real players.
 
+It is a RuneScape-style village game based on the owner's phone game, **Idle Tap Adventure (ITAP)**. When a feature exists in ITAP (monsters, delves, warnings, balance), match it: its code is in the `Kaiserfi/idletapadventure` repo (for example `www/js/combat.js` for challenge-mode delves and their wording). When it doesn't, follow how RuneScape does it, adapted to our simpler skills.
+
+### Before you build
+
+- **Ask only when the choice changes what gets built** (single or multi-combat, private or shared ground items). Otherwise pick the sensible default, say which, and go.
+- **"Show me" means a mock-up, not a change.** When the owner asks what something would look like, render it with test hooks and send pictures, without changing the game. Offer to build it afterwards.
+- **Search before adding a name.** The file is huge and shares one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once). `node --check` catches a clash at the same level, but not one hidden in an inner scope.
+- **Read the owner's messages mid-task.** They often add a request while you work; fold it into the current change, or do it next and say so.
+
 ### Characters
 
 - **Characters are 3D chibi figures.** Every character (the hero, villagers, Mara, other players) is built by `makeChibi(look)` and animated by `poseChibi(g, mode, t, tool)` with modes `idle`, `walk` and `swing`. The model is about 2.7 units tall before `CHIBI_SCALE`. Keep the toy style: big round head, big shiny eyes, no nose, toon shading (`toonMat`) and the dark outline from `chibiPart`.
@@ -63,18 +72,43 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 - **Movement must not depend on frame rate.** Scale per-frame movement by the elapsed time (`dt`), and approach targets with a small tolerance (`d > want + 0.1`), or a mover can creep forever without arriving.
 - **In combat, clicking another monster doesn't switch targets.** It says "You're already in combat!". Only clicking the ground runs away.
 
+### Combat and skills
+
+- **Melee stands for RuneScape's Attack, Strength and Defence together.** Each point of damage gives **4 Melee XP and 4 Hitpoints XP**, so the two level together, as each RuneScape combat skill does with Hitpoints. Any new XP source keeps that ratio.
+- Levels come from `levelOf(xp) = 1 + floor(sqrt(xp / 25))`. Hitpoints starts at level 10 (2025 XP). Combat level is `(Melee × 2 + Hitpoints) / 3`.
+- Farm monsters are passive and drop no coins (meat and feathers only). Their stats come from ITAP's farm biome (`MONSTER_TYPES`).
+- **Fighting distance depends on the monster's size** (`reachOf`: farmer 3.0, cow 2.8, others 2.3), so a full-sized foe never stands inside the hero's head.
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
 - It matches the phone game: dying or fleeing (including the ladder, or closing the game) costs 25% of coins and rolls back all Melee and Hitpoints XP gained in the delve. The XP from before going down is saved as `dv`, so a mid-delve logout is penalised on the next load. After the last wave the player is safe, and the reward chest gives the rewards.
 - Waves 5 to 7 pick two random monsters from chicken, rat and cow only. The angry farmers come only as the final pair. It is multi-combat.
 - Down there only the boss theme plays, never the ordinary battle theme.
+- Unlocking it needs 10 kills of each farm monster (`KILLS`). The reward chest gives +400 Melee, +400 Hitpoints, ores, feathers and seeds, shown on the reward scroll (`showRewardScroll`).
+
+### Quests
+
+- **Each quest is a number in `QUEST`** (for example `QUEST.hw` for A Hearty Welcome, `QUEST.rt` for Roots and Threads), saved with the rest of the save, so old saves start at 0.
+- An NPC's quest lines come from `questTalk(name)` before their normal chat; return `null` when they have nothing to say for this step, so their usual chat and "Let's trade." stay available.
+- Steps the player completes by doing something (planting, harvesting, spinning) move on with a one-line `rtAdvance(from, to, text)`-style call at that action. Steps that are a conversation move on in the dialogue's `run()`.
+- Give tools only if the player has none in the bag or on the toolbelt (`giveFarmTool`), check bag room first, and replace anything a player lost on a step.
+- The tracker (`updateQuest`), the quests tab and the "!" marker all need the new quest added. The completion screen reuses the quest scroll through `showRewardScroll`; `restoreQuestScroll` puts the welcome quest's own text back.
+
+### What's in the game (so you don't rebuild it)
+
+- **Farming:** patches east of the farm, the seed menu (`SEEDS`, `CROPS`: wheat, aloe at Farming 3, mulberry at 5), the windmill (flour), the trough, and crafting bread dough.
+- **Silk:** the workshop next to Tilly's market holds the silkworm hutch (mulberry leaves to cocoons, with a ready bubble) and the spinning wheel (cocoons to silk thread). Silk thread and aloe make **bandages** (Crafting).
+- **Shops:** Mara (tools) and Tilly (seeds, farming tools, farm goods). The anvil makes 1 / 5 / X / All at a time.
+- **Multiplayer:** shared monsters, other players' fights and health bars, healing other players, trading, the bonfire night and raid, gravestones.
 
 ### Shared monsters (multiplayer)
 
 - Farm monsters have a shared id (`m.sid`, in spawn order). Each game works out their wandering with `mobPath()` from a seeded random and the server clock (`SNOW()`). So spawn order, homes and everything solid near them must be identical for every player; nothing random or local may change them.
 - Only fights go through the database, at `adventure/live/mobs/<sid>`: the fighter (with a heartbeat), health, position, each blow, and dead-until. It is single combat ("Someone else is fighting that."). Anything shown to other players (fight status, poses) must carry the monster's `sid`.
 - **Database rules:** a new database path needs a rule in `database.rules.json`, and the owner has to paste the rules into the Firebase console and publish them. Say so whenever the rules change, and give the full rules to paste. Compare with the owner's current console rules first, so nothing of theirs is lost.
+- **Roll database changes out in the right order.** Rules with no entry for a path refuse every write to it. When code moves to new paths, give the owner rules that keep the old sections **and** add the new ones, wait until they say they've published, and only then merge. Old sections can be removed later, once everyone has refreshed.
+- **Watch for side effects of a rule.** Publishing a rule can switch on code that was quietly failing before (the heals stream only connected, and broke everything, once its rule existed). Test the code as it will run *with* the rules published.
 
 ### Healing other players
 
@@ -103,9 +137,19 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 - **Headless runs at only a few frames per second.** Walking and wandering are slow there, so teleport the hero next to things for checks, and allow long waits.
 - **Render pictures with a separate camera** (`renderer.render(scene, cam)` then `toDataURL`) to look at an object up close; the game camera follows the hero.
 - Check the script parses before testing: extract the module script and run `node --check` on it.
+- **Testing traps that wasted time:**
+  - Logout navigates to the arcade page, so check `page.url()` after waiting for the navigation, not for the name box.
+  - Wrapping a game function from `page.evaluate` runs outside the game's scope, so game variables look "not defined" there; put the wrapper in the injected hook instead.
+  - `Object.values(remote)[0]` isn't always the player you mean; look them up by name.
+  - The first presence write can overwrite an early test change (for example a player hurt before joining finished); wait until the other player actually sees the change.
+  - `FakeDb` leaves an empty `{}` behind after a delete; real Firebase removes empty nodes.
+  - A headless walk of a couple of units takes several seconds, and clicks land on the canvas unless they hit a menu; check where `elementFromPoint` lands before blaming the code.
+- When the owner says they'll test something themselves, stop your own test of it.
 
 ## Workflow
 
 - Develop on the session's branch, then open a pull request and squash-merge it into `main` without asking. Say what changed in the PR, and note anything the owner must do by hand, such as publishing database rules.
 - After a squash merge the branch's remote copy still holds the old commits. Merge it with `-s ours` (your copy already contains them) before pushing, rather than force-pushing.
 - Report honestly what was tested and what wasn't (sounds, timers skipped in tests, untested paths).
+- **Don't merge anything that breaks the live game.** If a merge depends on the owner doing something first (publishing rules), say so and wait for them.
+- When the owner reports a live bug, stop other work, find the cause, and fix it first; hold back unrelated changes until the fix is in.

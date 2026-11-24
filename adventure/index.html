@@ -4163,7 +4163,7 @@ function playerSwing(m){
     if (Math.random() < hitChance(me.att, it.def)) {
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
       if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
-        addXp('Melee', dmg * 4); addXp('Hitpoints', Math.round(dmg * 4 / 3)); }
+        addXp('Melee', dmg * 4); addXp('Hitpoints', dmg * 4); }   /* the same for both: Melee stands for Attack, Strength and Defence together, and Hitpoints keeps pace with it as it does with each of those in RuneScape */
       else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'block'); }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'miss'); }
     if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else killMonster(m); }
@@ -4667,7 +4667,7 @@ function openDelveChest(){
 }
 function grantDelveRewards(){
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-  quietLevelUps = true; addXp('Melee', 400); addXp('Hitpoints', 150); quietLevelUps = false;
+  quietLevelUps = true; addXp('Melee', 400); addXp('Hitpoints', 400); quietLevelUps = false;
   const rows = [], left = [];
   for (const [name, n] of [['Copper ore', r(5, 10)], ['Tin ore', r(5, 10)], ['Feathers', r(25, 50)], ['Wheat seeds', r(5, 10)]]) {
     const before = countOf(name); addItem(name, n, ICON_FOR[name]); const ok = countOf(name) - before >= n; if (!ok) dropToGround(name, n - (countOf(name) - before), DELVE_C.x + 1.5, DELVE_C.z - 1.5, true); rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name]}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(on the ground)</small>'}</div>`); if (!ok) left.push(name);
@@ -4675,7 +4675,7 @@ function grantDelveRewards(){
   if (DELVE && DELVE.chest) { const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); DELVE.chest.g.userData.action = null; }
   questJingle(); renderStats(); saveNow(false);
   showRewardScroll({ banner: 'Delve complete', title: 'The Cellar', sub: 'All eight waves beaten, alone in the dark.',
-    rewards: rows.join(''), xp: '<div class="qr">Melee<b>+400</b></div><div class="qr">Hitpoints<b>+150</b></div>',
+    rewards: rows.join(''), xp: '<div class="qr">Melee<b>+400</b></div><div class="qr">Hitpoints<b>+400</b></div>',
     quote: '&ldquo;Cleared the whole cellar? On your own? Well I never. Keep whatever you found down there, you earned it.&rdquo; &mdash; Ezra' });
   if (left.length) addSystemLine('Your bag was too full for some of it, so it spilled onto the sand by the chest.');
   addSystemLine('Climb the ladder to leave the cellar.');
