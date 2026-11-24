@@ -1710,7 +1710,8 @@ function updateFightMusic(){
   const st = typeof EV !== 'undefined' && EV.data && EV.data.raid && EV.data.raid.st;
   const raid = typeof evActive === 'function' && evActive() && (st === 'rush' || st === 'lost' || evPhase() === 'creep') && hero && Math.hypot(hero.position.x - BF.x, hero.position.z - BF.z) < 40;
   const delve = typeof DELVE !== 'undefined' && DELVE && !DELVE.done;   /* the whole delve, until the last wave falls */
-  const want = raid || delve ? 'boss_battle_theme' : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
+  const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)));   /* down in the cellar: never the ordinary battle theme */
+  const want = raid || delve ? 'boss_battle_theme' : below ? null : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
   const level = musicLevel(); FIGHT_MUSIC.want = want;
   for (const name of ['battle_theme', 'boss_battle_theme']) {
     const on = want === name, a = on ? fightTrack(name) : FIGHT_MUSIC.el[name]; if (!a) continue;
