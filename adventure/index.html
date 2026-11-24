@@ -400,6 +400,35 @@ const town = new THREE.Group();
 scene.add(town);
 
 // ----- the ground, a river, a bridge and paths -----
+// ----- the water: the river winds along the north, a stream leaves it in the west and runs south into the trout pond -----
+// waterSD(x, z) is how far a point is from the water's edge (below 0 is in the water). The ground, the grass, the solid water
+// and the reeds all follow it. The river's south bank stays clear of the walkable edge at z = -11.1, so nothing on land moves.
+const POND = { x: -84, z: 85, r: 11, k: 0.85 };   // k squashes it north to south
+const pondR = a => POND.r + 1.4 * Math.sin(3 * a + 0.6) + 0.7 * Math.cos(5 * a);
+const riverSouth = x => -12.25 + 0.35 * Math.sin(x * 0.23) + 0.2 * Math.sin(x * 0.57 + 1);
+const riverWidth = x => 6 + 2.4 * Math.sin(x * 0.04 + 1) + 1 * Math.sin(x * 0.13);   // 2.6 to 9.4 wide, swelling and narrowing as it winds
+const STREAM_W = 1.9;   // half its width
+const STREAM = (() => {   // a smooth line through these bends, from the river down to the pond
+  const c = [[-106, -16], [-107, -8], [-110, 2], [-106, 13], [-109, 25], [-104, 37], [-107, 49], [-101, 61], [-94, 70], [-87, 79]], out = [];
+  for (let i = 0; i < c.length - 1; i++) { const p0 = c[Math.max(0, i - 1)], p1 = c[i], p2 = c[i + 1], p3 = c[Math.min(c.length - 1, i + 2)];
+    for (let j = 0; j < 8; j++) { const t = j / 8, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map(k => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3))); } }
+  out.push(c[c.length - 1]); return out;
+})();
+function pondSD(x, z){ const dx = x - POND.x, dz = (z - POND.z) / POND.k; return Math.hypot(dx, dz) - pondR(Math.atan2(dz, dx)); }
+function streamSD(x, z){
+  let m = Infinity;
+  for (let i = 0; i < STREAM.length - 1; i++) { const [x0, z0] = STREAM[i], [x1, z1] = STREAM[i + 1], dx = x1 - x0, dz = z1 - z0;
+    const t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz))); m = Math.min(m, Math.hypot(x - x0 - dx * t, z - z0 - dz * t)); }
+  return m - STREAM_W;
+}
+function waterSD(x, z){
+  const s = riverSouth(x); let d = Math.max(z - s, s - riverWidth(x) - z);
+  if (x > -116 && x < -66 && z > -20 && z < 100) d = Math.min(d, streamSD(x, z), pondSD(x, z));
+  return d;
+}
+// the water surface: a strip along the river and a sheet over the stream and pond; the ground dips under it only where there is water
+const WATER_Y = -0.3, WATER_RECTS = [[-120, 120, -21, -10], [-117, -65, -11, 98]];
 const QUARRY = { x: 12, z: 72, r: 13.5 };   // the quarry, south-west of the smithy
 const groundGeo = new THREE.PlaneGeometry(240, 240, 240, 240);   // a fine grid so the hall's flat patch lines up
 groundGeo.rotateX(-Math.PI / 2);
@@ -410,7 +439,10 @@ for (let i = 0; i < gp.count; i++) {
   const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 112 && z > -11 && z < 84);   // the village, the fields, the pens and the ruined farm   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
-  gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
+  let y = inHall || inVillage ? 0 : Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12;
+  if (WATER_RECTS.some(([x0, x1, z0, z1]) => x > x0 - 1 && x < x1 + 1 && z > z0 - 1 && z < z1 + 1)) {   // round the water: never dip below its surface on dry land, and slope into it at the banks
+    const sd = waterSD(x, z); y = sd > 0.6 ? Math.max(y, -0.05) : Math.min(y, Math.max(-0.66, WATER_Y + sd * 0.5)); }
+  gp.setY(i, y);
 }
 groundGeo.computeVertexNormals();
 // past the edge of the map is an empty black void, until more land is added there
@@ -427,6 +459,8 @@ voidPlane.position.y = -3; scene.add(voidPlane);
     if (x > 60 && x < 110 && z > 35 && z < 82) {   // the ruined farm: dry, dead earth, fading back to green at the edges
       const edge = Math.min(x - 60, 110 - x, z - 35, 82 - z), k = Math.min(1, edge / 6) * (0.75 + 0.25 * Math.abs(n));
       c.lerp(new THREE.Color(0x8a7a52), k * 0.85); }
+    if (WATER_RECTS.some(([x0, x1, z0, z1]) => x > x0 - 2 && x < x1 + 2 && z > z0 - 2 && z < z1 + 2)) {   // damp earth and a little sand along the banks, darker under the water
+      const sd = waterSD(x, z); if (sd < 1.6) c.lerp(new THREE.Color(sd < 0 ? 0x4a4630 : 0x9a8a5c), Math.min(1, (1.6 - sd) / 1.4) * (0.55 + 0.25 * f)); }
     cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -455,9 +489,13 @@ const riverTex = (() => {
     const x = Math.random() * 128, y = Math.random() * 128, w = 8 + Math.random() * 18; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y - 3, x + w, y); g.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 1); t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
-const river = new THREE.Mesh(new THREE.PlaneGeometry(240, 4.2).rotateX(-Math.PI / 2),
+riverTex.repeat.set(1 / 6, 1 / 4.2);   // one ripple tile every 6 by 4.2 units, as before
+const river = new THREE.Mesh(mergeGeometries(WATER_RECTS.map(([x0, x1, z0, z1]) => {
+    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, WATER_Y, (z0 + z1) / 2), uv = g.attributes.uv, ps = g.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, ps.getX(i), -ps.getZ(i));   // world-sized UVs, so the ripples line up across both sheets
+    return g; })),
   new THREE.MeshStandardMaterial({ map: riverTex, color: 0xbfe4ff, roughness: 0.15, metalness: 0.2, emissive: 0x0a2a44, emissiveIntensity: 0.4 }));
-river.position.set(0, -0.12, -14); town.add(river);
+town.add(river);
 function path(x, z, w, l, rot){
   const p = new THREE.Mesh(new THREE.PlaneGeometry(w, l).rotateX(-Math.PI / 2), mat(0xa48a5e));
   p.position.set(x, 0.05, z); p.rotation.z = rot; town.add(p);
@@ -1036,6 +1074,10 @@ const solidBoxes = [
 solidBoxes.push(box(-0.5, 0.5, -0.5, 0.5));
 // the river is solid water: the route goes round the town, not through it
 solidBoxes.push({ x0: -120, x1: 120, z0: -16.9, z1: -11.1 });
+// the stream and the pond are solid too: a strip of boxes for each half unit going south, reaching 0.4 past the water's edge
+for (let z = -11; z < 98; z += 0.5) { let run = null;
+  for (let x = -117; x <= -65; x += 0.5) { const w = waterSD(x + 0.25, z + 0.25) < 0.4;
+    if (w && run === null) run = x; if ((!w || x === -65) && run !== null) { solidBoxes.push({ x0: run, x1: w ? x + 0.5 : x, z0: z, z1: z + 0.5 }); run = null; } } }
 // materials for the smithy
 const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1.2, flatShading: true });
 const stoneDark = mat(0x5a5650), ironDark = mat(0x3a3f46), steelTop = mat(0x6a7078);
@@ -1369,7 +1411,8 @@ function clickNode(rec){
   if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec) { showToast("You're already in combat!"); return; } startFight(rec); return; }
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasTool('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
-  if (rec.kind === 'range' && !nextToCook()) { showToast('You have nothing to cook.'); return; }
+  if (rec.kind === 'fish' && levelOf(SKILL_XP.Fishing) < FISHES[rec.fish].lvl) { showToast(`You need Fishing ${FISHES[rec.fish].lvl} to catch ${FISHES[rec.fish].word} here.`); return; }
+  if (rec.kind === 'range' && !nextToCook()) { showToast(nothingToCookMsg()); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
   else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
   else if (rec.kind === 'rock') { if (!hasTool(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
@@ -1415,15 +1458,18 @@ const COOK_MS = 1900;
 // everything that can go on the range: what it becomes, what it becomes if burnt, and the Cooking XP
 const COOKS = {
   'Raw shrimp': { out: 'Shrimp', burnt: 'Burnt shrimp', xp: 30, word: 'shrimp', done: 'You cook the shrimp' },
+  'Raw trout': { out: 'Trout', burnt: 'Burnt trout', xp: 40, lvl: 15, word: 'trout', done: 'You cook the trout' },   /* as in the phone game: Cooking 15, 40 XP */
   'Raw chicken': { out: 'Cooked chicken', burnt: 'Burnt chicken', xp: 30, word: 'chicken', done: 'You roast the chicken' },
   'Raw beef': { out: 'Cooked beef', burnt: 'Burnt beef', xp: 35, word: 'beef', done: 'You cook the beef' },
   'Bread dough': { out: 'Bread', burnt: 'Burnt bread', xp: 40, word: 'bread', done: 'You bake a loaf of bread' },
 };
-const nextToCook = () => Object.keys(COOKS).find(n => hasItem(n)) || null;
+const nextToCook = () => Object.keys(COOKS).find(n => hasItem(n) && levelOf(SKILL_XP.Cooking) >= (COOKS[n].lvl || 1)) || null;
+// why there is nothing to cook: nothing raw at all, or only food that needs a better cook
+function nothingToCookMsg(){ const n = Object.keys(COOKS).find(k => hasItem(k)); return n ? `You need Cooking ${COOKS[n].lvl} to cook ${COOKS[n].word}.` : 'You have nothing to cook.'; }
 let cooking = null;
 function cook(rec){
   if (cooking || smelting) return;
-  if (!nextToCook()) { showToast('You have nothing to cook.'); return; }
+  if (!nextToCook()) { showToast(nothingToCookMsg()); return; }
   cooking = { rec, t0: performance.now() };
   setAct({ k: 'cook', t: Date.now() });
   document.getElementById('smeltLabel').textContent = 'Cooking...';
@@ -1445,7 +1491,7 @@ function updateCook(){
   const raw = nextToCook();
   if (!raw) { stopCooking(); return; }
   removeItem(raw);
-  const burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - 1)), c = COOKS[raw];
+  const c = COOKS[raw], burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - (c.lvl || 1)));   // burns less the further past its level you are
   if (Math.random() < burn) { addItem(c.burnt, 1, ICON_FOR[c.burnt]); showToast(`Oops. You burn the ${c.word}.`); sizzleSound(true); }
   else { addItem(c.out, 1, ICON_FOR[c.out]); addXp('Cooking', c.xp); showToast(`${c.done} (${countOf(c.out)}).  +${c.xp} Cooking XP`); sizzleSound(false); }
   if (!nextToCook()) { stopCooking(); return; }
@@ -1626,7 +1672,7 @@ let CUR_SHOP = SHOPS.mara;
 function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Raw trout': 5, 'Trout': 8, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -3085,6 +3131,12 @@ const NET_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
   <rect x="7" y="9" width="1.4" height="6" fill="#7a4d22"/><path d="M3 2 Q8 0 13 2 L11 9 L5 9 Z" fill="none" stroke="#d8c890" stroke-width="1"/><path d="M4 4 L12 4 M4.6 6.5 L11.4 6.5 M6 2 L6.5 9 M8 1.5 L8 9 M10 2 L9.5 9" stroke="#b8a870" stroke-width="0.6"/></svg>`;
 const COOKED_SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#e8622a" stroke="#7a2a12" stroke-width="0.8"/><path d="M6 6.5 L8 8 M5.5 8.5 L7.5 10" stroke="#a83a12" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
+const TROUT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 8 Q6 4 11 7 L14 4.5 L13.5 8 L14 11.5 L11 9 Q6 12 2 8 Z" fill="#9aae86" stroke="#3e4a32" stroke-width="0.8"/><path d="M4 8.2 Q7 7.4 10.5 8" stroke="#e48a8a" stroke-width="1"/><rect x="4" y="6.6" width="1.2" height="1.2" fill="#1a1a1a"/></svg>`;
+const COOKED_TROUT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 8 Q6 4 11 7 L14 4.5 L13.5 8 L14 11.5 L11 9 Q6 12 2 8 Z" fill="#c8823a" stroke="#5a3012" stroke-width="0.8"/><path d="M5.5 6 L6.5 10 M8 5.8 L9 10" stroke="#7a4216" stroke-width="0.8"/><rect x="4" y="6.6" width="1.2" height="1.2" fill="#2a1a0a"/></svg>`;
+const BURNT_TROUT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 8 Q6 4 11 7 L14 4.5 L13.5 8 L14 11.5 L11 9 Q6 12 2 8 Z" fill="#2a2420" stroke="#0a0806" stroke-width="0.8"/><rect x="7" y="7" width="1" height="1" fill="#5a3a20"/></svg>`;
 const BURNT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#2a2420" stroke="#0a0806" stroke-width="0.8"/><rect x="6" y="7" width="1" height="1" fill="#5a3a20"/></svg>`;
 const BREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -3092,8 +3144,8 @@ const BREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
 const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
 // food you can eat from the bag
-const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
-const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0, 'Bread': 4, 'Burnt bread': 0, 'Cooked chicken': 3, 'Cooked beef': 3, 'Burnt chicken': 0, 'Burnt beef': 0 };
+const FOOD = { 'Trout': 'You eat the trout. Flaky and buttery.', 'Burnt trout': 'You eat the burnt trout. Mostly charcoal.', 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
+const HEALS = { 'Trout': 6, 'Burnt trout': 0, 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0, 'Bread': 4, 'Burnt bread': 0, 'Cooked chicken': 3, 'Cooked beef': 3, 'Burnt chicken': 0, 'Burnt beef': 0 };
 FOOD['Bread'] = 'You eat the bread. Simple, but it fills you up.'; FOOD['Cooked chicken'] = 'You eat the roast chicken. Juicy and golden.'; FOOD['Cooked beef'] = 'You eat the beef. Hearty and filling.'; FOOD['Burnt chicken'] = 'You eat the burnt chicken. Charcoal with a hint of bird.'; FOOD['Burnt beef'] = 'You eat the burnt beef. It crunches.'; FOOD['Burnt bread'] = 'You eat the burnt bread. It tastes like the bottom of a fireplace.';
 const HELM_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M3 10 Q3 3 8 3 Q13 3 13 10 L13 12 L11 12 L11 9 L5 9 L5 12 L3 12 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="3" y="8" width="10" height="1.4" fill="#6a3c18"/><path d="M7.4 1.2 L8.6 1.2 L8 3 Z" fill="#e0a458"/></svg>`;
@@ -3133,7 +3185,7 @@ const AXE_NAME = "Bronze axe";
 const PICK_NAME = 'Bronze pickaxe';
 const ORE_NAME = 'Copper ore';
 // food doesn't stack: every piece takes its own slot, so the bag limits how much you can carry into a fight
-const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Raw chicken', 'Cooked chicken', 'Raw beef', 'Cooked beef', 'Bread dough', 'Bread', "Brenna's bread"]);   /* burnt food can't be eaten, so it stacks */
+const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Raw trout', 'Trout', 'Raw chicken', 'Cooked chicken', 'Raw beef', 'Cooked beef', 'Bread dough', 'Bread', "Brenna's bread"]);   /* burnt food can't be eaten, so it stacks */
 const roomForOne = name => bag.length < BAG_SIZE || (!SINGLE.has(name) && hasItem(name));
 function addItem(name, qty = 1, icon = '') {
   if (name === 'Coins') { COINS += qty; renderBag(); return true; }
@@ -3336,7 +3388,8 @@ const TOWNSFOLK = [
       ["Ahh, a new angler! Pull up a rock, pull up a rock.", "Fenwick. Forty years on this bank, man and boy. Caught a fish as long as a horse once, you know.", "Ysolde says it was a boot. Ysolde wasn't wearing her spectacles, was she?"],
       ["Trick is to think like a fish. Don't think too hard, mind. Fish don't."],
       ["Some days the river gives, some days it takes. Mostly it takes my bait, the cheeky thing."],
-      ["Shrimp by the bank. Bigger ones further out. Much bigger. Horse-sized, some of 'em. I've seen 'em!"] ],
+      ["Shrimp by the bank. Bigger ones further out. Much bigger. Horse-sized, some of 'em. I've seen 'em!"],
+      [() => (sk('Fishing') < 15 ? "This stream runs down to a pond past Mara's. Trout in there, but they're clever. Cut your teeth on shrimp first." : "You're ready for the trout pond, past Mara's. Mind you don't burn 'em, they're too good for that.")] ],
     barks: ["Come on, bite, you little rascal. I know you're down there.", "I caught a fish as big as a horse once. Ask anyone. Well, don't ask Ysolde.", "Shrimp are thick by the bank today. Grab yourself a net."] },
 ];
 
@@ -3353,10 +3406,13 @@ function splashSound(){ sfx((ctx, t, out) => { out.gain.value = 0.55;   // a sof
 // until your bag is full. Clicking the spot again while fishing does nothing, and walking away stops it.
 let fishing = null;
 const FISH_MS = 3000;
+// what each spot gives: shrimp in the river, trout in the pond (Fishing 15 and 45 XP in the phone game, scaled to our shrimp)
+const FISHES = { shrimp: { raw: 'Raw shrimp', word: 'shrimp', lvl: 1, xp: 10 }, trout: { raw: 'Raw trout', word: 'trout', lvl: 15, xp: 25 } };
 function catchFish(rec){
   if (fishing) return;
-  if (!roomForOne('Raw shrimp')) { showToast('Your bag is full.'); return; }
-  fishing = { rec: rec || trees.find(t => t.userData.rec && t.userData.rec.kind === 'fish').userData.rec, t0: performance.now() };
+  rec = rec || trees.find(t => t.userData.rec && t.userData.rec.kind === 'fish').userData.rec;
+  if (!roomForOne(FISHES[rec.fish].raw)) { showToast('Your bag is full.'); return; }
+  fishing = { rec, t0: performance.now() };
   showToast('You dip your net in the water...'); splashSound();
   setAct({ k: 'fish', t: Date.now() });
   document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
@@ -3370,25 +3426,54 @@ function updateFishing(){
   heroAnim.mode = 'work';
   if (k < 1) return;
   // a catch is more likely the better you are at fishing
-  if (Math.random() < Math.min(0.9, 0.45 + levelOf(SKILL_XP.Fishing) * 0.02)) {
-    if (!addItem('Raw shrimp', 1, SHRIMP_ICON)) { stopFishing('Your bag is full.'); return; }
-    addXp('Fishing', 10); showToast(`You catch a raw shrimp (${countOf('Raw shrimp')}).  +10 Fishing XP`);
+  const F = FISHES[fishing.rec.fish];
+  if (Math.random() < Math.min(0.9, 0.45 + (levelOf(SKILL_XP.Fishing) - F.lvl + 1) * 0.02)) {
+    if (!addItem(F.raw, 1, ICON_FOR[F.raw])) { stopFishing('Your bag is full.'); return; }
+    addXp('Fishing', F.xp); showToast(`You catch a raw ${F.word} (${countOf(F.raw)}).  +${F.xp} Fishing XP`);
   }
-  if (!roomForOne('Raw shrimp')) { stopFishing('Your bag is full.'); return; }
+  if (!roomForOne(F.raw)) { stopFishing('Your bag is full.'); return; }
   fishing.t0 = performance.now(); splashSound(); setAct({ k: 'fish', t: Date.now() });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
   for (const f of fishSpots) f.ring.scale.setScalar(pulse);
 }
-function addFishSpot(x, z){
+function addFishSpot(x, z, fish = 'shrimp'){
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xcfe9ff, transparent: true, opacity: 0.7, depthWrite: false }));
-  ring.position.set(x, 0.1, z); town.add(ring);
+  ring.position.set(x, WATER_Y + 0.05, z); town.add(ring);
   const hit = new THREE.Mesh(new THREE.CircleGeometry(1.4, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.set(x, 0.1, z); town.add(hit);
-  const rec = { kind: 'fish', x, z, s: 1.6, state: 'standing', ring };
-  hit.userData = { action: 'Fish', name: 'Fishing spot', rec }; trees.push(hit);
+  const rec = { kind: 'fish', fish, x, z, s: 1.6, state: 'standing', ring };
+  hit.userData = { action: 'Fish', name: fish === 'trout' ? 'Trout spot' : 'Fishing spot', rec }; trees.push(hit);
   fishSpots.push(rec);
+}
+// reeds and stones along the banks, lily pads on the pond, and a few trees round it: one merged mesh, as it is all decoration
+function buildWaterside(){
+  const r = (() => { let q = 4242; return () => (q = (q * 16807) % 2147483647) / 2147483647; })(), parts = [];
+  const add = (geo, col, x, y, z, ry = 0) => { const g = geo.index ? geo.toNonIndexed() : geo; g.deleteAttribute('uv'); g.rotateY(ry); g.translate(x, y, z);
+    const c = new THREE.Color(col), a = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < a.length; i += 3) { a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); };
+  const reeds = (x, z) => { const n = 3 + Math.floor(r() * 4);
+    for (let i = 0; i < n; i++) { const h = 0.9 + r() * 0.9, px = x + (r() - 0.5) * 0.7, pz = z + (r() - 0.5) * 0.7, lean = (r() - 0.5) * 0.25;
+      const stalk = new THREE.CylinderGeometry(0.018, 0.035, h, 4).translate(0, h / 2, 0).rotateZ(lean); add(stalk, r() < 0.5 ? 0x5a7a2e : 0x6e8a36, px, WATER_Y, pz, r() * 6);
+      if (r() < 0.45) add(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 5).translate(-Math.sin(lean) * h, h - 0.05, 0).rotateZ(0), 0x6a4426, px, WATER_Y, pz, 0); } };
+  const stone = (x, z) => { const g = new THREE.DodecahedronGeometry(0.22 + r() * 0.2, 0); g.scale(1, 0.45, 0.8); add(g, r() < 0.5 ? 0x8a867c : 0x6e6a62, x, WATER_Y + 0.12, z, r() * 6); };
+  const bank = (x, z, inWater) => { if (Math.abs(x + 36) < 5 || Math.abs(x + 24) < 10 && z < -10) return;   // keep the shrimp spot and Fenwick's jetty open
+    if (inWater) { if (r() < 0.7) reeds(x, z); } else if (r() < 0.5) stone(x, z); };
+  for (let x = -119; x < 118; x += 1.6) { const s = riverSouth(x); if (r() < 0.35) bank(x, s - 0.3, true); if (r() < 0.25) bank(x + 0.8, s + 0.1, false); }
+  for (let i = 0; i < STREAM.length - 1; i += 1) { const [x0, z0] = STREAM[i], [x1, z1] = STREAM[i + 1], L = Math.hypot(x1 - x0, z1 - z0), nx = -(z1 - z0) / L, nz = (x1 - x0) / L;
+    for (const side of [1, -1]) { if (r() < 0.45) bank(x0 + nx * side * (STREAM_W - 0.3), z0 + nz * side * (STREAM_W - 0.3), true); if (r() < 0.3) bank(x0 + nx * side * (STREAM_W + 0.2), z0 + nz * side * (STREAM_W + 0.2), false); } }
+  for (let a = 0; a < Math.PI * 2; a += 0.12) { const R = pondR(a), at = d => [POND.x + Math.cos(a) * d, POND.z + Math.sin(a) * d * POND.k];
+    if (Math.abs(a) < 0.75 || Math.abs(a - Math.PI * 2) < 0.75) { if (r() < 0.3) stone(...at(R + 0.25)); continue; }   // the east bank stays open for fishing
+    if (r() < 0.75) reeds(...at(R - 0.35)); if (r() < 0.35) stone(...at(R + 0.25)); }
+  for (let i = 0; i < 26; i++) {   // lily pads, a few with a pink flower
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (pondR(a) - 1.2), x = POND.x + Math.cos(a) * d, z = POND.z + Math.sin(a) * d * POND.k;
+    if (fishSpots.some(f => Math.hypot(f.x - x, f.z - z) < 1.8)) continue;
+    const sz = 0.35 + r() * 0.3; add(new THREE.CircleGeometry(sz, 10, 0.4, Math.PI * 2 - 0.8).rotateX(-Math.PI / 2), r() < 0.5 ? 0x4e8a34 : 0x5f9a3a, x, WATER_Y + 0.025, z, r() * 6);
+    if (r() < 0.3) { add(new THREE.ConeGeometry(0.13, 0.16, 6, 1, true), 0xf2a6c4, x, WATER_Y + 0.1, z); add(new THREE.SphereGeometry(0.05, 5, 4), 0xf7e07a, x, WATER_Y + 0.13, z); } }
+  const m = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, side: THREE.DoubleSide }));
+  m.castShadow = true; town.add(m);
+  for (const [x, z] of [[-99, 92], [-69, 95], [-100, 77], [-96, 100]]) makeTree(x, z, 1.4);   // trees round the pond
 }
 // ----- the paths: worn dirt tracks, drawn with textures made in code -----
 const ROADS = [];   // every road segment, so the scattered trees keep clear of them
@@ -3487,7 +3572,7 @@ function decoratePaths(){
   for (const [x, z, nx, nz, w] of pathEdgeSpots) for (const side of [1, -1]) {
     const o = w / 2 + 0.15 + r() * 0.6, px = x + nx * o * side + (r() - 0.5) * 0.6, pz = z + nz * o * side + (r() - 0.5) * 0.6;
     if (solidBoxes.some(b => px > b.x0 - 0.3 && px < b.x1 + 0.3 && pz > b.z0 - 0.3 && pz < b.z1 + 0.3)) continue;
-    if (Math.abs(pz + 14) < 3.2) continue;   // not in the river
+    if (waterSD(px, pz) < 1) continue;   // not in the water
     const v = r(); if (v < 0.35) stones.push([px, pz]); else if (v < 0.6) flowers.push([px, pz]);
   }
   const dummy = new THREE.Object3D();
@@ -3889,7 +3974,8 @@ function grassMaskTexture(){
   g.fillStyle = 'rgba(110,70,0,1)'; g.fillRect(X(62), Z(37), 46 * GM.ppu, 43 * GM.ppu); g.fillStyle = '#000';   // the ruined farm: patchy, stunted grass
   g.fillRect(X(97.6), Z(-7.6), 9.8 * GM.ppu, 6.8 * GM.ppu);   // the workshop floor
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
-  g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
+  for (let pz = -20; pz < 98; pz += 0.5) for (let px = pz > -9 ? -118 : GM.x0; px < (pz > -9 ? -64 : GM.x1); px += 0.5) {   // the water and its muddy banks
+    if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return grassMask = t;
 }
@@ -4388,6 +4474,7 @@ function populateVillage(){
   roadPath([[14.5, 12], [22, 16], [26, 30], [26, 54], [30, 58], out(smithyHouse), D(smithyHouse)]);   // the smithy, out to the south-east
   roadPath([[26, 54], [23, 59], [QUARRY.x + 8.6, QUARRY.z - 9.6]]);   // south-west to the quarry gate
   roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
+  roadPath([[-58, 51], [-61, 60], [-66, 69], [-72.5, 78]]);            // south from the back lane to the trout pond
   roadPath([[-46, 47], [-58, 51], out(store), D(store)]);           // Mara's store, off the back lane to the south-west
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
@@ -4419,6 +4506,8 @@ function populateVillage(){
   for (const [cx, cz, ry] of [[-45, 14.5, 0.2], [-44.6, 15.6, 0.7], [41.5, 57, 0.3]]) { const [x, z] = off(cx, cz, 0.8); crate(x, z, ry); }
   NPC_SPOTS.push(...spots);
   addFishSpot(-36, -13.4);
+  for (const a of [-0.2, 0.4]) { const r = pondR(a) - 1.1; addFishSpot(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r * POND.k, 'trout'); }   // trout in the pond, off its east bank
+  buildWaterside();
   scatterOaks();
   paintPaths();
   setTimeout(buildGrass, 0);   // once the farm, props and paths are all placed
@@ -4988,7 +5077,7 @@ const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4"
 const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
 const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
-  'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
+  'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
   'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON,
@@ -5406,6 +5495,8 @@ function groundModel(name){
   const sack = (col, tie) => { const b = P(new THREE.SphereGeometry(0.3, 12, 9), col, 0, 0.24, 0); b.scale.set(1, 0.9, 1); P(new THREE.CylinderGeometry(0.06, 0.12, 0.16, 8), col, 0, 0.5, 0); P(new THREE.TorusGeometry(0.08, 0.025, 5, 10).rotateX(Math.PI / 2), tie, 0, 0.47, 0, false); };
   if (name === 'Cooked beef') meat(0x7a3a1e, true); else if (name === 'Raw beef') meat(0xc04a44, false); else if (name === 'Burnt beef' || name === 'Burnt chicken') meat(0x2a1a12, false);
   else if (name === 'Cooked chicken') roast(0xb86a2a); else if (name === 'Raw chicken') roast(0xf0b8a8);
+  else if (/trout/i.test(name)) { const col = name === 'Raw trout' ? 0x9aae86 : name === 'Trout' ? 0xc8823a : 0x2a1a12;   /* a fish lying on its side, with a tail */
+    const b = P(new THREE.SphereGeometry(0.22, 12, 8), col, 0, 0.1, 0); b.scale.set(1.6, 0.55, 0.7); P(new THREE.ConeGeometry(0.14, 0.24, 6).rotateZ(Math.PI / 2), col, 0.44, 0.1, 0).scale.set(1, 0.4, 1); }
   else if (/shrimp/i.test(name)) { const col = name === 'Raw shrimp' ? 0xe8a090 : name === 'Shrimp' ? 0xf06a3a : 0x2a1a12; const sh = P(new THREE.TorusGeometry(0.2, 0.08, 6, 12, Math.PI * 1.3), col, 0, 0.1, 0); sh.rotation.x = Math.PI / 2; }
   else if (/bread|Bread|dough/i.test(name)) { const col = name === 'Bread dough' ? 0xf0e0c0 : name === 'Burnt bread' ? 0x3a2a1e : 0xc8843a; const l = P(new THREE.SphereGeometry(0.3, 12, 8), col, 0, 0.18, 0); l.scale.set(1.4, 0.7, 0.85); }
   else if (name === 'Logs' || name === 'Oak logs') { for (const [z, y] of [[-0.14, 0.12], [0.14, 0.12], [0, 0.32]]) P(new THREE.CylinderGeometry(0.12, 0.12, 0.75, 8).rotateZ(Math.PI / 2), name === 'Oak logs' ? 0x5e3c1c : 0x8a5a2a, 0, y, z); }
