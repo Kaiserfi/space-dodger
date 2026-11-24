@@ -351,7 +351,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60);   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 98 && z > -11 && z < 16);   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
@@ -1294,7 +1294,7 @@ function clickNode(rec){
   if (rec.kind === 'monster') { startFight(rec); return; }
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
-  if (rec.kind === 'range' && !hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
+  if (rec.kind === 'range' && !hasItem('Raw shrimp') && !hasItem('Bread dough')) { showToast('You have nothing to cook.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
   else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
   else if (rec.kind === 'rock') { if (!hasItem(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
@@ -1339,7 +1339,7 @@ const COOK_MS = 1900;
 let cooking = null;
 function cook(rec){
   if (cooking || smelting) return;
-  if (!hasItem('Raw shrimp')) { showToast('You have nothing to cook.'); return; }
+  if (!hasItem('Raw shrimp') && !hasItem('Bread dough')) { showToast('You have nothing to cook.'); return; }
   cooking = { rec, t0: performance.now() };
   setAct({ k: 'cook', t: Date.now() });
   document.getElementById('smeltLabel').textContent = 'Cooking...';
@@ -1358,12 +1358,16 @@ function updateCook(){
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, cooking.rec.x, cooking.rec.z);
   heroAnim.mode = 'work';
   if (k < 1) return;
-  if (!hasItem('Raw shrimp')) { stopCooking(); return; }
-  removeItem('Raw shrimp');
+  const raw = hasItem('Raw shrimp') ? 'Raw shrimp' : hasItem('Bread dough') ? 'Bread dough' : null;
+  if (!raw) { stopCooking(); return; }
+  removeItem(raw);
   const burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - 1));
-  if (Math.random() < burn) { addItem('Burnt shrimp', 1, BURNT_ICON); showToast('Oops. You burn the shrimp.'); sizzleSound(true); }
+  if (raw === 'Bread dough') {   // a loaf of bread from the farm's own wheat
+    if (Math.random() < burn) { addItem('Burnt bread', 1, BURNT_LOAF_ICON); showToast('Oops. You burn the bread.'); sizzleSound(true); }
+    else { addItem('Bread', 1, LOAF_ICON); addXp('Cooking', 40); showToast(`You bake a loaf of bread (${countOf('Bread')}).  +40 Cooking XP`); sizzleSound(false); }
+  } else if (Math.random() < burn) { addItem('Burnt shrimp', 1, BURNT_ICON); showToast('Oops. You burn the shrimp.'); sizzleSound(true); }
   else { addItem('Shrimp', 1, COOKED_SHRIMP_ICON); addXp('Cooking', 30); showToast(`You cook the shrimp (${countOf('Shrimp')} cooked).  +30 Cooking XP`); sizzleSound(false); }
-  if (!hasItem('Raw shrimp')) { stopCooking(); return; }
+  if (!hasItem('Raw shrimp') && !hasItem('Bread dough')) { stopCooking(); return; }
   cooking.t0 = performance.now(); setAct({ k: 'cook', t: Date.now() });
 }
 function sizzleSound(burnt){ sfx((ctx, t, out) => { out.gain.value = 0.5;   // a short sizzle with a couple of pops; burnt is harsher, with a smoky rumble
@@ -1503,11 +1507,12 @@ document.getElementById('bagGrid').addEventListener('click', e => {
 });
 
 // ----- Mara's shop: tools for coins -----
-const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 }];
+const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 },
+  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }, { name: 'Wheat seeds', price: 3, qty: 5 }];   // seeds come five to a packet
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Logs': 4, 'Torch': 6, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -1516,7 +1521,7 @@ function sellPrice(name, extra = 0){ const f = Math.max(0.4, 1 - 0.05 * (demandN
 function sellQuote(name, n){ let t = 0; for (let i = 0; i < n; i++) t += sellPrice(name, i); return t; }   // each unit in a big sale pays a little less
 function renderShop(){
   const buyRows = SHOP.map((it, i) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ICON_FOR[it.name]}
-    <span style="flex:1">${it.name}<br><small style="color:#c9b27a">${it.price} coins</small></span>
+    <span style="flex:1">${it.name}${it.qty ? ' (' + it.qty + ')' : ''}<br><small style="color:#c9b27a">${it.price} coins</small></span>
     <button data-s="${i}" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Buy</button></div>`).join('');
   const sellRows = Object.keys(SELL).filter(n => countOf(n) > 0).map(n => `<div style="display:flex;align-items:center;gap:6px;padding:5px 0">${ICON_FOR[n]}
     <span style="flex:1">${n}<br><small style="color:#c9b27a">x${countOf(n)} &middot; ${sellPrice(n)} each now <span style="opacity:.7">(base ${SELL[n]})</span></small></span>
@@ -1541,12 +1546,12 @@ function sellItem(name, all){
   renderShop(); renderBag();
 }
 function buyItem(it){
-  if (hasItem(it.name)) { showToast(`You already have a ${it.name.toLowerCase()}.`); return; }
+  if (!it.qty && hasItem(it.name)) { showToast(`You already have a ${it.name.toLowerCase()}.`); return; }
   if (coinCount() < it.price) { showToast(`A ${it.name.toLowerCase()} costs ${it.price} coins. You have ${coinCount()}.`); return; }
-  if (bag.length >= BAG_SIZE) { showToast('Your bag is full, so there is no room for another item.'); return; }
+  if (bag.length >= BAG_SIZE && !hasItem(it.name)) { showToast('Your bag is full, so there is no room for another item.'); return; }
   for (let i = 0; i < it.price; i++) removeItem('Coins');
-  addItem(it.name, 1, ICON_FOR[it.name]);
-  showToast(`You buy a ${it.name.toLowerCase()} for ${it.price} coins.`);
+  addItem(it.name, it.qty || 1, ICON_FOR[it.name]);
+  showToast(it.qty ? `You buy a packet of ${it.qty} ${it.name.toLowerCase()} for ${it.price} coins.` : `You buy a ${it.name.toLowerCase()} for ${it.price} coins.`);
   renderShop();
 }
 document.getElementById('shopClose').addEventListener('click', () => { document.getElementById('shopPanel').hidden = true; });
@@ -2681,7 +2686,7 @@ function followCharacter(){
 
 // ----- the Stats tab: our own skill list and summaries -----
 const HP = { cur: 10 };   // your current health; the most is your Hitpoints level
-const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0};   // everyone starts at level 1, and Hitpoints at 10
+const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0, Farming: 0};   // everyone starts at level 1, and Hitpoints at 10
 const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 xp, level 8 is 1225 xp
 let statsSub = 'skills';
 function renderStats(){
@@ -2780,7 +2785,8 @@ const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
   <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
 // food you can eat from the bag
 const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
-const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0 };
+const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0, 'Bread': 4, 'Burnt bread': 0 };
+FOOD['Bread'] = 'You eat the bread. Simple, but it fills you up.'; FOOD['Burnt bread'] = 'You eat the burnt bread. It tastes like the bottom of a fireplace.';
 const HELM_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M3 10 Q3 3 8 3 Q13 3 13 10 L13 12 L11 12 L11 9 L5 9 L5 12 L3 12 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="3" y="8" width="10" height="1.4" fill="#6a3c18"/><path d="M7.4 1.2 L8.6 1.2 L8 3 Z" fill="#e0a458"/></svg>`;
 const CHEST_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -2833,7 +2839,8 @@ function renderBag() {
   for (let i = 0; i < BAG_SIZE; i++) {
     const k = bag.findIndex(x => x.slot === i), it = bag[k];
     html += it
-      ? `<div class="slot full" data-i="${k}" data-s="${i}" title="${it.name}${statText(it.name) ? ' (' + statText(it.name) + ')' : ''}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
+      ? it.name === 'Watering can' ? `<div class="slot full" data-i="${k}" data-s="${i}" title="Watering can (${FARM_CAN.n} of ${CAN_MAX} waterings left)">${it.icon}<span class="qty" style="color:#7ab8f0">${FARM_CAN.n}</span></div>`
+      : `<div class="slot full" data-i="${k}" data-s="${i}" title="${it.name}${statText(it.name) ? ' (' + statText(it.name) + ')' : ''}">${it.icon}<span class="qty">${it.qty > 1 ? it.qty : ''}</span></div>`
       : `<div class="slot" data-s="${i}"></div>`;
   }
   document.getElementById('bagGrid').innerHTML = html;
@@ -3497,7 +3504,7 @@ function animalSound(kind, vol = 1){
 // A mask painted over the map keeps grass off paths, floors, the green, the river and the farm field, and shortens it round the village.
 let grass = null;
 const GRASS_Q = { low: { n: 16000, r: 20 }, high: { n: 48000, r: 30 } };
-const GM = { x0: -124, x1: 74, z0: -20, z1: 96, ppu: 2 };
+const GM = { x0: -124, x1: 110, z0: -20, z1: 96, ppu: 2 };
 let grassMask = null;
 function grassMaskTexture(){
   if (grassMask) return grassMask;
@@ -3516,6 +3523,7 @@ function grassMaskTexture(){
   g.fillRect(X(47.5), Z(3.5), 11 * GM.ppu, 8 * GM.ppu);   // the farm field
   g.beginPath(); g.arc(X(QUARRY.x), Z(QUARRY.z), (QUARRY.r + 0.8) * GM.ppu, 0, 7); g.fill();   // the quarry floor
   g.beginPath(); g.arc(X(BF.x), Z(BF.z), BF.clearR * GM.ppu, 0, 7); g.fill();   // the bonfire clearing
+  if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return grassMask = t;
@@ -3857,6 +3865,7 @@ function populateVillage(){
   // the fishing spot in the river
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
+  buildFarmland(); farmRoads();   // the fields east of the farm, before the props are placed
   bonfireRoads();   // laid before the props, so lamps, benches and barrels keep off these paths too
   const off = (x, z, r) => offPath(x, z, 1.1 + r);
   const [wbx, wbz] = off(-30, 14.6, 1.6);
@@ -4042,11 +4051,20 @@ const HAMMER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rende
   <path d="M7 3 L11 3 L11 7 L7 7 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="7.4" y="7" width="1.4" height="7" fill="#7a4d22"/></svg>`;
 const COIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <circle cx="8" cy="8" r="5.5" fill="#e8c040" stroke="#7a5a10" stroke-width="0.8"/><circle cx="8" cy="8" r="2.5" fill="none" stroke="#b8901c" stroke-width="0.8"/></svg>`;
+const HOE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><rect x="7" y="4" width="1.6" height="11" fill="#7a4d22" transform="rotate(20 8 9)"/><path d="M3 2 L9 2 L9 4.5 L4 5 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.6"/></svg>`;
+const CAN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M4 6 L11 6 L11 14 L4 14 Z" fill="#6a8a5a" stroke="#3a4a30" stroke-width="0.7"/><path d="M11 8 L15 4.5 L15.5 5.5 L12 9.5 Z" fill="#6a8a5a" stroke="#3a4a30" stroke-width="0.5"/><path d="M5 6 Q7.5 2 10 6" fill="none" stroke="#3a4a30" stroke-width="1.2"/></svg>`;
+const SEED_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M3 4 L13 4 L12 14 L4 14 Z" fill="#c8a870" stroke="#6a5030" stroke-width="0.7"/><rect x="3" y="4" width="10" height="2" fill="#a08050"/><circle cx="7" cy="10" r="1" fill="#e0c060"/><circle cx="9.5" cy="9" r="1" fill="#e0c060"/><circle cx="8.5" cy="11.5" r="1" fill="#e0c060"/></svg>`;
+const WHEAT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><rect x="7.4" y="7" width="1.2" height="8" fill="#b89040"/><g fill="#e0b850">${[0, 1, 2, 3].map(i => `<ellipse cx="${6.6}" cy="${2.5 + i * 1.4}" rx="1" ry="0.8"/><ellipse cx="${9.4}" cy="${2.5 + i * 1.4}" rx="1" ry="0.8"/>`).join('')}</g><ellipse cx="8" cy="1.6" rx="0.8" ry="1" fill="#e0b850"/></svg>`;
+const FLOUR_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M4 5 Q8 3 12 5 L13 14 L3 14 Z" fill="#ece4d0" stroke="#8a7a5a" stroke-width="0.7"/><path d="M5 5 Q8 2 11 5" fill="none" stroke="#8a7a5a" stroke-width="0.8"/><rect x="6" y="8" width="4" height="3" fill="#d8c8a0"/></svg>`;
+const DOUGH_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><ellipse cx="8" cy="10" rx="6" ry="3.6" fill="#f0e0c0" stroke="#b09870" stroke-width="0.7"/><ellipse cx="7" cy="9" rx="2.5" ry="1" fill="#fff4dc"/></svg>`;
+const LOAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 11 Q2 5 8 5 Q14 5 14 11 L14 13 L2 13 Z" fill="#c8843a" stroke="#6a4018" stroke-width="0.7"/><path d="M5 7 L6 9 M8 6.5 L8.6 8.8 M11 7 L10.4 9" stroke="#e8b070" stroke-width="0.8"/></svg>`;
+const BURNT_LOAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 11 Q2 5 8 5 Q14 5 14 11 L14 13 L2 13 Z" fill="#3a2a1e" stroke="#1a120a" stroke-width="0.7"/></svg>`;
 const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
-  "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON };
+  "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
+  'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON };
 function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
 const setStatus = t => { document.getElementById('onlineStatus').textContent = t; };
 function showJoin(msg, withName){
@@ -4102,7 +4120,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4126,6 +4144,8 @@ function applySave(d){
     Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
     if (typeof d.xp.Melee !== 'number') SKILL_XP.Melee = Math.max(d.xp.Attack || 0, d.xp.Defence || 0);   // Attack and Defence became Melee
   }
+  if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0 }); });   // your crops, as you left them
+  if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
@@ -4221,8 +4241,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
-const ACT_TIME = { chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
+const ACT_LABEL = { farm: 'farming', mill: 'milling', chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
+const ACT_TIME = { farm: 2500, mill: 3000, chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -4293,7 +4313,7 @@ function updateOnline(){
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
     } else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
-    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm' || act.k === 'mill') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
@@ -4353,6 +4373,8 @@ function frame(){
   updateHall();
   updateFight();
   updateBonfire();
+  growCrops();
+  updateFarmPose();
   updateTorch();
   checkDialogDistance();
   updateDialog();
@@ -4394,14 +4416,159 @@ addEventListener('pointerdown', e => { if (!itemMenu.hidden && !itemMenu.contain
 function craftItem(o){
   if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
   for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
+  if (o.water && (!hasItem('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at the farm trough.'); return; }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   for (const n in o.needs) for (let i = 0; i < o.needs[n]; i++) removeItem(n);
   if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }
+  if (o.water) { FARM_CAN.n -= o.water; renderBag(); }
   addXp(o.skill, o.xp);
+  if (o.make === 'Bread dough') { showToast(`You mix the flour with a splash of water and knead it into dough.  +${o.xp} ${o.skill} XP`); saveNow(false); return; }
   sfx((c, t, out) => { nz(c, out, t, 0.35, 'bandpass', 1800, 900, 1, 0.35, 0.02, 0.3); nz(c, out, t + 0.25, 0.5, 'bandpass', 300, 1200, 0.8, 0.3, 0.15, 0.35); });   // a scrape of bark, then the rag catching
   showToast(`You bind some rags to the end of the log and light it. You make a torch.  +${o.xp} ${o.skill} XP`);
   saveNow(false);
 }
+// ===== Farming: fenced fields east of the farm, where you till, plant, water and harvest wheat; and a windmill to grind it =====
+// Each player's crops are their own (saved with them), like allotments: everyone sees their own wheat on the same patches.
+var FARMLAND, FARM_PLOTS, FARM_CAN, CAN_MAX;   // var, so the town can build them before this part of the script runs
+const GROW_S = 80;   // seconds per growth stage, while watered
+function buildFarmland(){
+  CAN_MAX = 10; FARM_CAN = FARM_CAN || { n: 0 };
+  const F = FARMLAND = { X0: 63.5, X1: 86.5, Z0: -8.5, Z1: 8.5, patches: [], mill: { x: 93, z: 1 } };
+  const add = (geo, m, x, y, z, parent = town) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  // the fence, with a gate on the west side facing the barn
+  const fence = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(L / 2.2)), a = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) add(new THREE.BoxGeometry(0.24, 1.45, 0.24), 0x7a5a36, x0 + (x1 - x0) * i / n, 0.72, z0 + (z1 - z0) * i / n);
+    for (const y of [0.55, 1.15]) add(new THREE.BoxGeometry(0.12, 0.14, L), 0x8a6a42, (x0 + x1) / 2, y, (z0 + z1) / 2).rotation.y = a;
+    solidBoxes.push({ x0: Math.min(x0, x1) - 0.2, x1: Math.max(x0, x1) + 0.2, z0: Math.min(z0, z1) - 0.2, z1: Math.max(z0, z1) + 0.2 }); };
+  fence(F.X0, F.Z0, F.X1, F.Z0); fence(F.X0, F.Z1, F.X1, F.Z1); fence(F.X1, F.Z0, F.X1, F.Z1);
+  fence(F.X0, F.Z0, F.X0, -1.8); fence(F.X0, 1.8, F.X0, F.Z1);
+  // a water trough just inside the gate, for filling watering cans
+  add(new THREE.BoxGeometry(2.2, 0.7, 0.9), texMat(woodTex(), 2, 1, 0x7a5a3a), 65.8, 0.35, -6.6);
+  add(new THREE.BoxGeometry(2.0, 0.06, 0.7), new THREE.MeshStandardMaterial({ color: 0x3a7ab0, roughness: 0.1 }), 65.8, 0.68, -6.6);
+  solidBoxes.push({ x0: 64.6, x1: 67, z0: -7.2, z1: -6 });
+  const tr = new THREE.Group(); tr.position.set(65.8, 0, -6.6); town.add(tr); add(new THREE.BoxGeometry(2.4, 1, 1.1), new THREE.MeshBasicMaterial({ visible: false }), 0, 0.5, 0, tr);
+  tr.userData = { action: 'Fill can', name: 'Water trough', rec: { kind: 'trough', state: 'standing', x: 65.8, z: -6.6, onClick: () => troughClick(65.8, -6.6) } }; trees.push(tr);
+  // twelve patches in three rows
+  const soil = mat(0x6a4a2c), grassy = mat(0x5a8a3a), wet = mat(0x3e2a18);
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    const x = 69 + c * 5, z = -5 + r * 5, g = new THREE.Group(); g.position.set(x, 0, z); town.add(g);
+    const bed = add(new THREE.BoxGeometry(3.8, 0.18, 3.8), grassy, 0, 0.09, 0, g);
+    const furrows = []; for (let k = 0; k < 4; k++) furrows.push(add(new THREE.BoxGeometry(3.4, 0.12, 0.45), soil, 0, 0.22, -1.3 + k * 0.87, g));
+    const crops = [[], [], [], []];   // what shows at each stage: seeds, sprouts, young wheat, ripe wheat
+    for (let k = 0; k < 4; k++) for (let j = 0; j < 5; j++) { const px = -1.4 + j * 0.7, pz = -1.3 + k * 0.87;
+      crops[0].push(add(new THREE.SphereGeometry(0.06, 5, 4), 0xd8c070, px, 0.3, pz, g));
+      const sp = add(new THREE.ConeGeometry(0.08, 0.35, 4), 0x6aaa48, px, 0.45, pz, g); crops[1].push(sp);
+      const yg = add(new THREE.CylinderGeometry(0.04, 0.05, 0.9, 4), 0x5a9a3a, px, 0.7, pz, g); crops[2].push(yg);
+      const st = add(new THREE.CylinderGeometry(0.035, 0.045, 1.2, 4), 0xc8a850, px, 0.85, pz, g); crops[3].push(st);
+      const ear = add(new THREE.ConeGeometry(0.09, 0.36, 5), 0xe0b850, px, 1.55, pz, g); ear.rotation.x = Math.PI; crops[3].push(ear); }
+    for (const list of crops) for (const m of list) m.visible = false;
+    const pt = { x, z, g, bed, furrows, crops, grassy, soil, wet, i: F.patches.length };
+    g.userData = { action: 'Till', name: 'Farming patch', rec: { kind: 'patch', state: 'standing', x, z, onClick: () => patchClick(pt) } }; trees.push(g);
+    F.patches.push(pt);
+  }
+  FARM_PLOTS = F.patches.map(() => ({ s: 'grass', g: 0, w: false, t: 0 }));
+  // the windmill: a round stone tower, a wooden cap, and four sails turning in the wind
+  const M = F.mill, mill = new THREE.Group(); mill.position.set(M.x, 0, M.z); town.add(mill);
+  add(new THREE.CylinderGeometry(2.4, 3.1, 7.5, 12), texMat(wallStone, 3, 3, 0xd8d0c0), 0, 3.75, 0, mill);
+  add(new THREE.ConeGeometry(2.9, 2.6, 12), new THREE.MeshStandardMaterial({ map: roofTex, color: 0x6a4a3a, flatShading: true }), 0, 8.8, 0, mill);
+  add(new THREE.BoxGeometry(1.4, 2.2, 0.3), texMat(woodTex(), 1, 2, 0x8a5a2a), 0, 1.1, 3.0, mill);   // the door, facing south
+  add(new THREE.BoxGeometry(0.7, 0.7, 0.2), mat(0x2a1a10), 0, 5.2, 2.6, mill);   // a little window
+  const hub = new THREE.Group(); hub.position.set(0, 6.8, 2.9); mill.add(hub); add(new THREE.CylinderGeometry(0.35, 0.35, 0.6, 10).rotateX(Math.PI / 2), mat(0x5a3a20), 0, 0, 0, hub);
+  for (let i = 0; i < 4; i++) { const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; hub.add(arm);
+    add(new THREE.BoxGeometry(0.18, 5, 0.12), mat(0x6a4a2a), 0, 2.6, 0.2, arm);
+    add(new THREE.BoxGeometry(1.1, 3.8, 0.05), mat(0xe8e0cc), 0.62, 3.0, 0.25, arm); }
+  F.sails = hub;
+  solidBoxes.push({ x0: M.x - 3, x1: M.x + 3, z0: M.z - 3, z1: M.z + 3 });
+  // the hopper by the door: put wheat in, flour comes out
+  const hop = new THREE.Group(); hop.position.set(M.x + 1.9, 0, M.z + 3.4); town.add(hop);
+  add(new THREE.BoxGeometry(1.0, 1.0, 1.0), texMat(woodTex(), 1, 1, 0x9a7448), 0, 0.5, 0, hop);
+  add(new THREE.CylinderGeometry(0.75, 0.35, 0.8, 4), texMat(woodTex(), 1, 1, 0x8a6438), 0, 1.4, 0, hop).rotation.y = Math.PI / 4;
+  solidAt(M.x + 1.9, M.z + 3.4, 0.6);
+  hop.userData = { action: 'Mill wheat', name: 'Windmill hopper', rec: { kind: 'hopper', state: 'standing', x: M.x + 1.9, z: M.z + 3.4, onClick: () => hopperClick() } }; trees.push(hop);
+}
+function farmRoads(){
+  roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
+  roadPath([[62.5, 0], [61.5, 10.5], [80, 11], [FARMLAND.mill.x, 11], [FARMLAND.mill.x, FARMLAND.mill.z + 4.2]]);   // round the field to the windmill
+}
+// how a patch looks right now, for you
+function drawPatch(i){
+  const pt = FARMLAND.patches[i], p = FARM_PLOTS[i];
+  pt.bed.material = p.s === 'grass' ? pt.grassy : (p.w ? pt.wet : pt.soil);
+  for (const f of pt.furrows) { f.visible = p.s !== 'grass'; f.material = p.w ? pt.wet : pt.soil; }
+  pt.crops.forEach((list, st) => list.forEach(m => { m.visible = p.s === 'planted' && p.g === st; }));
+  pt.g.userData.action = { grass: 'Till', tilled: 'Plant', planted: p.g >= 3 ? 'Harvest' : (p.w ? 'Check' : 'Water') }[p.s] || 'Till';
+}
+// crops grow a stage for each watering, once enough time has passed; the soil dries as they do
+function growCrops(){
+  if (!FARM_PLOTS) return;
+  const now = Date.now();
+  FARM_PLOTS.forEach((p, i) => {
+    if (p.s === 'planted' && p.w && p.g < 3 && now - p.t > GROW_S * 1000) { p.g++; p.w = false; p.t = now; if (p.g === 3) addSystemLine('Some of your wheat is ripe and ready to harvest.'); }
+    drawPatch(i);
+  });
+  if (FARMLAND && FARMLAND.sails) FARMLAND.sails.rotation.z -= 0.004;
+}
+let farmBusy = null;
+function farmAct(pt, ms, label, done){
+  if (farmBusy) return;
+  walkStart(new THREE.Vector3(pt.x - 2.6, 0, pt.z), () => {
+    farmBusy = { t0: performance.now(), ms, done }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
+    setAct({ k: 'farm', t: Date.now() });
+    setTimeout(() => { farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); done(); saveNow(false); }, ms);
+  });
+}
+function updateFarmPose(){ if (farmBusy) heroAnim.mode = 'work'; }
+function patchClick(pt){
+  const p = FARM_PLOTS[pt.i];
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  if (p.s === 'grass') {
+    if (!hasItem('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
+    farmAct(pt, 1800, 'till', () => { p.s = 'tilled'; p.w = false; addXp('Farming', 5); farmSound('till'); showToast('You turn over the soil.  +5 Farming XP'); });
+  } else if (p.s === 'tilled') {
+    if (!hasItem('Wheat seeds')) { showToast('You need some wheat seeds to plant here. Mara sells them.'); return; }
+    farmAct(pt, 1400, 'plant', () => { if (!hasItem('Wheat seeds')) return; removeItem('Wheat seeds'); p.s = 'planted'; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', 8); farmSound('plant'); showToast('You plant some wheat seeds. Now give them some water.  +8 Farming XP'); });
+  } else if (p.s === 'planted' && p.g >= 3) {
+    if (bag.length >= BAG_SIZE && !hasItem('Wheat')) { showToast('Your bag is full.'); return; }
+    farmAct(pt, 2000, 'harvest', () => { const n = 3 + Math.floor(Math.random() * 3); addItem('Wheat', n, WHEAT_ICON); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', 15 * n); farmSound('harvest'); showToast(`You harvest ${n} wheat.  +${15 * n} Farming XP`); });
+  } else if (p.s === 'planted' && !p.w) {
+    if (!hasItem('Watering can')) { showToast('These need watering. You need a watering can. Mara sells them.'); return; }
+    if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
+    farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); addXp('Farming', 3); farmSound('water'); showToast(`You water the wheat. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
+  } else {
+    const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
+    showToast(['The seeds are watered. They should sprout soon', 'The sprouts are watered and growing', 'The wheat is watered and coming along nicely'][p.g] + ` (about ${left} seconds).`);
+  }
+}
+function troughClick(x, z){
+  if (!hasItem('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
+  if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
+  walkStart(new THREE.Vector3(x, 0, z + 1.6), () => { FARM_CAN.n = CAN_MAX; renderBag(); farmSound('fill'); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); saveNow(false); });
+}
+let milling = null;
+function hopperClick(){
+  if (!hasItem('Wheat')) { showToast('The windmill grinds wheat into flour. Put some wheat in the hopper.'); return; }
+  if (milling) return;
+  const M = FARMLAND.mill;
+  walkStart(new THREE.Vector3(M.x + 1.9, 0, M.z + 5), () => {
+    milling = setInterval(() => {
+      if (!hasItem('Wheat') || Math.hypot(hero.position.x - M.x - 1.9, hero.position.z - M.z - 5) > 3) { clearInterval(milling); milling = null; if (ONLINE.act && ONLINE.act.k === 'mill') setAct(null); return; }
+      removeItem('Wheat'); addItem('Flour', 1, FLOUR_ICON); addXp('Farming', 4); farmSound('mill'); heroAnim.mode = 'work';
+      setAct({ k: 'mill', t: Date.now() }); showToast(`The millstones grind the wheat into flour (${countOf('Flour')}).  +4 Farming XP`);
+      if (!hasItem('Wheat')) { clearInterval(milling); milling = null; saveNow(false); }
+    }, 1500);
+  });
+}
+// flour and a splash of water from the can make bread dough
+CRAFTS['Flour'] = [{ label: 'Make bread dough', make: 'Bread dough', skill: 'Cooking', level: 1, xp: 10, needs: { Flour: 1 }, water: 1 }];
+function farmSound(kind){ sfx((ctx, t, out) => {
+  if (kind === 'till') { nz(ctx, out, t, 0.25, 'lowpass', 600, 300, 0.8, 0.6, 0.01, 0.2); nz(ctx, out, t + 0.5, 0.25, 'lowpass', 600, 300, 0.8, 0.5, 0.01, 0.2); }
+  if (kind === 'plant') { for (let i = 0; i < 5; i++) nz(ctx, out, t + i * 0.08, 0.04, 'bandpass', 2500, 2000, 2, 0.25, 0.002, 0.03); }
+  if (kind === 'water') { nz(ctx, out, t, 1.0, 'bandpass', 1800, 1200, 0.6, 0.35, 0.15, 0.8); for (let i = 0; i < 8; i++) nz(ctx, out, t + 0.1 + Math.random() * 0.8, 0.03, 'bandpass', 3000 + Math.random() * 2000, 2500, 3, 0.2, 0.002, 0.025); }
+  if (kind === 'fill') { nz(ctx, out, t, 1.2, 'bandpass', 700, 1600, 0.8, 0.4, 0.2, 0.9); }
+  if (kind === 'harvest') { for (let i = 0; i < 6; i++) nz(ctx, out, t + i * 0.12, 0.12, 'highpass', 3000, 2000, 0.7, 0.3, 0.005, 0.1); }
+  if (kind === 'mill') { nz(ctx, out, t, 1.2, 'lowpass', 200, 160, 0.8, 0.7, 0.1, 1.0); nz(ctx, out, t, 1.0, 'bandpass', 900, 700, 1, 0.15, 0.1, 0.8); }
+}); }
+
 // ===== The bonfire night: a one-off village event, started with a secret phrase in chat =====
 // Aldric walks out and lights the fire, villagers come over and chat, players sit and keep it fed with logs.
 // 10 to 15 minutes in, goblins creep up from the south and rush the clearing, forcing a fight on everyone there.
