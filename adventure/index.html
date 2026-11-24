@@ -3223,12 +3223,55 @@ function addNpc(g, h, lx, lz, npc){
   sp.position.set(lx, 0, lz);
   g.add(sp);
   const p = h.toWorld(lx, lz);
-  const rec = { kind: 'npc', name: npc.name, title: npc.title, look: npc.look, hat: npc.hat, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], x: p.x, z: p.z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', name: npc.name, title: npc.title, look: npc.look, hat: npc.hat, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, x: p.x, z: p.z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.name, rec });
   trees.push(sp);
   const hwL = h.hw / h.k, hdL = h.hd / h.k;   // the inside of the house, in its own units
   addWander(sp, rec, frames, { parentYaw: g.rotation.y, lx, lz, rad: 1.6, box: { x0: -hwL + 0.9, x1: hwL - 0.9, z0: -hdL + 0.9, z1: hdL - 0.9 }, k: h.k, ox: h.x, oz: h.z });
+}
+const MARA = { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
+    talks: [
+      ["Welcome, traveller! Mind the mud on the green — it's eaten better boots than yours.", "I'm Mara. Axes, pickaxes, hammers, nets... if it helps you work, I sell it.", "My prices are fair. Well, mostly fair. Fair enough, anyway."],
+      ["Back again? Business must be good. Or bad. Either way, you'll be needing tools."],
+      ["Pip keeps touching my pickaxes. I keep a sweet in my pocket to bribe him off."],
+      ["Dunmore buys his hammers from me, then tells everyone he made 'em himself."] ],
+    barks: ["Axes, pickaxes, hammers and nets! Everything you need to get to work!", "Best prices on the green, and the only prices on the green!", "Need a tool? Come and have a look, no charge for looking."],
+    choice: { question: 'Fancy a look at what I\'ve got?' } };
+// Mara's general store: a cottage in the open ground south-west of the village, with a counter, shelves of tools, and a painted sign over the door
+function furnishStore(g, h){
+  g.userData.workshop = true;   // a shop, not a home: no bed or table
+  const S = HOUSE_SIZE, f = new THREE.Group(); f.scale.setScalar(S); g.add(f);
+  const wood = texMat(woodTex(), 1, 1, 0xb08a58), dark = mat(0x5a3a20);
+  const put = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; f.add(o); return o; };
+  // the counter, across the room, with Mara behind it
+  put(new THREE.BoxGeometry(2.6, 0.5, 0.5), wood, 0, 0.25, -0.35); put(new THREE.BoxGeometry(2.8, 0.06, 0.62), dark, 0, 0.52, -0.35);
+  const W = S * h.k;   // furniture units to world: S, then the house's own scale
+  const ux = (h.toWorld(1, 0).x - h.x) / h.k, uz = (h.toWorld(1, 0).z - h.z) / h.k;   // which way the house is turned
+  const solid = (lx, lz, hx, hz) => { const p = h.toWorld(lx * S, lz * S), ax = (Math.abs(ux) * hx + Math.abs(uz) * hz) * W, az = (Math.abs(uz) * hx + Math.abs(ux) * hz) * W; solidBoxes.push({ x0: p.x - ax, x1: p.x + ax, z0: p.z - az, z1: p.z + az }); };
+  solid(0, -0.35, 1.35, 0.3);
+  put(new THREE.BoxGeometry(0.22, 0.14, 0.16), mat(0xd8b040), -0.8, 0.62, -0.35);   // a little coin tray
+  // shelves on the back wall, stocked with what she sells
+  for (const y of [0.45, 0.95, 1.45]) put(new THREE.BoxGeometry(3.4, 0.06, 0.4), dark, 0, y, -1.75);
+  for (const x of [-1.7, 0, 1.7]) put(new THREE.BoxGeometry(0.08, 1.7, 0.42), dark, x, 0.85, -1.75);
+  const stock = (kind, x, y) => { const t = makeTool(kind); t.scale.setScalar(0.42); t.rotation.set(0, 0, Math.PI / 2 + 0.2); t.position.set(x, y + 0.2, -1.72); f.add(t); };
+  for (const [k, x] of [['axe', -1.3], ['axe', -0.9], ['pick', -0.4], ['pick', 0.4]]) stock(k, x, 0.95);
+  for (let i = 0; i < 3; i++) { put(new THREE.BoxGeometry(0.12, 0.45, 0.12), mat(0x7a4d22), 0.9 + i * 0.3, 1.75, -1.72); put(new THREE.BoxGeometry(0.28, 0.12, 0.14), mat(0x8a9099), 0.9 + i * 0.3, 1.98, -1.72); }   // hammers
+  for (let i = 0; i < 2; i++) { const net = put(new THREE.TorusGeometry(0.16, 0.025, 5, 12), mat(0xc8b48a), -1.2 + i * 0.5, 0.65, -1.7); net.rotation.y = 0.3; }   // nets
+  for (const [x, c] of [[-0.6, 0xc2652b], [-0.2, 0xb8c4cc], [0.3, 0x8a5a2b]]) put(new THREE.BoxGeometry(0.3, 0.26, 0.3), mat(c), x, 0.62, -1.72);   // boxes of goods
+  // barrels and a crate by the door
+  for (const [x, z] of [[-1.7, 1.2], [1.75, 1.3]]) { put(new THREE.CylinderGeometry(0.28, 0.24, 0.6, 10), mat(0x8a5a2a), x, 0.3, z); solid(x, z, 0.28, 0.28); }
+  put(new THREE.BoxGeometry(0.5, 0.5, 0.5), wood, 1.7, 0.25, 0.4).rotation.y = 0.3;
+  // the sign over the door, painted on both sides
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const c = cv.getContext('2d');
+  c.fillStyle = '#5a3a20'; c.fillRect(0, 0, 512, 160); c.fillStyle = '#7a5530'; c.fillRect(10, 10, 492, 140);
+  c.strokeStyle = '#e2b84c'; c.lineWidth = 6; c.strokeRect(18, 18, 476, 124);
+  c.fillStyle = '#f3d27a'; c.font = 'bold 58px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('General Store', 256, 84);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.53, 0.06), new THREE.MeshStandardMaterial({ map: tex }));   // one material, so it folds away with the walls
+  sign.scale.setScalar(S); sign.position.set(0, 2.55 * S, (h.hd / W + 0.12) * S); sign.castShadow = true; g.add(sign);   // on the wall itself, so it folds away with the walls when you go in
+  sign.userData.deco = true;
+  addNpc(g, h, 0, -1.1 * S, MARA);
 }
 // the smithy's furnace and anvil, inside its walls
 function furnishSmithy(g, h){
@@ -3787,6 +3830,7 @@ function populateVillage(){
   const h3 = house(-22, -4, 5, 4.5, 0x9a7a5a, 0x5a3a7a, 0, (g, h) => addNpc(g, h, -0.4, -0.6, VILLAGERS[2]));
   const h4 = house(-30, 40, 5.5, 4.5, 0x7a6a5a, 0x6a3a2a, Math.PI / 2);   // turned, with its doorway facing the hall
   const smithyHouse = house(38, 46, 6, 5, 0x8a6a4a, 0x5a3a2a, 0, furnishSmithy);   // the smithy, its own building
+  const store = house(-75, 52, 4.5, 3.8, 0x8a7a6a, 0x3a6a5a, Math.PI / 2, furnishStore);   // Mara's general store, out in the open ground to the south-west, its door facing east
   // the roads: one network from the village green, each house reached by its front door
   const G = hub;
   const D = h => [h.door.x, h.door.z];
@@ -3795,7 +3839,7 @@ function populateVillage(){
     const fx = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) : 0, fz = fx ? 0 : Math.sign(dz);   // the door faces along one axis
     return [h.door.x + fx * n, h.door.z + fz * n]; };
   cobbleDisc(G[0], G[1], 5);                                           // the cobbled green round the well
-  for (const h of [h1, h2, h3, h4, smithyHouse]) cobbleDisc(h.door.x, h.door.z, 1.3);   // a stone step at every door
+  for (const h of [h1, h2, h3, h4, smithyHouse, store]) cobbleDisc(h.door.x, h.door.z, 1.3);   // a stone step at every door
   roadPath([G, [-48, 7], out(h1), D(h1)]);                             // the far west house
   roadPath([G, [-28, 5], out(h3), D(h3)]);                             // the north house
   roadPath([G, [-42, 20], [-42, 44], [-46, 47], out(h2), D(h2)]);      // the south-west house, between the two southern houses
@@ -3806,18 +3850,11 @@ function populateVillage(){
   roadPath([[14.5, 12], [22, 16], [26, 30], [26, 54], [30, 58], out(smithyHouse), D(smithyHouse)]);   // the smithy, out to the south-east
   roadPath([[26, 54], [23, 59], [QUARRY.x + 8.6, QUARRY.z - 9.6]]);   // south-west to the quarry gate
   roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
+  roadPath([[-46, 47], [-58, 51], out(store), D(store)]);           // Mara's store, off the back lane to the south-west
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
   buildQuarry();
   // the fishing spot in the river
-  addWorldNpc(-40, 14, { name: 'Mara', title: 'the trader', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xa03a1e, shirt: 0x7a3a6a, pants: 0x3a2a3a },
-    talks: [
-      ["Welcome, traveller! Mind the mud on the green — it's eaten better boots than yours.", "I'm Mara. Axes, pickaxes, hammers, nets... if it helps you work, I sell it.", "My prices are fair. Well, mostly fair. Fair enough, anyway."],
-      ["Back again? Business must be good. Or bad. Either way, you'll be needing tools."],
-      ["Pip keeps touching my pickaxes. I keep a sweet in my pocket to bribe him off."],
-      ["Dunmore buys his hammers from me, then tells everyone he made 'em himself."] ],
-    barks: ["Axes, pickaxes, hammers and nets! Everything you need to get to work!", "Best prices on the green, and the only prices on the green!", "Need a tool? Come and have a look, no charge for looking."],
-    choice: { question: 'Fancy a look at what I\'ve got?' } });
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
   bonfireRoads();   // laid before the props, so lamps, benches and barrels keep off these paths too
