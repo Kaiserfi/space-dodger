@@ -5332,7 +5332,7 @@ function patchClick(pt, auto){
   const p = FARM_PLOTS[pt.i];
   farmChain = pt;
   if (auto) {   // carrying on by itself: only the jobs you have what you need for, and stop quietly otherwise
-    const can = p.s === 'tilled' ? hasItem('Wheat seeds') : p.s === 'planted' && p.g < 3 && !p.w ? hasTool('Watering can') && FARM_CAN.n > 0 : false;
+    const can = p.s === 'tilled' ? false /* planting is always your choice, from the seed menu */ : p.s === 'planted' && p.g < 3 && !p.w ? hasTool('Watering can') && FARM_CAN.n > 0 : false;
     if (!can) { farmChain = null; return; }
   }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
@@ -5340,8 +5340,7 @@ function patchClick(pt, auto){
     if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
     farmAct(pt, 1800, 'till', () => { p.s = 'tilled'; p.w = false; addXp('Farming', 5); farmSound('till'); showToast('You turn over the soil.  +5 Farming XP'); });
   } else if (p.s === 'tilled') {
-    if (!hasItem('Wheat seeds')) { showToast('You need some wheat seeds to plant here. Mara sells them.'); return; }
-    farmAct(pt, 1400, 'plant', () => { if (!hasItem('Wheat seeds')) return; removeItem('Wheat seeds'); p.s = 'planted'; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', 8); farmSound('plant'); showToast('You plant some wheat seeds. Now give them some water.  +8 Farming XP'); });
+    openSeedMenu(pt);
   } else if (p.s === 'planted' && p.g >= 3) {
     if (bag.length >= BAG_SIZE && !hasItem('Wheat')) { showToast('Your bag is full.'); return; }
     farmAct(pt, 2000, 'harvest', () => { const n = 3 + Math.floor(Math.random() * 3); addItem('Wheat', n, WHEAT_ICON); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', 15 * n); farmSound('harvest'); showToast(`You harvest ${n} wheat.  +${15 * n} Farming XP`); });
@@ -5353,6 +5352,29 @@ function patchClick(pt, auto){
     const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
     showToast(['The seeds are watered. They should sprout soon', 'The sprouts are watered and growing', 'The wheat is watered and coming along nicely'][p.g] + ` (about ${left} seconds).`);
   }
+}
+/* what can be planted: more seed types slot in here as they are added */
+const SEEDS = [{ name: 'Wheat seeds', crop: 'Wheat', level: 1 }];
+let lastPtr = { x: innerWidth / 2, y: innerHeight / 2 };
+addEventListener('pointerdown', e => { lastPtr = { x: e.clientX, y: e.clientY }; }, true);
+function plantPatch(pt, seed){
+  const p = FARM_PLOTS[pt.i]; if (p.s !== 'tilled') return;
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  farmChain = pt;   /* from here the loop carries on by itself: watering, then harvesting */
+    farmAct(pt, 1400, 'plant', () => { if (p.s !== 'tilled' || !hasItem(seed.name)) return; removeItem(seed.name); p.s = 'planted'; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', 8); farmSound('plant'); showToast('You plant some wheat seeds. Now give them some water.  +8 Farming XP'); });
+}
+function openSeedMenu(pt){
+  const lv = levelOf(SKILL_XP.Farming);
+  itemMenu.innerHTML = '<div class="imHead">What to plant?</div>' + SEEDS.map((sd, i) => {
+    const n = countOf(sd.name), ok = n > 0 && lv >= sd.level;
+    const why = lv < sd.level ? `needs Farming ${sd.level}` : n ? `${n} in bag` : 'none in bag';
+    return `<button data-o="${i}" ${ok ? '' : 'disabled style="opacity:.45;cursor:default"'}><span style="display:inline-flex;vertical-align:middle;width:22px;height:22px;margin-right:6px">${ICON_FOR[sd.name] || ''}</span>${sd.crop} <small style="color:#c9b27a">(${why})</small></button>`;
+  }).join('') + '<button data-o="x">Cancel</button>';
+  itemMenu.hidden = false;
+  itemMenu.querySelectorAll('svg').forEach(v => { v.setAttribute('width', 22); v.setAttribute('height', 22); });
+  itemMenu.style.left = Math.max(8, Math.min(innerWidth - 220, lastPtr.x + 6)) + 'px'; itemMenu.style.top = Math.max(8, Math.min(innerHeight - itemMenu.offsetHeight - 8, lastPtr.y - 10)) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; itemMenu.hidden = true; if (b.dataset.o === 'x') return;
+    plantPatch(pt, SEEDS[+b.dataset.o]); };
 }
 function troughClick(x, z){
   if (!hasTool('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
