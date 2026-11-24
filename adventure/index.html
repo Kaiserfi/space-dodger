@@ -149,6 +149,12 @@
   #partyFrames .pfTop { display:flex; justify-content:space-between; gap:4px; } #partyFrames .pfTop span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #partyFrames .pfTop small { color:#c9b27a; }
   #partyFrames .pfBar { height:7px; margin-top:2px; background:#5a1a12; border:1px solid #2a1208; border-radius:3px; overflow:hidden; } #partyFrames .pfBar i { display:block; height:100%; background:linear-gradient(#5ad85a, #2a9a2a); }
   #partyFrames .pfHp { font-size:10px; color:#c9b27a; text-align:right; }
+  @media (max-width:600px) {   /* phones: a slim strip under the log out button; tap "Party" for the leave button */
+    #partyFrames { top:64px; transform:none; left:8px; width:104px; padding:3px 4px 4px; font-size:11px; }
+    #partyFrames .pfHead { font-size:11px; margin-bottom:1px; cursor:pointer; } #partyFrames .pfHead::after { content:' \25B8'; color:#c9b27a; } #partyFrames.pfOpen .pfHead::after { content:' \25BE'; }
+    #partyFrames .pfRow { padding:2px; } #partyFrames .pfTop small { font-size:9px; } #partyFrames .pfBar { height:5px; margin-top:1px; } #partyFrames .pfHp { display:none; }
+    #partyFrames .pfLeave { display:none; } #partyFrames.pfOpen .pfLeave { display:block; } #partyFrames.pfOpen .pfHp { display:block; font-size:9px; }
+  }
   #partyFrames .pfLeave { margin-top:4px; width:100%; font:11px Georgia,serif; color:#e8efe6; background:#1d150b; border:1px solid #5b4324; border-radius:4px; padding:3px; cursor:pointer; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
   #qMark { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:6; font:bold 30px Georgia,serif; color:#ffd24a; text-shadow:0 0 3px #000, 2px 2px 0 #5a3a10, -1px -1px 0 #5a3a10; display:none; }
@@ -5934,6 +5940,7 @@ function renderPartyFrames(){
 document.addEventListener('click', e => {
   const el = document.getElementById('partyFrames'); if (!el || !el.contains(e.target)) return;
   if (e.target.closest('.pfLeave')) { leaveParty(false); return; }
+  if (e.target.closest('.pfHead')) { el.classList.toggle('pfOpen'); return; }
   const rowEl = e.target.closest('.pfRow[data-p]'); const id = rowEl && rowEl.dataset.p; if (!id) return;
   const b = bag.find(i => i.name === 'Bandage'); if (!b) { showToast('You need a bandage to patch them up.'); return; }
   if (!remote[id] || !sameWorld(remote[id])) { showToast("They're not here."); return; }
