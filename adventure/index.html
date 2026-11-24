@@ -4942,7 +4942,7 @@ function showJoin(msg, withName){
 }
 async function checkServer(){
   // the reason is kept, so the message can say what went wrong
-  try { const r = await fetch(DB + '/adventure/nodes.json?shallow=true'); ONLINE.ok = r.ok; ONLINE.err = r.ok ? '' : 'HTTP ' + r.status; }
+  try { const r = await fetch(DB + '/adventure/live/nodes.json?shallow=true'); ONLINE.ok = r.ok; ONLINE.err = r.ok ? '' : 'HTTP ' + r.status; }
   catch (e) { ONLINE.ok = false; ONLINE.err = 'network error: ' + e.message; }
   return ONLINE.ok;
 }
@@ -4972,7 +4972,7 @@ async function logOut(){
   ONLINE.saveJson = '';
   await saveNow(false);            // the save goes through while we are still in the village
   ONLINE.ready = false;
-  try { await fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'DELETE' }); } catch (e) {}
+  try { await fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE' }); } catch (e) {}
   for (const id in remote) removeRemote(id);
   document.getElementById('nameInput').value = ONLINE.name;
   location.href = '../';   // back to the arcade
@@ -4981,9 +4981,9 @@ document.getElementById('logoutBtn').addEventListener('click', logOut);
 // remove players left behind by closed browsers (no update for a minute)
 async function cleanStalePlayers(){
   try {
-    const all = await (await fetch(`${DB}/adventure/players.json`)).json() || {};
+    const all = await (await fetch(`${DB}/adventure/live/players.json`)).json() || {};
     const now = Date.now();
-    for (const id in all) if (all[id] && all[id].t && now - all[id].t > 60000) fetch(`${DB}/adventure/players/${id}.json`, { method: 'DELETE' }).catch(() => {});
+    for (const id in all) if (all[id] && all[id].t && now - all[id].t > 60000) fetch(`${DB}/adventure/live/players/${id}.json`, { method: 'DELETE' }).catch(() => {});
   } catch (e) {}
 }
 // your progress, as saved online
@@ -5048,7 +5048,7 @@ function writePresence(force){
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
   const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], t: now };   // e: what you're wearing and holding, so others see it
-  fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
+  fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
   ONLINE.chatK++;
@@ -5058,7 +5058,7 @@ function sendChat(text){
 // claim a shared node before it falls: only one player wins, and the server says who
 async function claimNode(rec){
   if (!ONLINE.ready) return null;
-  const url = `${DB}/adventure/nodes/${rec.key}.json`;
+  const url = `${DB}/adventure/live/nodes/${rec.key}.json`;
   try {
     const r = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
     const etag = r.headers.get('ETag'), cur = await r.json();
@@ -5149,10 +5149,10 @@ function applyPlayersEvent(ev, d){
 function startStreams(){
   if (ONLINE.streamsOn) return;   // one connection, even after logging out and back in
   ONLINE.streamsOn = true;
-  const ps = new EventSource(DB + '/adventure/players.json');
+  const ps = liveFeed('players');
   ps.addEventListener('put', e => applyPlayersEvent('put', JSON.parse(e.data)));
   ps.addEventListener('patch', e => applyPlayersEvent('patch', JSON.parse(e.data)));
-  const ns = new EventSource(DB + '/adventure/nodes.json');
+  const ns = liveFeed('nodes');
   let nodesReady = false;   // the first snapshot is the state when we join, so it plays no effects
   const applyNodes = (ev, d) => {
     if (d.path === '/') ONLINE.nodes = d.data || {};
@@ -5164,7 +5164,7 @@ function startStreams(){
   ns.addEventListener('patch', e => applyNodes('patch', JSON.parse(e.data)));
   startEventStreams();
   window.addEventListener('pagehide', () => {
-    try { fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}
+    try { fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}
     saveNow(true);
   });
 }
@@ -5880,7 +5880,7 @@ function updateBandage(){
   if (!removeItem('Bandage', it)) { if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); return; }
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
-    const r = remote[who]; fetch(`${DB}/adventure/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
+    const r = remote[who]; fetch(`${DB}/adventure/live/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
     if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (r) hitsplat(r.sprite, BANDAGE_HEAL, 'heal'); silkSound('collect'); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
@@ -6106,7 +6106,7 @@ function updateTrade(){
 // ===== The bonfire night: a one-off village event, started with a secret phrase in chat =====
 // Aldric walks out and lights the fire, villagers come over and chat, players sit and keep it fed with logs.
 // 10 to 15 minutes in, goblins creep up from the south and rush the clearing, forcing a fight on everyone there.
-// The shared state lives at adventure/event; one player's game (the host) runs the goblins and the guards and shares them.
+// The shared state lives at adventure/live/event; one player's game (the host) runs the goblins and the guards and shares them.
 const EVENT_HASH = 'bb1914976d5ceed67b0cc65637f065461f9145124d9aa8f4cfb72124b836502d';   // the phrase itself is never in the code
 const RAIDER = { name: 'Goblin raider', level: 5, hp: 10, melee: 4, atk: 4, def: 2, maxHit: 2, speed: 2400 };
 const FUEL_RATE = 1 / 600;     // a full fire burns for ten minutes
@@ -6130,7 +6130,7 @@ const evDist = (x, z) => hero ? Math.hypot(hero.position.x - x, hero.position.z 
 const inClearing = (x, z) => Math.hypot(x - BF.x, z - BF.z) < BF.clearR + 6;
 
 // ----- talking to the database -----
-async function evPatch(obj){ try { await fetch(`${DB}/adventure/event.json`, { method: 'PATCH', body: JSON.stringify(obj) }); } catch (e) {} }
+async function evPatch(obj){ try { await fetch(`${DB}/adventure/live/event.json`, { method: 'PATCH', body: JSON.stringify(obj) }); } catch (e) {} }
 function evApply(d){
   const parts = d.path.split('/').filter(Boolean);
   if (!parts.length) { EV.data = d.data; return; }
@@ -6142,16 +6142,37 @@ function evMerge(d){   // a patch: several children of one place at once
   const parts = d.path.split('/').filter(Boolean);
   for (const k in d.data) evApply({ path: '/' + parts.concat(k).join('/'), data: d.data[k] });
 }
+
+// ===== one live feed for everything shared: adventure/live/{players,nodes,event,graves,mobs} =====
+// Browsers allow only about six open connections to the database, so the game keeps exactly one stream open and
+// routes each change to the part of the game that handles it, as if each part had its own stream.
+const LIVE = { subs: {}, es: null };
+function liveFeed(part){
+  const sub = LIVE.subs[part] || (LIVE.subs[part] = { put: [], patch: [] });
+  if (!LIVE.es) setTimeout(startLive, 0);   // opened once, after everyone has subscribed
+  return { addEventListener: (type, fn) => { if (sub[type]) sub[type].push(fn); } };
+}
+function liveSend(part, type, path, data){ const sub = LIVE.subs[part]; if (!sub) return; const e = { data: JSON.stringify({ path, data }) }; for (const fn of sub[type]) { try { fn(e); } catch (err) { console.error(err); } } }
+function startLive(){
+  if (LIVE.es) return;
+  LIVE.es = new EventSource(DB + '/adventure/live.json');
+  LIVE.es.addEventListener('put', e => { const d = JSON.parse(e.data), parts = d.path.split('/').filter(Boolean);
+    if (!parts.length) { for (const part in LIVE.subs) liveSend(part, 'put', '/', d.data ? (d.data[part] ?? null) : null); return; }   // the whole snapshot: everyone gets their share
+    liveSend(parts[0], 'put', '/' + parts.slice(1).join('/'), d.data); });
+  LIVE.es.addEventListener('patch', e => { const d = JSON.parse(e.data), parts = d.path.split('/').filter(Boolean);
+    if (!parts.length) { for (const part in d.data) liveSend(part, d.data[part] === null ? 'put' : 'patch', '/', d.data[part]); return; }   // a change across several parts
+    liveSend(parts[0], 'patch', '/' + parts.slice(1).join('/'), d.data); });
+}
 const GRAVES = {};
 
 // ===== shared farm monsters =====
 // Every game works out each monster's wandering path from the same seed and the server's clock, so they wander in step for everyone without sending anything.
-// Only fights go through the database (adventure/mobs/<id>): who is fighting it, its health, each blow, and until when it's dead.
+// Only fights go through the database (adventure/live/mobs/<id>): who is fighting it, its health, each blow, and until when it's dead.
 let CLOCK_OFF = 0; const SNOW = () => Date.now() + CLOCK_OFF;
 const MOBST = {};   // id -> { f: fighter, t: last seen, hp, x, z, h: { k, w, d, ty, by }, dead: until }
 const MOB_P = 9000;   // each leg of a wander takes this long, walking then pausing
 function mobPatch(sid, obj){ const st = MOBST[sid] || (MOBST[sid] = {}); for (const k in obj) { if (obj[k] === null) delete st[k]; else st[k] = obj[k]; }
-  fetch(`${DB}/adventure/mobs/${sid}.json`, { method: 'PATCH', body: JSON.stringify(obj) }).catch(() => {}); }
+  fetch(`${DB}/adventure/live/mobs/${sid}.json`, { method: 'PATCH', body: JSON.stringify(obj) }).catch(() => {}); }
 function mobFresh(st){ return st && st.f && SNOW() - (st.t || 0) < 12000; }
 function mobDeadNow(m){ const st = MOBST[m.sid]; return !!(st && st.dead && st.dead > SNOW()); }
 function mobLocked(m){ if (m.sid === undefined) return false; const st = MOBST[m.sid]; return mobFresh(st) && st.f !== ONLINE.id && !mobDeadNow(m); }
@@ -6216,9 +6237,9 @@ function mobApply(sid, st){
 let checkHeals = () => {};
 function startHealStream(){
   /* no stream of its own: browsers allow only about six open connections to the database, and every extra stream starves saves and presence.
-     Heals ride on the monsters' stream (adventure/mobs/_heals/<id>); when it says something changed there, fetch ours once. */
-  checkHeals = () => fetch(`${DB}/adventure/mobs/_heals/${ONLINE.id}.json`).then(r => r.json()).then(take).catch(() => {});
-  const take = data => { if (!data || typeof data !== 'object') return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/mobs/_heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
+     Heals ride on the monsters' stream (adventure/live/mobs/_heals/<id>); when it says something changed there, fetch ours once. */
+  checkHeals = () => fetch(`${DB}/adventure/live/mobs/_heals/${ONLINE.id}.json`).then(r => r.json()).then(take).catch(() => {});
+  const take = data => { if (!data || typeof data !== 'object') return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/live/mobs/_heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
       if (!h || typeof h.a !== 'number' || Date.now() - (h.t || 0) > 30000) continue;   // stale ones are dropped
       const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + Math.min(BANDAGE_HEAL, Math.max(0, h.a))); renderStats(); writePresence(true);
       hitsplat(hero, HP.cur - before, 'heal'); healFx(hero); setTimeout(() => { if (!bandaging) healFx(null); }, 1200); for (let i = 0; i < 4; i++) setTimeout(() => healPlus(hero), i * 200);
@@ -6228,10 +6249,10 @@ function startMobStream(){
   startHealStream();
   // the server's clock, so everyone's monsters walk the same path at the same moment
   const t0 = Date.now();
-  fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).then(r => r.json()).then(v => {
+  fetch(`${DB}/adventure/live/mobs/_clock/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).then(r => r.json()).then(v => {
     if (typeof v === 'number') CLOCK_OFF = v - (t0 + Date.now()) / 2;
-    fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'DELETE' }).catch(() => {}); }).catch(() => {});
-  const es = new EventSource(DB + '/adventure/mobs.json');
+    fetch(`${DB}/adventure/live/mobs/_clock/${ONLINE.id}.json`, { method: 'DELETE' }).catch(() => {}); }).catch(() => {});
+  const es = liveFeed('mobs');
   const apply = d => { const parts = d.path.split('/').filter(Boolean);
     if (!parts.length) { for (const k in (d.data || {})) if (/^\d+$/.test(k)) mobApply(+k, d.data[k]); if (d.data && d.data._heals && d.data._heals[ONLINE.id]) checkHeals(); return; }
     if (parts[0] === '_heals') { if (!parts[1] || parts[1] === ONLINE.id) checkHeals(); return; }   // a heal for someone: ours, maybe
@@ -6247,13 +6268,13 @@ function startMobStream(){
 }
 function startEventStreams(){
   startMobStream();
-  const es = new EventSource(DB + '/adventure/event.json');
+  const es = liveFeed('event');
   es.addEventListener('put', e => { evApply(JSON.parse(e.data)); });
   es.addEventListener('patch', e => { evMerge(JSON.parse(e.data)); });
-  const gs = new EventSource(DB + '/adventure/graves.json');
+  const gs = liveFeed('graves');
   const ga = d => { const parts = d.path.split('/').filter(Boolean);
     if (!parts.length) { for (const k in GRAVES) if (!d.data || !d.data[k]) dropGrave(k); for (const k in (d.data || {})) setGrave(k, d.data[k]); return; }
-    const id = parts[0]; if (parts.length === 1) { if (d.data === null) dropGrave(id); else setGrave(id, d.data); } else fetch(`${DB}/adventure/graves/${id}.json`).then(r => r.json()).then(g => g ? setGrave(id, g) : dropGrave(id)).catch(() => {}); };
+    const id = parts[0]; if (parts.length === 1) { if (d.data === null) dropGrave(id); else setGrave(id, d.data); } else fetch(`${DB}/adventure/live/graves/${id}.json`).then(r => r.json()).then(g => g ? setGrave(id, g) : dropGrave(id)).catch(() => {}); };
   gs.addEventListener('put', e => ga(JSON.parse(e.data)));
   gs.addEventListener('patch', e => { const d = JSON.parse(e.data); for (const k in d.data) ga({ path: d.path + '/' + k, data: d.data[k] }); });
 }
@@ -6265,12 +6286,12 @@ async function isEventPhrase(text){
 }
 async function startBonfireNight(){
   if (!ONLINE.ready) return;
-  try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();
+  try { const cur = await (await fetch(`${DB}/adventure/live/event.json`)).json();
     if (cur && cur.start && !cur.done && !cur.casual && Date.now() - cur.start < 75 * 60000) { showToast('The bonfire night is already under way.'); return; } } catch (e) { return; }
   const now = Date.now();
   const ev = { start: now, raidAt: now + 7 * 60000,   // the goblins come seven minutes in
     host: ONLINE.id, fuel: { f: 0.85, at: now + 13000, r: FUEL_RATE }, raid: { st: 'calm' } };
-  try { const r = await fetch(`${DB}/adventure/event.json`, { method: 'PUT', body: JSON.stringify(ev) }); if (!r.ok) { showToast("The bonfire couldn't be started (the server said no)."); return; } } catch (e) { return; }
+  try { const r = await fetch(`${DB}/adventure/live/event.json`, { method: 'PUT', body: JSON.stringify(ev) }); if (!r.ok) { showToast("The bonfire couldn't be started (the server said no)."); return; } } catch (e) { return; }
   showToast('The bonfire night begins.');
 }
 
@@ -6479,20 +6500,20 @@ function lightCasualFire(){
   const dx = hero.position.x - BF.x, dz = hero.position.z - BF.z, L = Math.hypot(dx, dz) || 1;
   walkStart(new THREE.Vector3(BF.x + dx / L * 3, 0, BF.z + dz / L * 3), async () => {
     const log = hasItem('Logs') ? 'Logs' : hasItem('Oak logs') ? 'Oak logs' : null; if (!log) return;
-    try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();   // never step on a real event, or a fire someone just lit
+    try { const cur = await (await fetch(`${DB}/adventure/live/event.json`)).json();   // never step on a real event, or a fire someone just lit
       if (cur && cur.start && !cur.done && Date.now() - cur.start < 75 * 60000 && (!cur.casual || fuelNow() > 0.02)) { bonfireClick(); return; } } catch (e) { return; }
     removeItem(log);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, BF.x, BF.z);
     tossLog = { t0: performance.now(), from: hero.position.clone().add(new THREE.Vector3(0, 1.6, 0)) };
     const now = Date.now();
-    try { await fetch(`${DB}/adventure/event.json`, { method: 'PUT', body: JSON.stringify({ start: now - 13000, casual: 1, by: ONLINE.name, fuel: { f: LOG_FUEL + 0.1, at: now, r: FUEL_RATE }, raid: { st: 'calm' } }) }); } catch (e) {}
+    try { await fetch(`${DB}/adventure/live/event.json`, { method: 'PUT', body: JSON.stringify({ start: now - 13000, casual: 1, by: ONLINE.name, fuel: { f: LOG_FUEL + 0.1, at: now, r: FUEL_RATE }, raid: { st: 'calm' } }) }); } catch (e) {}
     setTimeout(() => evSound('catch'), 500);
     addXp('Firemaking', 25); showToast('You set the log in the pit and get a fire going.  +25 Firemaking XP'); saveNow(false);
   });
 }
 // add to the shared fire without losing anyone else's log: read it, add, and write it back only if nobody changed it meanwhile
 async function addFuel(amount){
-  const url = `${DB}/adventure/event/fuel.json`;
+  const url = `${DB}/adventure/live/event/fuel.json`;
   for (let tries = 0; tries < 4; tries++) {
     try {
       const r = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } }); const etag = r.headers.get('ETag'), cur = await r.json();
@@ -6560,7 +6581,7 @@ function updateRaiders(){
 // your blow lands on a raider: shown at once here, and sent for the host to count
 function raidHit(m, dmg){
   m.pendingHp = Math.max(0, (m.pendingHp !== undefined && performance.now() - m.pendingAt < 1500 ? m.pendingHp : m.hp) - dmg); m.pendingAt = performance.now(); m.hp = m.pendingHp;
-  fetch(`${DB}/adventure/event/hits.json`, { method: 'POST', body: JSON.stringify({ g: m.idx, d: dmg, by: ONLINE.id }) }).catch(() => {});
+  fetch(`${DB}/adventure/live/event/hits.json`, { method: 'POST', body: JSON.stringify({ g: m.idx, d: dmg, by: ONLINE.id }) }).catch(() => {});
 }
 
 // ----- dying: everything but your three most valuable things stays in a gravestone where you fell, for ten minutes -----
@@ -6586,7 +6607,7 @@ function dropOnDeath(){
   if (mine && mine.until > Date.now()) for (const it of mine.items || []) { const h = items.find(x => x.name === it.name); if (h) h.qty += it.qty; else items.push({ ...it }); }   // a second death adds to the same stone
   const g = { n: ONLINE.name, x: +hero.position.x.toFixed(2), z: +hero.position.z.toFixed(2), items, until: Date.now() + GRAVE_MS };
   GRAVES[ONLINE.id] = g;
-  fetch(`${DB}/adventure/graves/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(g) }).catch(() => {});
+  fetch(`${DB}/adventure/live/graves/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(g) }).catch(() => {});
   addSystemLine(`Your things are in a gravestone where you fell. Only you can collect them, within 10 minutes.`);
 }
 const graveGeo = { slab: new THREE.BoxGeometry(0.9, 1.2, 0.25), base: new THREE.BoxGeometry(1.2, 0.2, 0.6) };
@@ -6618,13 +6639,13 @@ function graveClick(id){
   walkStart(new THREE.Vector3(g.x + 1.2, 0, g.z + 1.2), () => {
     const left = [];
     for (const it of g.items || []) { const before = countOf(it.name); addItem(it.name, it.qty, ICON_FOR[it.name] || ''); const got = countOf(it.name) - before; if (got < it.qty) left.push({ name: it.name, qty: it.qty - got }); }
-    if (left.length) { g.items = left; fetch(`${DB}/adventure/graves/${id}.json`, { method: 'PUT', body: JSON.stringify({ n: g.n, x: g.x, z: g.z, items: left, until: g.until }) }).catch(() => {}); showToast('Your bag is full. The rest is still in the stone.'); }
-    else { fetch(`${DB}/adventure/graves/${id}.json`, { method: 'DELETE' }).catch(() => {}); dropGrave(id); showToast('You collect your things from the gravestone.'); }
+    if (left.length) { g.items = left; fetch(`${DB}/adventure/live/graves/${id}.json`, { method: 'PUT', body: JSON.stringify({ n: g.n, x: g.x, z: g.z, items: left, until: g.until }) }).catch(() => {}); showToast('Your bag is full. The rest is still in the stone.'); }
+    else { fetch(`${DB}/adventure/live/graves/${id}.json`, { method: 'DELETE' }).catch(() => {}); dropGrave(id); showToast('You collect your things from the gravestone.'); }
     saveNow(false);
   });
 }
 function updateGraves(){ const now = Date.now(); for (const id in GRAVES) { const g = GRAVES[id]; if (g.mesh) g.mesh.visible = g.until > now;
-  if (g.until <= now && id === ONLINE.id) { fetch(`${DB}/adventure/graves/${id}.json`, { method: 'DELETE' }).catch(() => {}); dropGrave(id); addSystemLine('Your gravestone has crumbled away, and everything in it is gone.'); } } }
+  if (g.until <= now && id === ONLINE.id) { fetch(`${DB}/adventure/live/graves/${id}.json`, { method: 'DELETE' }).catch(() => {}); dropGrave(id); addSystemLine('Your gravestone has crumbled away, and everything in it is gone.'); } } }
 
 // ----- the host: one player's game runs the goblins, Aldric and the guards, and shares where they are -----
 function onlineIds(){ const ids = [ONLINE.id]; for (const id in remote) ids.push(id); return ids; }
@@ -6666,7 +6687,7 @@ function hostTick(){
   if (st === 'rush' || st === 'lost') {
     // count the blows players have landed
     for (const k in (d.hits || {})) { const h = d.hits[k]; const g = HOST.gob[h.g]; if (g && g.hp > 0) { g.hp = Math.max(0, g.hp - (h.d || 0)); if (g.hp <= 0) g.s = 'dead'; }
-      delete d.hits[k]; fetch(`${DB}/adventure/event/hits/${k}.json`, { method: 'DELETE' }).catch(() => {}); }
+      delete d.hits[k]; fetch(`${DB}/adventure/live/event/hits/${k}.json`, { method: 'DELETE' }).catch(() => {}); }
     const alive = HOST.gob.filter(g => g.hp > 0);
     const part = Object.keys((d.raid && d.raid.part) || {}), standing = part.filter(id => !playerOut(id));
     for (const g of alive) {

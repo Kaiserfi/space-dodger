@@ -31,20 +31,6 @@
       }
     },
     "adventure": {
-      "players": {
-        ".read": true,
-        "$id": {
-          ".write": true,
-          ".validate": "newData.hasChildren(['n', 'x', 'z']) && newData.child('n').isString() && newData.child('n').val().length <= 12 && newData.child('x').isNumber() && newData.child('z').isNumber()"
-        }
-      },
-      "nodes": {
-        ".read": true,
-        "$key": {
-          ".write": "!data.exists() || data.child('until').val() <= now",
-          ".validate": "newData.hasChildren(['until']) && newData.child('until').isNumber() && newData.child('until').val() <= now + 60000"
-        }
-      },
       "saves": {
         ".read": true,
         "$id": {
@@ -52,21 +38,37 @@
           ".validate": "newData.hasChildren(['bag', 'xp']) && newData.child('xp').hasChildren()"
         }
       },
-      "event": {
-        ".read": true,
-        ".write": true
-      },
-      "graves": {
-        ".read": true,
-        "$id": {
-          ".write": true,
-          ".validate": "newData.hasChildren(['x', 'z', 'items', 'until']) && newData.child('until').isNumber()"
-        }
-      },
-      "mobs": {
-        ".read": true,
-        "$id": {
+      "live": {
+        "players": {
+          ".read": true,
+          "$id": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['n', 'x', 'z']) && newData.child('n').isString() && newData.child('n').val().length <= 12 && newData.child('x').isNumber() && newData.child('z').isNumber()"
+          }
+        },
+        "nodes": {
+          ".read": true,
+          "$key": {
+            ".write": "!data.exists() || data.child('until').val() <= now",
+            ".validate": "newData.hasChildren(['until']) && newData.child('until').isNumber() && newData.child('until').val() <= now + 60000"
+          }
+        },
+        "event": {
+          ".read": true,
           ".write": true
+        },
+        "graves": {
+          ".read": true,
+          "$id": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['x', 'z', 'items', 'until']) && newData.child('until').isNumber()"
+          }
+        },
+        "mobs": {
+          ".read": true,
+          "$id": {
+            ".write": true
+          }
         }
       }
     }
