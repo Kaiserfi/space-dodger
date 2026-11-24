@@ -3,7 +3,7 @@
 const { chromium } = require('playwright'); const { FakeDb } = require('../fake-db.js');
 const HOOK = `window.__t = {
   ready: () => ONLINE.ready,
-  st: () => { const dv = PARTY.d && PARTY.d.dv; return { pid: PARTY.id, delve: !!DELVE, wave: dv && dv.wave, host: dv && dv.host, done: dv && dv.done, mons: DELVE ? DELVE.mons.map(m => m.sp + ':' + m.hp + ':' + m.state + ':' + (m.ghost ? 'g' : 'h')) : [], fight: !!FIGHT, act: ONLINE.act && ONLINE.act.d }; },
+  st: () => { const dv = PARTY.d && PARTY.d.dv; return { nx: dv && dv.next, now: SNOW(), wf: DELVE && DELVE.waitFor, alive: dv && partyAlive(dv), toast: (document.getElementById('toast')||{}).textContent, pid: PARTY.id, delve: !!DELVE, wave: dv && dv.wave, host: dv && dv.host, done: dv && dv.done, mons: DELVE ? DELVE.mons.map(m => m.sp + ':' + m.hp + ':' + m.state + ':' + (m.ghost ? 'g' : 'h')) : [], fight: !!FIGHT, act: ONLINE.act && ONLINE.act.d }; },
   invite: id => inviteToParty(id),
   yes: () => { const el = document.getElementById('delveAsk'); if (el && !el.hidden) el.querySelector('[data-a=y]').click(); return !!el; },
   cellar: () => { hero.position.set(RUIN.cellar.x + 1, 0, RUIN.cellar.z + 3); walkTarget = null; },
