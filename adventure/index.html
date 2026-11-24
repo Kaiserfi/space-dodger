@@ -6631,7 +6631,8 @@ function renderTrade(){
       <div class="trStatus">${status}</div>
       <div class="trBtns"><button data-t="confirm" ${tr.s === 2 ? 'disabled' : ''}>Confirm trade</button><button data-t="decline">Decline</button></div>`;
   } else {
-    const bagRows = [...(COINS > 0 ? [{ name: 'Coins', qty: COINS, icon: COIN_ICON }] : []), ...bag].map(i => { const left = i.qty - offered(i.name); if (left <= 0) return '';
+    const grouped = []; for (const it of bag) { const g = grouped.find(x => x.name === it.name); if (g) g.qty += it.qty; else grouped.push({ name: it.name, qty: it.qty, icon: it.icon }); }   /* food sits a piece to a slot: list it once, with the whole count */
+    const bagRows = [...(COINS > 0 ? [{ name: 'Coins', qty: COINS, icon: COIN_ICON }] : []), ...grouped].map(i => { const left = i.qty - offered(i.name); if (left <= 0) return '';
       return `<div class="trBag">${i.icon}<span>${escapeHtml(i.name)}${left > 1 ? ' x' + left : ''}</span><button data-add="${escapeHtml(i.name)}" data-n="1">+1</button>${left > 1 ? `<button data-add="${escapeHtml(i.name)}" data-n="all">All</button>` : ''}</div>`; }).join('');
     tradePanel.innerHTML = `<div class="trHead">Trading with ${escapeHtml(r.name)}</div>
       <div class="trCols"><div><h4>Your offer</h4>${mine.map(i => itemRow(i, 'mine')).join('') || '<i>Click items below to offer them</i>'}</div><div><h4>${escapeHtml(r.name)}'s offer</h4>${theirs.map(i => itemRow(i)).join('') || '<i>Nothing yet</i>'}</div></div>
