@@ -3315,6 +3315,7 @@ function buildBarracks(){
   // ----- floors -----
   const floorAt = (w, d, x, z) => { const g = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 3, uv.getY(i) * d / 3); put(M.floor, g, x, 0.08, z); };   /* flagstones about 1.5 units across */
   floorAt(B.x1 - B.x0 - 1.2, B.z1 - B.z0 - 1.2, (B.x0 + B.x1) / 2, (B.z0 + B.z1) / 2); floorAt(B.jx1 - B.x1 - 1, B.jz1 - B.jz0 - 1.2, (B.x1 + B.jx1) / 2, (B.jz0 + B.jz1) / 2);
+  floorAt(1.1, J1 - J0, B.x1 - 0.05, (J0 + J1) / 2); floorAt(D1 - D0, 0.7, (D0 + D1) / 2, B.z0 + 0.25);   /* exactly the gaps the main floors leave (x -26.6..-25.5, z 59.9..60.6), so nothing overlaps and flickers */   /* flagstones across both thresholds, so no ground shows in the doorways */
   // ----- inside the barracks -----
   // four bunk beds along the west wall: two decks each, green guard blankets, a chest at the foot
   for (const z of [67, 71.5, 76, 80.5]) {   /* clear of the corner tower */ const x0 = B.x0 + t, x1 = x0 + 2.0, z0 = z - 1.8, z1 = z + 1.8;
