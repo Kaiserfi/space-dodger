@@ -1334,7 +1334,7 @@ function clickNode(rec){
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (rec.kind === 'monster') { startFight(rec); return; }
+  if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec) { showToast("You're already in combat!"); return; } startFight(rec); return; }
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasTool('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast('You have nothing to cook.'); return; }
@@ -2524,7 +2524,7 @@ function startEatAnim(){
   eatUntil = performance.now() + EAT_MS;
   if (FIGHT) FIGHT.pAnim = { kind: 'eat', t0: performance.now(), dur: EAT_MS };
   setAct({ k: 'eat', t: Date.now() });
-  setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'eat') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now() } : null); }, EAT_MS);
+  setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'eat') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null); }, EAT_MS);
 }
 function poseChibi(g, mode, t, tool = 'axe'){
   const c = g.userData.chibi; if (!c) return;
@@ -3748,6 +3748,7 @@ function grassMaskTexture(){
   g.beginPath(); g.arc(X(QUARRY.x), Z(QUARRY.z), (QUARRY.r + 0.8) * GM.ppu, 0, 7); g.fill();   // the quarry floor
   g.beginPath(); g.arc(X(BF.x), Z(BF.z), BF.clearR * GM.ppu, 0, 7); g.fill();   // the bonfire clearing
   g.fillStyle = 'rgba(110,70,0,1)'; g.fillRect(X(62), Z(37), 46 * GM.ppu, 43 * GM.ppu); g.fillStyle = '#000';   // the ruined farm: patchy, stunted grass
+  g.fillRect(X(97.6), Z(-7.6), 9.8 * GM.ppu, 6.8 * GM.ppu);   // the workshop floor
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
@@ -3996,6 +3997,7 @@ let FIGHT = null;
 /* how far apart you stand to fight: the farmer is a full-sized person, so he stands off further than a chicken */
 const reachOf = m => m.type === 'farmer' ? 3.0 : m.type === 'cow' ? 2.8 : 2.3;
 function startFight(rec){
+  if (mobLocked(rec)) { showToast('Someone else is fighting that.'); return; }
   if (rec.state !== 'standing') return;
   if (FIGHT && FIGHT.m === rec) return;
   if (FIGHT) endFight();
@@ -4009,16 +4011,19 @@ function startFight(rec){
   rec.state = 'engaged'; rec.engagedAt = performance.now();
   walkStart(spot, () => {
     if (rec.state !== 'engaged' || Math.hypot(hero.position.x - rec.x, hero.position.z - rec.z) > reachOf(rec) + 1.4) { if (rec.state === 'engaged') rec.state = 'standing'; return; }
+    if (mobLocked(rec)) { rec.state = 'standing'; showToast('Someone else is fighting that.'); return; }
     FIGHT = { m: rec, nextP: performance.now() + 300, nextM: performance.now() + 1500, pAnim: null, mAnim: null };
+    mobClaim(rec);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, rec.x, rec.z);
     rec.g.rotation.y = yawTo(rec.x, rec.z, hero.position.x, hero.position.z);
-    setAct({ k: 'fight', n: rec.name, t: Date.now() });
+    setAct({ k: 'fight', n: rec.name, t: Date.now(), m: rec.sid });
   });
 }
 function endFight(msg){
   if (!FIGHT) return;
   const m = FIGHT.m; FIGHT = null;
   if (m.state === 'engaged') m.state = 'standing';
+  if (m.state !== 'dying' && m.state !== 'dead') mobRelease(m);
   if (ONLINE.act && ONLINE.act.k === 'fight') setAct(null);
   if (msg) showToast(msg);
 }
@@ -4046,33 +4051,34 @@ const SPLATS = [], spV = new THREE.Vector3();
 function playerSwing(m){
   const me = playerRolls(), it = monsterRolls(m.t);
   FIGHT.pAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
-  combatSound('swing');
+  combatSound('swing'); mobHit(m, 'ps', 0, '');
   setTimeout(() => {
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(me.att, it.def)) {
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
-      if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
+      if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', Math.round(dmg * 4 / 3)); }
-      else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
-    } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+      else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'block'); }
+    } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'miss'); }
     if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else killMonster(m); }
   }, 480);
 }
 function monsterSwing(m){
   const me = playerRolls(), it = monsterRolls(m.t);
   FIGHT.mAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
-  combatSound((m.t.snd || 'goblin') + 'Attack');
+  combatSound((m.t.snd || 'goblin') + 'Attack'); mobHit(m, 'ms', 0, '');
   setTimeout(() => {
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(it.att, me.def)) {
       const dmg = Math.floor(Math.random() * (it.maxHit + 1));
-      if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); }
-      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound(equipped.shield && equipped.shield !== 'Torch' || equipped.body || equipped.head ? 'clang' : 'thud'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
-    } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+      if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); mobHit(m, 'm', dmg, 'hit'); }
+      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound(equipped.shield && equipped.shield !== 'Torch' || equipped.body || equipped.head ? 'clang' : 'thud'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'm', 0, 'block'); }
+    } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'm', 0, 'miss'); }
     if (HP.cur <= 0) playerDies();
   }, 480);
 }
 function killMonster(m){
+  mobDead(m);
   if (m.type in KILLS) { KILLS[m.type]++; if (cellarOpen() && KILLS[m.type] === 10) setTimeout(() => addSystemLine('Somewhere to the south, a chain rattles loose.'), 1500); }
   m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
   const [c0, c1] = m.t.coins || [3, 10], coins = c0 + Math.floor(Math.random() * (c1 - c0 + 1));
@@ -4102,7 +4108,8 @@ function updateFight(){
     const c = m.g.userData.chibi;
     if ((m.raid || m.delve) && m.state !== 'dying' && m.state !== 'dead') { /* raiders are moved by updateRaiders, the cellar's creatures by updateDelve */ }
     else if (m.state === 'dying') { const k = Math.min(1, (now - m.dieT) / 700); monsterPose(m, 'dead', k); if (now - m.dieT > 3000) { m.g.visible = false; m.state = 'dead'; } }
-    else if (m.state === 'dead') { if (!m.raid && !m.delve && now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); monsterPose(m, 'idle'); } }
+    else if (m.state === 'dead') { if (!m.raid && !m.delve && (m.sid !== undefined ? !mobDeadNow(m) && now - m.dieT > 3200 : now - m.dieT > m.t.respawn)) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); monsterPose(m, 'idle'); } }
+    else if (m.sid !== undefined && (!FIGHT || FIGHT.m !== m)) mobUpdate(m, now);
     else if (!FIGHT || FIGHT.m !== m) {
       if (m.state === 'standing') {
         const w = m.wander, x = m.g.position.x, z = m.g.position.z;
@@ -4122,7 +4129,7 @@ function updateFight(){
       if (c) c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
     }
     // the health bar shows while it is hurt or fighting
-    const show = m.state !== 'dead' && (m.hp < m.t.hp || (FIGHT && FIGHT.m === m));
+    const show = m.state !== 'dead' && (m.hp < m.t.hp || (FIGHT && FIGHT.m === m) || m.foreign);
     m.bar.style.display = show ? 'block' : 'none';
     if (show) { m.bar.firstChild.style.width = (m.hp / m.t.hp * 100) + '%'; m.g.getWorldPosition(spV); spV.y += 3.1; spV.project(camera); m.bar.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; m.bar.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; }
   }
@@ -4140,6 +4147,7 @@ function updateFight(){
   if (!hero || Math.hypot(hero.position.x - m.x, hero.position.z - m.z) > reachOf(m) + 1.9) { endFight(); return; }
   heroAnim.mode = 'fight';
   heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.x, m.z);
+  if (m.sid !== undefined && now - (FIGHT.hb || 0) > 4000) { FIGHT.hb = now; mobPatch(m.sid, { t: SNOW(), hp: m.hp }); }   /* still fighting it */
   if (now > FIGHT.nextP) { FIGHT.nextP = now + 2400; playerSwing(m); }
   if (FIGHT && now > FIGHT.nextM) { FIGHT.nextM = now + m.t.speed; monsterSwing(m); }
   if (!FIGHT) return;
@@ -5078,6 +5086,9 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
+    } else if (act && act.k === 'fight' && act.m !== undefined && !moving) {
+      const mm = MONSTERS.find(q => q.sid === act.m); if (mm) r.yaw = yawTo(nx, nz, mm.g.position.x, mm.g.position.z);
+      const fa = r.fAnim, c = r.sprite.userData.chibi; if (c) fightPose(c, fa && t - fa.t0 < fa.dur ? fa.kind : 'ready', fa ? (t - fa.t0) / fa.dur : 0);
     } else if (act && act.k === 'eat') poseChibi(r.sprite, 'eat', Math.min(1, (t - r.actAt) / EAT_MS));
     else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
     else if (act && act.k === 'mill' && !moving) poseChibi(r.sprite, 'pour', 0);
@@ -5296,6 +5307,7 @@ function spawnFarmMonsters(){
   [[88, 21], [96, 23], [100, 28], [91, 28]].forEach(([x, z]) => spawnMonster('cow', x, z, 4, { x0: 85.5, x1: 102.5, z0: 18.5, z1: 31.5 }));
   [[68, 41], [80, 46], [96, 44], [104, 52], [72, 58], [90, 62], [100, 68], [71, 73]].forEach(([x, z]) => spawnMonster('rat', x, z, 5, { x0: 62, x1: 108, z0: 37, z1: 80 }));
   [[76, 50, 7], [96, 56, 7], [84, 59, 6]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r, { x0: 62, x1: 108, z0: 37, z1: 80 }));
+  MONSTERS.forEach((m, i) => { m.sid = i; });   /* shared with everyone: same id, same wandering path, one fight at a time */
 }
 function farmRoads(){
   roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
@@ -5470,17 +5482,8 @@ function buildMarket(){
   const sack = add(new THREE.SphereGeometry(0.42, 10, 8), 0xe8dcc0, 0, 1.45, 0, g); sack.scale.set(1, 0.8, 0.8);   // a sack of seed in the middle
   for (const [x, z] of [[-4.3, 0.5], [4.4, 0.2], [4.2, -0.9]]) { add(new THREE.BoxGeometry(0.9, 0.8, 0.9), texMat(woodTex(), 1, 1, 0x7a5430), x, 0.4, z, g); }   // spare crates at the ends
   add(new THREE.CylinderGeometry(0.42, 0.35, 0.8, 10), 0x8a6a40, -4.4, 0.4, -1.1, g);   // a barrel
-  // the sign, on two posts to the west of the stall, facing the road
-  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d');
-  c.fillStyle = '#5a3a1e'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#c9a050'; c.lineWidth = 6; c.strokeRect(5, 5, 502, 118);
-  c.fillStyle = '#f0d890'; c.font = 'bold 54px Georgia'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("Farmers' Market", 256, 68);
-  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const sg = new THREE.Group(); sg.position.set(MX - 6, 0, MZ + 2.6); sg.rotation.y = 0.35; town.add(sg);
-  for (const x of [-1.3, 1.3]) add(new THREE.BoxGeometry(0.14, 2.4, 0.14), dark, x, 1.2, 0, sg);
-  add(new THREE.BoxGeometry(3.0, 0.75, 0.08), new THREE.MeshStandardMaterial({ map: tex }), 0, 2.05, 0, sg);
   // solid: the counter and the end crates; Tilly stands behind
   solidBoxes.push({ x0: MX - 3.6, x1: MX + 3.6, z0: MZ - 0.6, z1: MZ + 0.6 }, { x0: MX - 4.8, x1: MX - 3.8, z0: MZ - 1.6, z1: MZ + 1.0 }, { x0: MX + 3.9, x1: MX + 4.9, z0: MZ - 1.4, z1: MZ + 0.7 });
-  solidAt(MX - 6, MZ + 2.6, 1.4, 0.3);
 }
 // ===== silk: a silkworm hutch that turns mulberry leaves into cocoons, and a spinning wheel that spins them into thread =====
 var SILK = { built: false, hutch: { n: 0, t: 0 }, HUT: { x: 100.3, z: -5.6 }, WHEEL: { x: 105, z: -4.4 }, SHED: { x: 102.5, z: -4.2, hw: 4.5, hd: 3 } };
@@ -5493,21 +5496,18 @@ function buildSilkworks(){
   const B = SILK.SHED, shed = new THREE.Group(); shed.position.set(B.x, 0, B.z); town.add(shed);
   const plank = texMat(woodTex(), 3, 2, 0xb08858), wall = texMat(woodTex(), 3, 1, 0x8a6440), beam = mat(0x4a3018);
   add(new THREE.BoxGeometry(B.hw * 2, 0.1, B.hd * 2), plank, 0, 0.05, 0, shed);
-  const Hh = 3.0, T = 0.2;
+  const Hh = 5.2, T = 0.2;   /* tall enough that nobody's head goes through the doorway */
   add(new THREE.BoxGeometry(B.hw * 2, Hh, T), wall, 0, Hh / 2, -B.hd, shed);   // back wall
   for (const sx of [-1, 1]) add(new THREE.BoxGeometry(T, Hh, B.hd * 2), wall, sx * B.hw, Hh / 2, 0, shed);   // end walls
   const door = 3.0, side = (B.hw * 2 - door) / 2;
   for (const sx of [-1, 1]) add(new THREE.BoxGeometry(side, Hh, T), wall, sx * (door / 2 + side / 2), Hh / 2, B.hd, shed);   // front wall either side of the doorway
-  add(new THREE.BoxGeometry(door, 0.6, T), wall, 0, Hh - 0.3, B.hd, shed);   // over the doorway
+  add(new THREE.BoxGeometry(door, 0.7, T), wall, 0, Hh - 0.35, B.hd, shed);   // over the doorway
   for (const [x, z] of [[-B.hw, -B.hd], [B.hw, -B.hd], [-B.hw, B.hd], [B.hw, B.hd], [-door / 2, B.hd], [door / 2, B.hd]]) add(new THREE.BoxGeometry(0.3, Hh + 0.1, 0.3), beam, x, (Hh + 0.1) / 2, z, shed);
   const glass = new THREE.MeshStandardMaterial({ color: 0xffd890, emissive: 0xffa040, emissiveIntensity: 0.5 }); GLOW_MATS.push(glass);
-  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(1.0, 0.7, 0.05), glass, sx * 2.9, 1.9, B.hd + 0.11, shed);   // little windows either side of the door
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(1.0, 0.7, 0.05), glass, sx * 2.9, 2.5, B.hd + 0.11, shed);   // little windows either side of the door
   const roof = new THREE.Group(); roof.position.y = Hh; shed.add(roof); const roofM = texMat(woodTex(), 4, 2, 0x6a3a22);
   for (const sz of [-1, 1]) { const r = add(new THREE.BoxGeometry(B.hw * 2 + 0.8, 0.14, B.hd + 0.6), roofM, 0, 0.75, sz * (B.hd / 2 + 0.1), roof); r.rotation.x = sz * 0.45; }
   for (const sx of [-1, 1]) { const gab = add(new THREE.CylinderGeometry(0.01, B.hd + 0.1, 1.4, 3, 1), wall, sx * B.hw, 0.7, 0, roof); gab.rotation.y = Math.PI / 2; gab.scale.set(1, 1, 0.14); }
-  const sign = document.createElement('canvas'); sign.width = 256; sign.height = 64; const sg = sign.getContext('2d'); sg.fillStyle = '#5a3a1e'; sg.fillRect(0, 0, 256, 64); sg.strokeStyle = '#c9a050'; sg.lineWidth = 4; sg.strokeRect(3, 3, 250, 58);
-  sg.fillStyle = '#f0d890'; sg.font = 'bold 30px Georgia'; sg.textAlign = 'center'; sg.textBaseline = 'middle'; sg.fillText('Workshop', 128, 34);
-  const st = new THREE.CanvasTexture(sign); st.colorSpace = THREE.SRGBColorSpace; add(new THREE.BoxGeometry(2.0, 0.5, 0.06), new THREE.MeshStandardMaterial({ map: st }), 0, Hh - 0.3, B.hd + 0.14, shed);   /* on the board over the doorway, under the eaves */
   SILK.roof = roof;
   // walls are solid; the doorway is left open
   const W0 = (x0, x1, z0, z1) => solidBoxes.push({ x0: B.x + x0, x1: B.x + x1, z0: B.z + z0, z1: B.z + z1 });
@@ -5660,7 +5660,7 @@ function updateBandage(){
   const it = bandaging.item; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null);
   if (!removeItem('Bandage', it)) { if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
-  if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now() } : null);
+  if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
   hitsplat(hero, HP.cur - before, 'heal'); silkSound('collect');
   showToast(`The aloe soothes the wound and the silk holds it closed. (+${HP.cur - before} health)`);
 }
@@ -5919,7 +5919,95 @@ function evMerge(d){   // a patch: several children of one place at once
   for (const k in d.data) evApply({ path: '/' + parts.concat(k).join('/'), data: d.data[k] });
 }
 const GRAVES = {};
+
+// ===== shared farm monsters =====
+// Every game works out each monster's wandering path from the same seed and the server's clock, so they wander in step for everyone without sending anything.
+// Only fights go through the database (adventure/mobs/<id>): who is fighting it, its health, each blow, and until when it's dead.
+let CLOCK_OFF = 0; const SNOW = () => Date.now() + CLOCK_OFF;
+const MOBST = {};   // id -> { f: fighter, t: last seen, hp, x, z, h: { k, w, d, ty, by }, dead: until }
+const MOB_P = 9000;   // each leg of a wander takes this long, walking then pausing
+function mobPatch(sid, obj){ const st = MOBST[sid] || (MOBST[sid] = {}); for (const k in obj) { if (obj[k] === null) delete st[k]; else st[k] = obj[k]; }
+  fetch(`${DB}/adventure/mobs/${sid}.json`, { method: 'PATCH', body: JSON.stringify(obj) }).catch(() => {}); }
+function mobFresh(st){ return st && st.f && SNOW() - (st.t || 0) < 12000; }
+function mobDeadNow(m){ const st = MOBST[m.sid]; return !!(st && st.dead && st.dead > SNOW()); }
+function mobLocked(m){ if (m.sid === undefined) return false; const st = MOBST[m.sid]; return mobFresh(st) && st.f !== ONLINE.id && !mobDeadNow(m); }
+function mobClaim(m){ if (m.sid === undefined) return; mobPatch(m.sid, { f: ONLINE.id, t: SNOW(), hp: m.hp, x: +m.x.toFixed(2), z: +m.z.toFixed(2), dead: null }); }
+function mobRelease(m){ if (m.sid === undefined) return; const st = MOBST[m.sid]; if (st && st.f === ONLINE.id) mobPatch(m.sid, { f: null, t: SNOW(), hp: m.hp }); }
+let mobHitK = 0;
+function mobHit(m, w, d, ty){ if (m.sid === undefined) return; mobPatch(m.sid, { t: SNOW(), hp: m.hp, h: { k: ++mobHitK + '-' + ONLINE.id, w, d, ty, by: ONLINE.id } }); }
+function mobDead(m){ if (m.sid === undefined) return; mobPatch(m.sid, { f: null, hp: null, h: null, dead: SNOW() + m.t.respawn }); }
+// a seeded random number: the same on every game for the same monster, leg and try
+function mobRand(a, b, c){ let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+function mobLineClear(ax, az, bx, bz){ const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / 0.5); for (let i = 1; i <= n; i++) { const k = i / n; if (monsterHit(ax + (bx - ax) * k, az + (bz - az) * k)) return false; } return true; }
+function mobSpot(m, n){
+  const c = m.spots || (m.spots = new Map()); if (c.has(n)) return c.get(n);
+  const [hx, hz] = m.home, r = m.rad || 3; let out = [hx, hz];
+  for (let tr = 0; tr < 8; tr++) { let tx = hx + (mobRand(m.sid, n, tr * 2) * 2 - 1) * r, tz = hz + (mobRand(m.sid, n, tr * 2 + 1) * 2 - 1) * r;
+    if (m.box) { tx = Math.max(m.box.x0, Math.min(m.box.x1, tx)); tz = Math.max(m.box.z0, Math.min(m.box.z1, tz)); }
+    if (!monsterHit(tx, tz) && mobLineClear(hx, hz, tx, tz)) { out = [tx, tz]; break; } }
+  c.set(n, out); if (c.size > 6) c.delete(c.keys().next().value); return out;
+}
+// where a monster is on its shared path right now: from the last spot to the next, round by its home if a wall is in the way, then a rest
+function mobPath(m, T){
+  const n = Math.floor(T / MOB_P), a = mobSpot(m, n - 1), b = mobSpot(m, n);
+  const pts = mobLineClear(a[0], a[1], b[0], b[1]) ? [a, b] : [a, m.home, b];
+  let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  let go = (T - n * MOB_P) / 1000 * Math.max(1.1, L / 6.5);
+  for (let i = 1; i < pts.length; i++) { const [x0, z0] = pts[i - 1], [x1, z1] = pts[i], l = Math.hypot(x1 - x0, z1 - z0);
+    if (go <= l && l > 0) { const k = go / l; return { x: x0 + (x1 - x0) * k, z: z0 + (z1 - z0) * k, yaw: Math.atan2(x1 - x0, z1 - z0), moving: true }; } go -= l; }
+  return { x: b[0], z: b[1], moving: false };
+}
+function mobUpdate(m, now){
+  const st = MOBST[m.sid], dt = Math.min(0.1, (now - (m.lastT || now)) / 1000); m.lastT = now;
+  if (mobDeadNow(m)) { if (m.state === 'standing' || m.state === 'engaged') { m.state = 'dying'; m.dieT = now; combatSound((m.t.snd || 'goblin') + 'Die'); } m.foreign = false; return; }
+  const theirs = mobFresh(st) && st.f !== ONLINE.id;
+  m.foreign = theirs;
+  if (theirs) {   // someone else is fighting it: it stands where the fight is, facing them, and its health is theirs to tell
+    const tx = st.x ?? m.x, tz = st.z ?? m.z; m.g.position.x += (tx - m.g.position.x) * 0.2; m.g.position.z += (tz - m.g.position.z) * 0.2;
+    const r = remote[st.f]; if (r) m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, r.sprite.position.x, r.sprite.position.z);
+    if (typeof st.hp === 'number') m.hp = st.hp;
+    if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur); else monsterPose(m, 'ready');
+    m.x = m.g.position.x; m.z = m.g.position.z; return;
+  }
+  if (m.state === 'engaged') { if (!walkTarget && now - (m.engagedAt || 0) > 1500) m.state = 'standing'; else { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); return; } }
+  // its health: hurt in a recent fight, otherwise back to full
+  m.hp = st && typeof st.hp === 'number' && SNOW() - (st.t || 0) < 60000 ? st.hp : m.t.hp;
+  const p = mobPath(m, SNOW()), dx = p.x - m.g.position.x, dz = p.z - m.g.position.z, d = Math.hypot(dx, dz);
+  if (d > 14) { m.g.position.x = p.x; m.g.position.z = p.z; }   // far off its path (just respawned): straight there
+  else if (d > 0.03) { const step = Math.min(d, 3.2 * dt); m.g.position.x += dx / d * step; m.g.position.z += dz / d * step; }   // catching up after a fight, or walking with its path
+  if (p.moving || d > 0.08) { turnChibi(m.g, p.moving && d < 0.5 ? p.yaw : Math.atan2(dx, dz)); monsterPose(m, 'walk'); } else monsterPose(m, 'idle');
+  m.x = m.g.position.x; m.z = m.g.position.z;
+}
+// a change from the database: keep it, and play any new blow someone else struck
+function mobApply(sid, st){
+  const m = MONSTERS.find(q => q.sid === sid); MOBST[sid] = st || {}; if (!m || !st || !st.h) return;
+  const h = st.h; if (h.k === m.lastK) return; m.lastK = h.k; if (h.by === ONLINE.id) return;
+  const r = remote[h.by], now = performance.now();
+  if (h.w === 'ps' && r) r.fAnim = { kind: 'swing', t0: now, dur: 900 };
+  if (h.w === 'ms') m.anim = { kind: 'swing', t0: now, dur: 900 };
+  if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; if (h.ty === 'hit') combatSound('hit'); }
+  if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; }
+}
+function startMobStream(){
+  // the server's clock, so everyone's monsters walk the same path at the same moment
+  const t0 = Date.now();
+  fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).then(r => r.json()).then(v => {
+    if (typeof v === 'number') CLOCK_OFF = v - (t0 + Date.now()) / 2;
+    fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'DELETE' }).catch(() => {}); }).catch(() => {});
+  const es = new EventSource(DB + '/adventure/mobs.json');
+  const apply = d => { const parts = d.path.split('/').filter(Boolean);
+    if (!parts.length) { for (const k in (d.data || {})) if (/^\d+$/.test(k)) mobApply(+k, d.data[k]); return; }
+    if (!/^\d+$/.test(parts[0])) return; const sid = +parts[0];
+    if (parts.length === 1) { mobApply(sid, d.data); return; }
+    const st = JSON.parse(JSON.stringify(MOBST[sid] || {})); let o = st; for (let i = 1; i < parts.length - 1; i++) o = o[parts[i]] || (o[parts[i]] = {});
+    if (d.data === null) delete o[parts[parts.length - 1]]; else o[parts[parts.length - 1]] = d.data; mobApply(sid, st); };
+  es.addEventListener('put', e => apply(JSON.parse(e.data)));
+  es.addEventListener('patch', e => { const d = JSON.parse(e.data); const parts = d.path.split('/').filter(Boolean);
+    if (parts.length === 1 && /^\d+$/.test(parts[0])) { const sid = +parts[0], st = Object.assign({}, MOBST[sid] || {}); for (const k in d.data) { if (d.data[k] === null) delete st[k]; else st[k] = d.data[k]; } mobApply(sid, st); }
+    else for (const k in d.data) apply({ path: d.path + '/' + k, data: d.data[k] }); });
+}
 function startEventStreams(){
+  startMobStream();
   const es = new EventSource(DB + '/adventure/event.json');
   es.addEventListener('put', e => { evApply(JSON.parse(e.data)); });
   es.addEventListener('patch', e => { evMerge(JSON.parse(e.data)); });

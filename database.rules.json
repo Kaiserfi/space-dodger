@@ -62,6 +62,12 @@
           ".write": true,
           ".validate": "newData.hasChildren(['x', 'z', 'items', 'until']) && newData.child('until').isNumber()"
         }
+      },
+      "mobs": {
+        ".read": true,
+        "$id": {
+          ".write": true
+        }
       }
     }
   }
