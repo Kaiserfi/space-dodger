@@ -373,7 +373,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 112 && z > -11 && z < 50);   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 112 && z > -11 && z < 84);   // the village, the fields, the pens and the ruined farm   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   gp.setY(i, inHall || inVillage ? 0 : (Math.abs(z + 14) < 2.2 ? -0.3 : 0) + Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12);
@@ -390,6 +390,9 @@ voidPlane.position.y = -3; scene.add(voidPlane);
     const n = Math.sin(x * 0.11 + Math.cos(z * 0.07) * 2) * 0.5 + Math.sin(z * 0.13 - x * 0.05) * 0.5;
     const f = Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     c.copy(a).lerp(n > 0 ? b : d, Math.abs(n) * 0.7).multiplyScalar(0.94 + f * 0.1);
+    if (x > 60 && x < 110 && z > 35 && z < 82) {   // the ruined farm: dry, dead earth, fading back to green at the edges
+      const edge = Math.min(x - 60, 110 - x, z - 35, 82 - z), k = Math.min(1, edge / 6) * (0.75 + 0.25 * Math.abs(n));
+      c.lerp(new THREE.Color(0x8a7a52), k * 0.85); }
     cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
@@ -1833,6 +1836,7 @@ function openDialog(npc){
       lines = set; MET[npc.name] = n + 1; try { localStorage.setItem('itapMet', JSON.stringify(MET)); } catch (e) {}
     }
     script = [{ me: GREETINGS[Math.floor(Math.random() * GREETINGS.length)] }, ...lines];
+    if (npc.asks) script.push({ opts: [...npc.asks.map(a => [a.q, [{ me: a.q }, ...a.a.map(l => typeof l === 'function' ? l() : l)]]), ['Never mind.', []]] });
     if (npc.choice) script.push(npc.choice.question, { opts: [['Sure, show me.', [{ run: () => { endDialog(); openShop(); } }]], ['Not right now, thanks.', ["Suit yourself. You know where I am."]]] });
   }
   dlg = npc; dlgQ = script.slice(); dlgTalkT = performance.now();
@@ -2965,7 +2969,8 @@ const VILLAGERS = [
 ];
 // the people outside, each with their own place, manner and things to say
 const TOWNSFOLK = [
-  { name: 'Aldric', title: 'the guard captain', level: 20, x: 11, z: 16, rad: 1.5,
+  { asks: [{ q: "What's out past the farm, to the south?", a: ["The old Haldane farm. Burned down years ago, long before your time.", "Folk say the family dug a cellar under it. Deep. Deeper than any cellar has a right to be.", "If I were you, I'd leave it well alone. But you're not me, are you?"] }],
+    name: 'Aldric', title: 'the guard captain', level: 20, x: 11, z: 16, rad: 1.5,
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     look: { gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0x8a6a3a, shirt: 0x8a9099, pants: 0x3a3a44 },
     talks: [
@@ -2974,7 +2979,8 @@ const TOWNSFOLK = [
       ["Goblins have been seen past the western woods. Probably nothing.", "...Probably."],
       ["I once stood here nine hours without blinking. Pip says it doesn't count because I was asleep. Pip is wrong."] ],
     barks: ["All quiet at the hall today, just how I like it.", "Welcome to the village, traveller. Keep to the paths.", "I was not asleep. I was keeping watch with my eyes closed."] },
-  { name: 'Osric', title: 'the guard', level: 15, x: -45, z: 3, rad: 3,
+  { asks: [{ q: "What's out past the farm, to the south?", a: ["The burnt farm? I don't go down there. Nobody does, if they've any sense.", "Those farmers you see wandering about used to work that land. Ask yourself why they never left.", "And why they're always so angry."] }],
+    name: 'Osric', title: 'the guard', level: 15, x: -45, z: 3, rad: 3,
     look: { gender: 'male', skin: 0xd09a70, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x8a9099, pants: 0x3a3a44 },
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     talks: [
@@ -2985,7 +2991,8 @@ const TOWNSFOLK = [
       ["People think a quiet patrol is a boring one.", "Trust me, you want it quiet. When it gets loud round here, it's usually the geese."],
       ["Aldric's been captain since before I joined. Good man. Snores like a bear, mind.", "We all pretend not to notice when he nods off at his post."] ],
     barks: ["Pip, come away from the well, please!", "All clear on the green. Not even the geese are causing trouble.", "Mind how you go, the green gets muddy after rain."] },
-  { name: 'Edda', title: 'the guard', level: 14, x: -68, z: 13, rad: 3,
+  { asks: [{ q: "What's out past the farm, to the south?", a: ["So you've heard the scratching too. Under the ground, near the old chimney.", "I followed it once on patrol and found a pair of cellar doors, chained shut.", "Chained from the outside. I've wondered about that ever since."] }],
+    name: 'Edda', title: 'the guard', level: 14, x: -68, z: 13, rad: 3,
     look: { gender: 'female', skin: 0xe8c39c, hair: 'long', hairCol: 0x7a4a22, shirt: 0x8a9099, pants: 0x3a3a44 },
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     talks: [
@@ -2993,7 +3000,8 @@ const TOWNSFOLK = [
       ["Hobb swears the goblins are stealing his socks. I've seen his socks. Nobody's stealing those."],
       ["Stay sharp past the woods. Something's been moving out there after dark."] ],
     barks: ["I'm keeping an eye on those woods. Something's been moving out there.", "The west road's clear for now. Stay on it after dark.", "If you're heading into the woods, keep your wits about you."] },
-  { name: 'Bertram', title: 'the guard', level: 12, x: 35, z: 11, rad: 3,
+  { asks: [{ q: "What's out past the farm, to the south?", a: ["Truffle won't go anywhere near the place. Pigs know things, you know.", "There's an old man who sits out by the chimney. Ezra. He'll tell you more than I can.", "Whether you'll want to hear it is another matter."] }],
+    name: 'Bertram', title: 'the guard', level: 12, x: 35, z: 11, rad: 3,
     look: { gender: 'male', skin: 0xb07a50, hair: 'short', hairCol: 0x1a1a1a, shirt: 0x8a9099, pants: 0x3a3a44 },
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     talks: [
@@ -3001,7 +3009,8 @@ const TOWNSFOLK = [
       ["Bram keeps offering me cabbages, and I'm too polite to say no. I've got so many now I don't know what to do with them."],
       ["Gertrude's fenced off the new quarry past the smithy. Says it keeps the pig out. It doesn't."] ],
     barks: ["If you see a pig running loose, that's Truffle. Shout for me.", "All quiet on the farm road. Just me and the cabbages.", "Bram's offered me another cabbage. That's six this week."] },
-  { name: 'Godwin', title: 'the guard', level: 10, x: 41, z: 60.8, rad: 0.6,
+  { asks: [{ q: "What's out past the farm, to the south?", a: ["Aldric told me not to talk about it. So I'm not going to.", "Except... the rats have to come from somewhere, don't they? And it isn't the river.", "Please don't tell Aldric I said that."] }],
+    name: 'Godwin', title: 'the guard', level: 10, x: 41, z: 60.8, rad: 0.6,
     look: { gender: 'male', skin: 0xf1cba0, hair: 'short', hairCol: 0xc0442a, shirt: 0x8a9099, pants: 0x3a3a44 },
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
     talks: [
@@ -3009,6 +3018,17 @@ const TOWNSFOLK = [
       ["Aldric says one day I'll be as good as him. He also says that to Pip."],
       ["If you see anything suspicious, shout. Loudly. I'm still getting used to the helmet."] ],
     barks: ["Halt! Oh, sorry, I thought you were someone else. Carry on.", "It gets ever so warm standing this close to the forge.", "The quarry's just down that path, if you're after ore."] },
+  { name: 'Ezra', title: 'the old farmer', x: 79.5, z: 69, rad: 0.6, hat: 'straw',
+    look: { gender: 'male', skin: 0xd8a878, hair: 'short', hairCol: 0xc8c8c8, shirt: 0x6a5a40, pants: 0x4a4a52 },
+    talks: [
+      ["Another one come to gawk at the ruins, eh?", "I'm Ezra. This was my farm, once. Best wheat in the whole valley.", "Then the cellar woke up."],
+      [() => cellarOpen() ? "The chain's come off. You've earned it, I'll give you that." : "That cellar's no place for the soft-handed. You'll have to prove yourself first.", "Ten of every creature that roams this land: chickens, cows, the rats, and those farmers. Then the chain will let go."],
+      ["My old farmhands worked hard for me once. Now look at them, wandering about with pitchforks, angry at nothing.", "Whatever's down there got into them. Into the rats too."],
+      ["I sit here so nobody wanders down there by accident.", "Doing it on purpose, though, that's your own business."] ],
+    asks: [
+      { q: "What's down in the cellar?", a: ["Trouble. Wave after wave of it, if the old stories are true.", "You go down with whatever you're carrying, and that's all. There's no popping back up for supplies.", "Win, and you'll be well rewarded. Lose, and it'll cost you a quarter of your coin."] },
+      { q: "How do I get the chain off?", a: [() => `The padlock keeps count. Chickens ${Math.min(10, KILLS.chicken)} of 10, cows ${Math.min(10, KILLS.cow)} of 10, giant rats ${Math.min(10, KILLS.rat)} of 10, angry farmers ${Math.min(10, KILLS.farmer)} of 10.`, "Beat ten of each and come back. The chain will know."] } ],
+    barks: ["Keep away from that cellar if you value your coin.", "Best wheat in the valley, this was. Best wheat.", "Mind the rats. They bite harder than they look."] },
   { name: 'Wenna', title: 'the old gossip', x: -30, z: 13.8, rad: 0.01, sit: true,
     look: { gender: 'female', skin: 0xe8c39c, hair: 'topknot', hairCol: 0xd8d8d8, shirt: 0x6a5a8a, pants: 0x4a3a5a },
     talks: [
@@ -3166,7 +3186,7 @@ function roadPath(pts, w = 2.2){
   PATHS.push({ pts: sp.map(v => [v.x, v.z]), w });
 }
 function paintPaths(){
-  const X0 = -114, X1 = 112, Z0 = -14, Z1 = 62, PPU = 16,   // wide enough for the fields, the windmill and the pens out east
+  const X0 = -114, X1 = 112, Z0 = -14, Z1 = 84, PPU = 16,   // wide enough for the fields, the windmill and the pens out east
     W = (X1 - X0) * PPU, H = (Z1 - Z0) * PPU;
   const toPx = ([x, z]) => [(x - X0) * PPU, (z - Z0) * PPU];
   const r = (() => { let q = 31; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
@@ -3381,7 +3401,7 @@ function addWorldNpc(x, z, npc){
   const sp = makeChibi(npc.look);
   sp.position.set(x, 0, z);
   scene.add(sp);
-  const rec = { kind: 'npc', name: npc.name, level: npc.level, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', asks: npc.asks, name: npc.name, level: npc.level, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.level ? `${npc.name} (level ${npc.level})` : npc.name, rec });
   trees.push(sp);
@@ -3597,6 +3617,7 @@ function grassMaskTexture(){
   g.fillRect(X(47.5), Z(3.5), 11 * GM.ppu, 8 * GM.ppu);   // the farm field
   g.beginPath(); g.arc(X(QUARRY.x), Z(QUARRY.z), (QUARRY.r + 0.8) * GM.ppu, 0, 7); g.fill();   // the quarry floor
   g.beginPath(); g.arc(X(BF.x), Z(BF.z), BF.clearR * GM.ppu, 0, 7); g.fill();   // the bonfire clearing
+  g.fillStyle = 'rgba(110,70,0,1)'; g.fillRect(X(62), Z(37), 46 * GM.ppu, 43 * GM.ppu); g.fillStyle = '#000';   // the ruined farm: patchy, stunted grass
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   g.fillRect(0, Z(-16.8), W, 5.6 * GM.ppu);               // the river and its banks
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
@@ -3820,10 +3841,10 @@ const MONSTERS = [];
 const MONSTER_TYPES = {
   goblin: { name: 'Goblin', level: 2, hp: 6, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2600, respawn: 25000, snd: 'goblin' },
   // the farm biome, from Idle Tap Adventure's monster list (hit points and max hits as there)
-  chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [1, 3], drops: [['Raw chicken', 1, 1], ['Feathers', 5, 15]] },
-  cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [2, 6], drops: [['Raw beef', 1, 1]] },
-  rat: { name: 'Giant Rat', level: 3, hp: 10, melee: 2, atk: 2, def: 2, maxHit: 2, speed: 2400, respawn: 25000, snd: 'rat', coins: [2, 6] },
-  farmer: { name: 'Angry Farmer', level: 10, hp: 25, melee: 10, atk: 10, def: 10, maxHit: 3, speed: 2400, respawn: 60000, snd: 'farmer', coins: [25, 60] },
+  chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [0, 0], drops: [['Raw chicken', 1, 1], ['Feathers', 5, 15]] },
+  cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [0, 0], drops: [['Raw beef', 1, 1]] },
+  rat: { name: 'Giant Rat', level: 3, hp: 10, melee: 2, atk: 2, def: 2, maxHit: 2, speed: 2400, respawn: 25000, snd: 'rat', coins: [0, 0] },
+  farmer: { name: 'Angry Farmer', level: 10, hp: 25, melee: 10, atk: 10, def: 10, maxHit: 3, speed: 2400, respawn: 60000, snd: 'farmer', coins: [0, 0] },
 };
 // the classic accuracy roll: compare an attack roll against a defence roll
 function hitChance(attRoll, defRoll){ return attRoll > defRoll ? 1 - (defRoll + 2) / (2 * (attRoll + 1)) : attRoll / (2 * (defRoll + 1)); }
@@ -3892,7 +3913,7 @@ function playerSwing(m){
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
       if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', Math.round(dmg * 4 / 3)); }
-      else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound('clang'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+      else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
     if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else killMonster(m); }
   }, 480);
@@ -3906,19 +3927,20 @@ function monsterSwing(m){
     if (Math.random() < hitChance(it.att, me.def)) {
       const dmg = Math.floor(Math.random() * (it.maxHit + 1));
       if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); }
-      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound('clang'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
+      else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound(equipped.shield && equipped.shield !== 'Torch' || equipped.body || equipped.head ? 'clang' : 'thud'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
     } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.pAnim = { kind: 'block', t0: performance.now(), dur: 500 }; }
     if (HP.cur <= 0) playerDies();
   }, 480);
 }
 function killMonster(m){
+  if (m.type in KILLS) { KILLS[m.type]++; if (cellarOpen() && KILLS[m.type] === 10) setTimeout(() => addSystemLine('Somewhere to the south, a chain rattles loose.'), 1500); }
   m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
   const [c0, c1] = m.t.coins || [3, 10], coins = c0 + Math.floor(Math.random() * (c1 - c0 + 1));
   setTimeout(() => {
     const got = [];
-    if (addItem('Coins', coins, COIN_ICON)) got.push(`${coins} coins`);
+    if (coins > 0 && addItem('Coins', coins, COIN_ICON)) got.push(`${coins} coins`);
     for (const [name, lo, hi] of m.t.drops || []) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (addItem(name, n, ICON_FOR[name])) got.push(n > 1 ? `${n} ${name.toLowerCase()}` : name.toLowerCase()); else { showToast('Your bag is full, so some of the drop is left behind.'); } }
-    if (got.length) showToast(`The ${m.t.name.toLowerCase()} is defeated! It dropped ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`);
+    showToast(got.length ? `The ${m.t.name.toLowerCase()} is defeated! It dropped ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : `The ${m.t.name.toLowerCase()} is defeated!`);
   }, 900);
   endFight();
 }
@@ -3997,6 +4019,7 @@ function combatSound(kind){
   if (kind === 'swing') noiseThrough(0.32, 'bandpass', 500, 2400, 1.4, 0.5, 0.12);
   if (kind === 'miss') noiseThrough(0.28, 'bandpass', 1800, 700, 1.0, 0.45, 0.05);
   if (kind === 'hit') { noiseThrough(0.18, 'lowpass', 900, 600, 0.7, 0.8, 0.002); osc(0.15, 'sine', 120, 60, 0.7); }
+  if (kind === 'thud') { noiseThrough(0.14, 'lowpass', 500, 250, 0.8, 0.55, 0.003); osc(0.12, 'sine', 140, 70, 0.4); }   // a soft, dull blocked blow: no metal involved
   if (kind === 'clang') { for (const [f, v] of [[620, 0.35], [1544, 0.2], [2490, 0.14], [3711, 0.08]]) osc(0.9, 'sine', f, f * 0.998, v); noiseThrough(0.05, 'highpass', 3000, 3000, 0.7, 0.3, 0.001); }
   if (kind === 'hurtM') voice(0.32, 150, 105, [[500, 4, 1.2], [1100, 5, 0.6], [2400, 6, 0.2]]);
   if (kind === 'hurtF') voice(0.3, 290, 220, [[800, 4, 1.2], [1300, 5, 0.7], [2800, 6, 0.25]]);
@@ -4080,7 +4103,7 @@ function populateVillage(){
   // the fishing spot in the river
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
-  buildFarmland(); farmRoads(); buildFarmPens();   // the fields east of the farm, before the props are placed
+  buildFarmland(); farmRoads(); buildFarmPens(); buildRuinedFarm();   // the fields east of the farm, before the props are placed
   bonfireRoads();   // laid before the props, so lamps, benches and barrels keep off these paths too
   const off = (x, z, r) => offPath(x, z, 1.1 + r);
   const [wbx, wbz] = off(-30, 14.6, 1.6);
@@ -4109,6 +4132,71 @@ function populateVillage(){
   setTimeout(buildGrass, 0);   // once the farm, props and paths are all placed
   decoratePaths();
 }
+// ----- the ruined farm: dead land south of the pens, where the rats and the angry farmers roam, and the burnt farmhouse with its root cellar -----
+const RUIN = { x0: 60, x1: 110, z0: 35, z1: 82, house: { x: 86, z: 74 }, cellar: { x: 93.5, z: 71 } };
+const inRuin = (x, z) => x > RUIN.x0 && x < RUIN.x1 && z > RUIN.z0 && z < RUIN.z1;
+const KILLS = { chicken: 0, cow: 0, rat: 0, farmer: 0 };   // how many of each farm creature you've beaten, for the cellar's padlock
+const cellarOpen = () => ['chicken', 'cow', 'rat', 'farmer'].every(k => KILLS[k] >= 10);
+function buildRuinedFarm(){
+  let q = 77; const R = () => (q = (q * 16807) % 2147483647) / 2147483647;
+  const add = (geo, m, x, y, z, parent = town) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  const charred = mat(0x2a221c), oldWood = mat(0x6a5a48), stoneM = texMat(wallStone, 1, 1, 0x9a948a);
+  // abandoned fields: dry furrows with a few withered stalks still standing
+  for (const [fx, fz, rows] of [[70, 44, 5], [97, 48, 4], [72, 62, 4]]) for (let r = 0; r < rows; r++) {
+    add(new THREE.BoxGeometry(9, 0.16, 0.9), 0x5a4632, fx, 0.08, fz + r * 1.6);
+    for (let i = 0; i < 9; i++) if (R() < 0.45) { const st = add(new THREE.CylinderGeometry(0.025, 0.03, 0.6 + R() * 0.5, 4), 0x9a8a62, fx - 4 + i, 0.4, fz + r * 1.6); st.rotation.z = (R() - 0.5) * 0.9; st.castShadow = false; }
+  }
+  // broken fences: leaning posts and the odd rail left hanging
+  for (const [x0, z0, x1, z1] of [[64, 52, 76, 52], [100, 40, 108, 46], [66, 70, 66, 78], [102, 60, 108, 70]]) {
+    const n = Math.round(Math.hypot(x1 - x0, z1 - z0) / 2.2);
+    for (let i = 0; i <= n; i++) { if (R() < 0.25) continue; const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n;
+      const p = add(new THREE.BoxGeometry(0.22, 1.3, 0.22), 0x5a4a38, x, 0.6, z); p.rotation.set((R() - 0.5) * 0.5, 0, (R() - 0.5) * 0.6);
+      if (i < n && R() < 0.5) { const L = Math.hypot(x1 - x0, z1 - z0) / n, rl = add(new THREE.BoxGeometry(0.1, 0.12, L), 0x6a5a44, x + (x1 - x0) / n / 2, 0.5 + R() * 0.5, z + (z1 - z0) / n / 2); rl.rotation.y = Math.atan2(x1 - x0, z1 - z0); rl.rotation.x = (R() - 0.5) * 0.5; } }
+  }
+  // dead trees: bare grey trunks with a few crooked branches
+  for (const [x, z] of [[63, 40], [107, 36], [78, 54], [104, 76], [64, 66], [92, 58], [74, 79]]) {
+    const t = new THREE.Group(); t.position.set(x, 0, z); t.rotation.y = R() * 6; town.add(t);
+    add(new THREE.CylinderGeometry(0.22, 0.38, 3.6, 6), 0x4a4038, 0, 1.8, 0, t);
+    for (let i = 0; i < 4; i++) { const b = add(new THREE.CylinderGeometry(0.05, 0.12, 1.6, 5), 0x4a4038, 0, 2.6 + i * 0.3, 0, t); b.rotation.set(0.6 + R() * 0.5, i * 1.7, 0); b.position.x = Math.sin(i * 1.7) * 0.45; b.position.z = Math.cos(i * 1.7) * 0.45; }
+    solidAt(x, z, 0.5);
+  }
+  // a cart on its side with a wheel off, and a fallen scarecrow
+  const cart = new THREE.Group(); cart.position.set(100, 0, 56); cart.rotation.set(0, 0.6, 1.3); town.add(cart);
+  add(new THREE.BoxGeometry(2.4, 0.9, 1.4), oldWood, 0, 0.5, 0, cart); add(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 10).rotateX(Math.PI / 2), oldWood, 0.6, -0.1, 0.8, cart);
+  add(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 10), oldWood, 98.2, 0.06, 58.4); solidAt(100, 56, 1.3);
+  const sc = new THREE.Group(); sc.position.set(70, 0.2, 48); sc.rotation.set(0, 0.4, Math.PI / 2 - 0.1); town.add(sc);
+  add(new THREE.BoxGeometry(0.12, 2.4, 0.12), 0x5a4a38, 0, 1.2, 0, sc); add(new THREE.BoxGeometry(1.8, 0.1, 0.1), 0x5a4a38, 0, 1.8, 0, sc); add(new THREE.BoxGeometry(0.7, 0.8, 0.35), 0x5a5a62, 0, 1.6, 0, sc); add(new THREE.IcosahedronGeometry(0.28, 0), 0xb0a080, 0, 2.35, 0, sc);
+  // the burnt farmhouse: a scorched floor, the stubs of stone walls, a standing chimney and charred beams
+  const H = RUIN.house, house = new THREE.Group(); house.position.set(H.x, 0, H.z); town.add(house);
+  add(new THREE.BoxGeometry(10, 0.12, 8), 0x2e2620, 0, 0.06, 0, house);
+  for (const [x, z, w, d, h] of [[-5, 0, 0.5, 8, 1.2], [5, 0, 0.5, 8, 0.6], [-2.5, -4, 5, 0.5, 1.6], [3.2, -4, 3.6, 0.5, 0.8], [-3.8, 4, 2.4, 0.5, 0.9], [3.6, 4, 2.8, 0.5, 0.5]]) add(new THREE.BoxGeometry(w, h, d), stoneM, x, h / 2, z, house);
+  add(new THREE.BoxGeometry(1.5, 7, 1.5), stoneM, -3.8, 3.5, -3.2, house); add(new THREE.BoxGeometry(1.8, 0.5, 1.8), mat(0x6a645a), -3.8, 7.1, -3.2, house);   // the chimney, all that stands
+  for (const [x, z, a, b] of [[-1, -1, 0.9, 0.3], [1.5, 1, -0.7, 1.1], [0, 2.4, 0.4, -0.5], [2.8, -1.8, -1.1, 0.2]]) { const bm = add(new THREE.BoxGeometry(0.35, 0.35, 5), charred, x, 1.2, z, house); bm.rotation.set(a, b, 0.2); }
+  for (let i = 0; i < 18; i++) add(new THREE.DodecahedronGeometry(0.2 + R() * 0.25, 0), R() < 0.5 ? 0x2a221c : 0x5a544c, (R() - 0.5) * 9, 0.15, (R() - 0.5) * 7, house).castShadow = false;   // ash and rubble
+  for (const [x, z, hx, hz] of [[H.x - 5, H.z, 0.4, 4], [H.x + 5, H.z, 0.4, 4], [H.x - 2.5, H.z - 4, 2.6, 0.4], [H.x + 3.2, H.z - 4, 1.9, 0.4], [H.x - 3.8, H.z - 3.2, 0.9, 0.9]]) solidBoxes.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz });
+  // the root cellar: two weathered doors set slanting into the ground, chained and padlocked until you've proved yourself
+  const C = RUIN.cellar, cel = new THREE.Group(); cel.position.set(C.x, 0, C.z); cel.rotation.y = -0.2; town.add(cel);
+  add(new THREE.BoxGeometry(3.4, 0.5, 2.8), stoneM, 0, 0.25, 0, cel);   // the stone frame round the hatch
+  const doors = [-1, 1].map(s => { const d = add(new THREE.BoxGeometry(1.45, 0.12, 2.4), texMat(woodTex(), 1, 2, 0x7a6248), s * 0.76, 0.62, 0, cel); d.rotation.z = -s * 0.22; return d; });
+  const chain = new THREE.Group(); cel.add(chain);
+  for (let i = 0; i < 9; i++) { const l = add(new THREE.TorusGeometry(0.09, 0.025, 4, 8), 0x6a6a70, -0.8 + i * 0.2, 0.86, 0.1 * Math.sin(i), chain); l.rotation.y = i % 2 ? Math.PI / 2 : 0; l.castShadow = false; }
+  const lock = add(new THREE.BoxGeometry(0.32, 0.36, 0.14), 0x8a7a4a, 0, 0.72, 0.3, chain); add(new THREE.TorusGeometry(0.11, 0.03, 4, 8, Math.PI), 0x6a6a70, 0, 0.92, 0.3, chain);
+  const lantern = new THREE.MeshStandardMaterial({ color: 0xffd08a, emissive: 0xffa040, emissiveIntensity: 1 }); GLOW_MATS.push(lantern);
+  add(new THREE.BoxGeometry(0.1, 1.6, 0.1), 0x3a2a1a, 1.9, 0.8, 1.2, cel); add(new THREE.BoxGeometry(0.26, 0.32, 0.26), lantern, 1.9, 1.7, 1.2, cel); LIGHT_SPOTS.push([C.x + 1.9, 1.7, C.z + 1.2]);
+  solidAt(C.x, C.z, 1.6, 1.4);
+  RUIN.chain = chain; RUIN.doors = doors;
+  cel.userData = { action: 'Open', name: 'Root cellar', rec: { kind: 'cellar', state: 'standing', x: C.x, z: C.z, onClick: () => cellarClick() } }; trees.push(cel);
+  // the old track down from the windmill path, between the pens, to the farmhouse
+  roadPath([[81, 11], [81, 34], [83, 52], [85, 64], [H.x + 1, H.z - 4.6]]);
+}
+function cellarClick(){
+  if (!cellarOpen()) {
+    showToast(`The cellar doors are chained shut. The padlock is scratched with marks: Chickens ${Math.min(10, KILLS.chicken)}/10, Cows ${Math.min(10, KILLS.cow)}/10, Giant rats ${Math.min(10, KILLS.rat)}/10, Angry farmers ${Math.min(10, KILLS.farmer)}/10.`);
+    return;
+  }
+  walkStart(new THREE.Vector3(RUIN.cellar.x - 2.6, 0, RUIN.cellar.z + 0.5), () => showToast("The chain has fallen away. You lift a door and peer down the ladder... It's pitch black down there. Ezra says he'll have it ready soon."));
+}
+function updateCellar(){ if (RUIN.chain) { const open = cellarOpen(); RUIN.chain.visible = !open; RUIN.doors[1].rotation.z = open ? -0.9 : 0.22; } }
 // ----- the bonfire clearing in the oak grove, south-west of the hall: a stone fire pit, two rings of log benches and two ways in -----
 const BF = { x: 1, z: 33, inR: 4.4, outR: 8, clearR: 10.5, north: -Math.PI / 2, green: Math.atan2(10 - 33, -40 - 1), seats: [], benches: [] };
 function bonfireRoads(){
@@ -4343,7 +4431,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4369,6 +4457,7 @@ function applySave(d){
   }
   if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0 }); });   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
+  if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
@@ -4600,6 +4689,7 @@ function frame(){
   updateFight();
   updateBonfire();
   growCrops();
+  updateCellar();
   updateTrade();
   updateFarmPose();
   updateMilling();
@@ -4743,8 +4833,8 @@ function buildFarmPens(){
 function spawnFarmMonsters(){
   [[68, 20], [70, 23.5], [73, 20.5], [67, 25], [72, 25.5], [75.5, 20]].forEach(([x, z]) => spawnMonster('chicken', x, z, 2.5, { x0: 65, x1: 77, z0: 18, z1: 26 }));
   [[88, 21], [96, 23], [100, 28], [91, 28]].forEach(([x, z]) => spawnMonster('cow', x, z, 4, { x0: 85.5, x1: 102.5, z0: 18.5, z1: 31.5 }));
-  [[68, 37], [80, 35], [90, 41], [101, 39], [75, 45], [84, 46]].forEach(([x, z]) => spawnMonster('rat', x, z, 4));
-  [[81, 29, 4], [95, 42, 7], [69, 41, 5]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r));
+  [[68, 41], [80, 46], [96, 44], [104, 52], [72, 58], [90, 62], [100, 68], [78, 72]].forEach(([x, z]) => spawnMonster('rat', x, z, 5, { x0: 62, x1: 108, z0: 37, z1: 80 }));
+  [[76, 50, 7], [96, 56, 7], [84, 66, 6]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r, { x0: 62, x1: 108, z0: 37, z1: 80 }));
 }
 function farmRoads(){
   roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
