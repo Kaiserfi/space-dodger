@@ -3526,11 +3526,18 @@ function toggleDoor(rec){
 // a villager stands inside a house; clicking them walks over and opens their dialogue
 // villagers wander a little around their spot: inside their house, or round the green for Mara
 const WANDER = [];
+/* a villager's body against walls and furniture, with room for their size (world units) */
+function npcHit(x, z){ const r = 0.5; return boxesNear(x, z).some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r); }
+// is the whole way from here to there clear for them? (checked every 0.4 world units)
+function npcWayClear(w, ax, az, bx, bz){ const L = Math.hypot(bx - ax, bz - az) * w.k, n = Math.max(1, Math.ceil(L / 0.4));
+  for (let i = 1; i <= n; i++) { const k = i / n; if (npcHit(w.ox + (ax + (bx - ax) * k) * w.k, w.oz + (az + (bz - az) * k) * w.k)) return false; } return true; }
 function pickWanderTarget(w){
-  for (let i = 0; i < 12; i++) {
+  const x = w.sp.position.x, z = w.sp.position.z;
+  for (let i = 0; i < 16; i++) {
     const tx = w.lx + (Math.random() * 2 - 1) * w.rad, tz = w.lz + (Math.random() * 2 - 1) * w.rad;
     if (tx < w.box.x0 || tx > w.box.x1 || tz < w.box.z0 || tz > w.box.z1) continue;
-    if (hardHit(w.ox + tx * w.k, w.oz + tz * w.k)) continue;
+    if (npcHit(w.ox + tx * w.k, w.oz + tz * w.k)) continue;   // the spot itself must have room for them
+    if (!npcWayClear(w, x, z, tx, tz)) continue;              // and so must the walk there
     w.tx = tx; w.tz = tz; return;
   }
   w.tx = w.sp.position.x; w.tz = w.sp.position.z;   // nowhere better: stay put
@@ -3561,7 +3568,7 @@ function updateWanderers(){
       if (dist < 0.03) { pickWanderTarget(w); w.pause = 150 + Math.random() * 240; }   // arrived: rest, then pick somewhere else
       else {
         const step = Math.min(dist, 0.02), nx = x + dx / dist * step, nz = z + dz / dist * step;
-        if (hardHit(w.ox + nx * w.k, w.oz + nz * w.k)) { w.tx = x; w.tz = z; }   // something in the way
+        if (npcHit(w.ox + nx * w.k, w.oz + nz * w.k) && !npcHit(w.ox + x * w.k, w.oz + z * w.k)) { w.tx = x; w.tz = z; w.pause = 20; }   // something in the way: stop and pick elsewhere (but someone already wedged in can step out)
         else { sp.position.set(nx, 0, nz); moving = true; w.dx = dx; w.dz = dz; w.tick++; }
       }
     }
@@ -3615,6 +3622,7 @@ function furnishStore(g, h){
   put(new THREE.BoxGeometry(0.22, 0.14, 0.16), mat(0xd8b040), -0.8, 0.62, -0.35);   // a little coin tray
   // shelves on the back wall, stocked with what she sells
   for (const y of [0.45, 0.95, 1.45]) put(new THREE.BoxGeometry(3.4, 0.06, 0.4), dark, 0, y, -1.75);
+  solid(0, -1.75, 1.75, 0.22);   // the shelves
   for (const x of [-1.7, 0, 1.7]) put(new THREE.BoxGeometry(0.08, 1.7, 0.42), dark, x, 0.85, -1.75);
   const stock = (kind, x, y) => { const t = makeTool(kind); t.scale.setScalar(0.42); t.rotation.set(0, 0, Math.PI / 2 + 0.2); t.position.set(x, y + 0.2, -1.72); f.add(t); };
   for (const [k, x] of [['axe', -1.3], ['axe', -0.9], ['pick', -0.4], ['pick', 0.4]]) stock(k, x, 0.95);
@@ -3623,7 +3631,7 @@ function furnishStore(g, h){
   for (const [x, c] of [[-0.6, 0xc2652b], [-0.2, 0xb8c4cc], [0.3, 0x8a5a2b]]) put(new THREE.BoxGeometry(0.3, 0.26, 0.3), mat(c), x, 0.62, -1.72);   // boxes of goods
   // barrels and a crate by the door
   for (const [x, z] of [[-1.7, 1.2], [1.75, 1.3]]) { put(new THREE.CylinderGeometry(0.28, 0.24, 0.6, 10), mat(0x8a5a2a), x, 0.3, z); solid(x, z, 0.28, 0.28); }
-  put(new THREE.BoxGeometry(0.5, 0.5, 0.5), wood, 1.7, 0.25, 0.4).rotation.y = 0.3;
+  put(new THREE.BoxGeometry(0.5, 0.5, 0.5), wood, 1.7, 0.25, 0.4).rotation.y = 0.3; solid(1.7, 0.4, 0.32, 0.32);   // the crate
   // the sign over the door, painted on both sides
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const c = cv.getContext('2d');
   c.fillStyle = '#5a3a20'; c.fillRect(0, 0, 512, 160); c.fillStyle = '#7a5530'; c.fillRect(10, 10, 492, 140);

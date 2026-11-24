@@ -42,7 +42,8 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - **Trading is a dialogue option.** A shopkeeper gets `choice: {...}` plus `shop: '<key>'`, and their dialogue menu then starts with "Let's trade.", followed by their `asks` and "Never mind.". Don't add a question at the end of their chat that opens the shop.
 - **Shops live in `SHOPS`.** Each has a title, a buy list and a rule for which items it buys. Mara sells tools (axe, pickaxe, hammer, net) and buys everything except farm goods. Tilly's farmers' market sells all seeds and farming tools (hoe, watering can) and buys `FARM_GOODS`. New farming items go to Tilly, not Mara, and hint messages must point to the shop that actually sells the item.
-- NPCs that stand behind a counter need a small `rad` (they wander within it) and an `s` large enough that the talk spot in front of them is clear of the counter.
+- NPCs that stand behind a counter need a small `rad` (they wander within it) and an `s` large enough that the talk spot in front of them is clear of the counter. Shopkeepers inside a building get a `keep` box (the fifth argument of `addNpc`) so they stay in the strip behind their counter, as Mara does.
+- **NPC pathing checks their whole body and route.** `pickWanderTarget` only picks spots with room for the villager (`npcHit`, a 0.5 radius) and a clear straight walk there (`npcWayClear`); each step also checks `npcHit`, and a villager already wedged in somewhere can still step out. So **every piece of furniture or prop someone could bump into must be in `solidBoxes`** (in houses, `block()` / `solid()`); anything left out is walked straight through. Seated NPCs (Wenna) sit inside a solid bench on purpose.
 - Clicking something the player is already standing beside should act at once, not walk them somewhere first. When walking is needed, go to the nearest free side, never a fixed spot that may be inside a building.
 - **NPCs sound like real people, never like a robot or a game manual.** Write every line the way that villager would actually say it out loud:
   - **No game terms.** No skill names with numbers ("Farming 5"), no "XP", "level up", "item", "inventory", "click", "quest step", "requirement" or stat talk. Say it naturally: "You'll want more time in the fields first", "Get a few harvests under your belt", "You look like you could handle yourself now".
@@ -97,6 +98,11 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Anyone who falls or flees is out for good (their own 25% coins and delve XP penalty). **No carrying:** at the end, a survivor needs damage plus healing of at least half an even share of the party's total, or they get no reward.
 - Other players are only visible when you're in the same world (`sameWorld`): both up top, or both in the same party's cellar.
 
+### Screens and messages
+
+- The delve shows a wave counter at the top centre (`updateWaveHud`), which hides the quest tracker while it's up. Long-lived status like this goes in a small fixed panel, not repeated toasts.
+- Toasts wrap and stay up longer for longer messages; anything longer than a line should still be short enough to read in a few seconds.
+
 ### Quests
 
 - **Each quest is a number in `QUEST`** (for example `QUEST.hw` for A Hearty Welcome, `QUEST.rt` for Roots and Threads), saved with the rest of the save, so old saves start at 0.
@@ -117,6 +123,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Farm monsters have a shared id (`m.sid`, in spawn order). Each game works out their wandering with `mobPath()` from a seeded random and the server clock (`SNOW()`). So spawn order, homes and everything solid near them must be identical for every player; nothing random or local may change them.
 - Only fights go through the database, at `adventure/live/mobs/<sid>`: the fighter (with a heartbeat), health, position, each blow, and dead-until. It is single combat ("Someone else is fighting that."). Anything shown to other players (fight status, poses) must carry the monster's `sid`.
 - **Database rules:** a new database path needs a rule in `database.rules.json`, and the owner has to paste the rules into the Firebase console and publish them. Say so whenever the rules change, and give the full rules to paste. Compare with the owner's current console rules first, so nothing of theirs is lost.
+- **When a missing rule is harmless:** a brand-new path with no rule just has its writes refused (the feature stays off) and nothing else breaks, so merging before the rule is published is fine. Moving existing data to new paths is not: publish rules with old and new sections first.
 - **Roll database changes out in the right order.** Rules with no entry for a path refuse every write to it. When code moves to new paths, give the owner rules that keep the old sections **and** add the new ones, wait until they say they've published, and only then merge. Old sections can be removed later, once everyone has refreshed.
 - **Watch for side effects of a rule.** Publishing a rule can switch on code that was quietly failing before (the heals stream only connected, and broke everything, once its rule existed). Test the code as it will run *with* the rules published.
 
@@ -132,6 +139,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 ### Sound and music
 
+- **Drafting a new sound:** build it with Web Audio in a blank page, render it with an `OfflineAudioContext` to a WAV, and send the file for the owner to listen to before putting it in the game (you can't hear it yourself). Keep it soft: no rising pitch into high frequencies, sparkles and chimes around 500 to 1300 Hz, quiet overall. Time it to the action it goes with (the bandage sound stretches to `BANDAGE_MS`), and make it stoppable when the action is cancelled.
 - Sound effects are made in code (`sfx`, `nz`, oscillators). An audio file the owner gives you for a sound effect is embedded as base64 and decoded once through Web Audio (see `EAT_MP3`); don't make the browser fetch it.
 - **Sounds from elsewhere fade with distance.** Any sound caused by another player or happening away from the hero (their rocks and trees, their fights, raid goblins) must be played through `soundAt(x, z, () => ...)`: full volume within 8 units, silent beyond 40. Only your own actions play at full volume everywhere.
 - Music levels: the battle theme plays at 30% of the music setting, the boss theme at 80%.
