@@ -1039,6 +1039,8 @@ const PATH = { C: 0.5, X0: -120, Z0: -120, NX: 481, NZ: 481 };   // the whole gr
 const cellX = ix => PATH.X0 + ix * PATH.C, cellZ = iz => PATH.Z0 + iz * PATH.C;
 const cellFree = (ix, iz) => !blocked(cellX(ix), cellZ(iz));
 // does the body overlap a solid box right here (no clearance margin)? used to let a character step out of a tight spot
+/* a monster's body against walls and solid things, with room for its size */
+function monsterHit(x, z){ const r = 0.7; return boxesNear(x, z).some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r); }
 function hardHit(x, z){ return boxesNear(x, z).some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
 // A* over the grid. If the target cannot be reached, the route goes to the reachable cell nearest to it.
 function findPath(fromV, toV){
@@ -4079,9 +4081,11 @@ function updateFight(){
           if (d < 0.05) { for (let tries = 0; tries < 6; tries++) {   // somewhere near home, inside its pen, and not inside anything solid
               let tx = m.home[0] + (Math.random() * 2 - 1) * (m.rad || 3), tz = m.home[1] + (Math.random() * 2 - 1) * (m.rad || 3);
               if (m.box) { tx = Math.max(m.box.x0, Math.min(m.box.x1, tx)); tz = Math.max(m.box.z0, Math.min(m.box.z1, tz)); }
-              if (!hardHit(tx, tz)) { w.tx = tx; w.tz = tz; break; } }
+              if (!monsterHit(tx, tz)) { w.tx = tx; w.tz = tz; break; } }
             w.pause = 120 + Math.random() * 200; }
-          else { const st = Math.min(d, 0.022); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); } }
+          else { const st = Math.min(d, 0.022), nx = x + dx / d * st, nz = z + dz / d * st;
+            if (monsterHit(nx, nz) && !monsterHit(x, z)) { w.tx = x; w.tz = z; w.pause = 30; }   /* a wall in the way: stop, and pick somewhere else next time */
+            else { m.g.position.x = nx; m.g.position.z = nz; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); } } }
         m.x = m.g.position.x; m.z = m.g.position.z;
       } else if (m.state === 'engaged' && !walkTarget && now - (m.engagedAt || 0) > 1500) { m.state = 'standing'; }   // you never reached it (or walked off): it goes back to its business
       else if (m.state === 'engaged') { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
@@ -5249,8 +5253,8 @@ function buildFarmPens(){
 function spawnFarmMonsters(){
   [[68, 20], [70, 23.5], [73, 20.5], [67, 25], [72, 25.5], [75.5, 20]].forEach(([x, z]) => spawnMonster('chicken', x, z, 2.5, { x0: 65, x1: 77, z0: 18, z1: 26 }));
   [[88, 21], [96, 23], [100, 28], [91, 28]].forEach(([x, z]) => spawnMonster('cow', x, z, 4, { x0: 85.5, x1: 102.5, z0: 18.5, z1: 31.5 }));
-  [[68, 41], [80, 46], [96, 44], [104, 52], [72, 58], [90, 62], [100, 68], [78, 72]].forEach(([x, z]) => spawnMonster('rat', x, z, 5, { x0: 62, x1: 108, z0: 37, z1: 80 }));
-  [[76, 50, 7], [96, 56, 7], [84, 66, 6]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r, { x0: 62, x1: 108, z0: 37, z1: 80 }));
+  [[68, 41], [80, 46], [96, 44], [104, 52], [72, 58], [90, 62], [100, 68], [71, 73]].forEach(([x, z]) => spawnMonster('rat', x, z, 5, { x0: 62, x1: 108, z0: 37, z1: 80 }));
+  [[76, 50, 7], [96, 56, 7], [84, 59, 6]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r, { x0: 62, x1: 108, z0: 37, z1: 80 }));
 }
 function farmRoads(){
   roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
