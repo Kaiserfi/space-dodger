@@ -1,0 +1,3 @@
+# Root Cellar arena mockup (not in the game yet)
+
+`cellar.js` builds the instanced fighting pit under the ruined farm: a big cavern of stacked boulders with stalactites, a round sand pit about 28 units across ringed by a palisade of sharpened stakes with rope rails, two barred monster gates in stone arches (south and east) with cow skulls over them, a raised landing platform with steps down into the pit and the ladder up to the hatch (the way out), four iron braziers and torches on the stakes, hay-bale barricades, cart wheels, pitchforks, a scarecrow trophy and chains, and makeshift stands up the cave sides where red-eyed rats watch. A party of four and a wave of monsters show the scale. Paste after `frame();` to look at it. `preview.png` shows it.
