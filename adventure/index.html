@@ -3820,6 +3820,7 @@ function populateVillage(){
     choice: { question: 'Fancy a look at what I\'ve got?' } });
   // the townsfolk, out and about
   // props step off the paths (a path is 2.2 wide, so its edge is 1.1 from the centre line)
+  bonfireRoads();   // laid before the props, so lamps, benches and barrels keep off these paths too
   const off = (x, z, r) => offPath(x, z, 1.1 + r);
   const [wbx, wbz] = off(-30, 14.6, 1.6);
   const wenna = TOWNSFOLK.find(f => f.name === 'Wenna'); wenna.x = wbx; wenna.z = wbz;
@@ -3842,7 +3843,6 @@ function populateVillage(){
   NPC_SPOTS.push(...spots);
   addFishSpot(-36, -13.4);
   scatterOaks();
-  bonfireRoads();
   paintPaths();
   setTimeout(buildGrass, 0);   // once the farm, props and paths are all placed
   decoratePaths();
