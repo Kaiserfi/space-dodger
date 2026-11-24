@@ -76,6 +76,10 @@
   .trBtns { display:flex; gap:8px; padding:4px 12px 12px; } .trBtns button { flex:1; padding:7px 12px !important; }
   #itemMenu { position:fixed; z-index:30; min-width:150px; padding:4px; background:linear-gradient(180deg, rgba(48,36,20,.97), rgba(22,16,9,.97)); border:2px solid #a07a3c; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.5); font:13px Georgia,serif; }
   #itemMenu[hidden] { display:none; }
+  .readyBubble { position:fixed; z-index:6; pointer-events:none; transform:translate(-50%,-100%); width:46px; height:42px; display:flex; align-items:center; justify-content:center; background:#fffdf6; border:2px solid #5b4324; border-radius:14px; box-shadow:0 3px 8px rgba(0,0,0,.35); }
+  .readyBubble::after { content:''; position:absolute; bottom:-9px; left:50%; margin-left:-7px; border:7px solid transparent; border-top-color:#5b4324; border-bottom:0; }
+  .readyBubble svg { width:30px; height:30px; }
+  .healPlus { position:fixed; z-index:6; pointer-events:none; transform:translate(-50%,-50%); font:bold 30px Arial, sans-serif; color:#e02828; text-shadow:0 0 3px #fff, 0 2px 0 #7a0a0a; }
   #itemMenu .imHead { color:#f0c35a; padding:3px 6px 5px; border-bottom:1px solid #5b4324; margin-bottom:3px; }
   #itemMenu button { display:block; width:100%; text-align:left; font:inherit; color:#e8efe6; background:none; border:0; border-radius:4px; padding:6px 8px; cursor:pointer; }
   #itemMenu button:hover { background:rgba(240,195,90,.15); color:#f0c35a; }
@@ -123,6 +127,7 @@
   .hpBar i { display:block; height:100%; width:100%; background:linear-gradient(#5ad05a,#2a9a2a); }
   .splat { position:fixed; left:0; top:0; transform:translate(-50%,-50%); pointer-events:none; z-index:8; width:44px; height:40px; display:flex; align-items:center; justify-content:center; font:bold 20px Georgia,serif; color:#fff; text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000; }
   .splat:before { content:''; position:absolute; inset:0; z-index:-1; clip-path:polygon(50% 0,62% 22%,88% 12%,80% 38%,100% 50%,80% 62%,88% 88%,62% 78%,50% 100%,38% 78%,12% 88%,20% 62%,0 50%,20% 38%,12% 12%,38% 22%); }
+  .splat.heal:before { background:radial-gradient(#4ad85a,#127a22); }
   .splat.hit:before { background:radial-gradient(#e8352a,#8a0e08); } .splat.block:before { background:radial-gradient(#4a8ae8,#1a3a8a); } .splat.miss:before { background:radial-gradient(#9aa0a8,#4a4e56); }
   .splat small { position:absolute; top:100%; font:bold 12px Georgia,serif; white-space:nowrap; color:#e8f0ff; }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
@@ -276,6 +281,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ----- the look options -----
 const LOOK = [
@@ -1558,16 +1564,17 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
   if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
+  if (it && it.name === 'Bandage') { startBandage(it); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
 
 // ----- Mara's shop: tools for coins -----
 const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 },
-  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }, { name: 'Wheat seeds', price: 3, qty: 5 }];   // seeds come five to a packet
+  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }, { name: 'Wheat seeds', price: 3, qty: 5 }, { name: 'Aloe seeds', price: 4, qty: 5 }, { name: 'Mulberry seeds', price: 6, qty: 5 }];   // seeds come five to a packet
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2849,7 +2856,7 @@ function followCharacter(){
 
 // ----- the Stats tab: our own skill list and summaries -----
 const HP = { cur: 10 };   // your current health; the most is your Hitpoints level
-const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0, Farming: 0};   // everyone starts at level 1, and Hitpoints at 10
+const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0, Farming: 0, Crafting: 0};   // everyone starts at level 1, and Hitpoints at 10
 const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 xp, level 8 is 1225 xp
 let statsSub = 'skills';
 function renderStats(){
@@ -4775,7 +4782,15 @@ const COOKED_CHICKEN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" sha
 const RAW_BEEF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#c8383a" stroke="#6a1a1a" stroke-width="0.7"/><path d="M5 6 Q8 8 11 7 M5 10 Q8 9 11 11" stroke="#f0d0c8" stroke-width="0.8" fill="none"/></svg>`;
 const COOKED_BEEF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#7a4020" stroke="#3a1a0a" stroke-width="0.7"/><path d="M5 6 L6 9 M8 5.5 L9 9 M11 6.5 L11.5 10" stroke="#3a1a0a" stroke-width="0.9"/></svg>`;
 const BURNT_MEAT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#2a1e16" stroke="#120a06" stroke-width="0.7"/></svg>`;
-const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
+
+const ALOE_SEED_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M3 4 L13 4 L12 14 L4 14 Z" fill="#a8c8a0" stroke="#4a6a40" stroke-width="0.7"/><rect x="3" y="4" width="10" height="2" fill="#7aa070"/><path d="M8 13 L6.5 8.5 M8 13 L8 7.5 M8 13 L9.5 8.5" stroke="#3a7a4a" stroke-width="1.1"/></svg>`;
+const MULBERRY_SEED_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M3 4 L13 4 L12 14 L4 14 Z" fill="#c8a8c0" stroke="#5a3a52" stroke-width="0.7"/><rect x="3" y="4" width="10" height="2" fill="#a07898"/><g fill="#4a1a3a"><circle cx="7" cy="9.5" r="1"/><circle cx="9" cy="9.5" r="1"/><circle cx="8" cy="11.2" r="1"/></g></svg>`;
+const ALOE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><path d="M8 15 C5 11 4 6 5 1 C7 5 9 10 8 15 Z" fill="#6aa080" stroke="#2a5a3a" stroke-width="0.7"/><path d="M8 15 C10 11 12 7 13 3 C10 6 8 10 8 15 Z" fill="#7ab090" stroke="#2a5a3a" stroke-width="0.7"/><g fill="#d0e8d0"><circle cx="5.8" cy="6" r="0.5"/><circle cx="6.4" cy="9" r="0.5"/><circle cx="10.6" cy="7" r="0.5"/></g></svg>`;
+const MULBERRY_LEAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><path d="M8 15 L8 11" stroke="#4a6a2a" stroke-width="1"/><path d="M8 11 C3 11 1 6 3 3 C5 4 6 2 8 1 C10 2 11 4 13 3 C15 6 13 11 8 11 Z" fill="#5a9a3a" stroke="#2a5a1a" stroke-width="0.7"/><path d="M8 11 L8 3 M8 7 L5 5 M8 7 L11 5" stroke="#3a7a2a" stroke-width="0.6" fill="none"/></svg>`;
+const COCOON_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><ellipse cx="8" cy="8.5" rx="4" ry="6" fill="#f4f0e2" stroke="#a09878" stroke-width="0.7" transform="rotate(-25 8 8.5)"/><path d="M5 6 Q8 8 11 6 M4.6 9 Q8 11 11.4 9 M5.4 12 Q8 13.5 10.6 12" stroke="#d4ccb0" stroke-width="0.6" fill="none" transform="rotate(-25 8 8.5)"/></svg>`;
+const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4" y="2" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="4" y="12" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="5" y="4" width="6" height="8" fill="#f8f2e6" stroke="#c8bca0" stroke-width="0.5"/><path d="M5 5.5 L11 5.5 M5 7.5 L11 7.5 M5 9.5 L11 9.5 M11 10.5 Q13 12 12 14" stroke="#e0d6c0" stroke-width="0.6" fill="none"/></svg>`;
+const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
+const ICON_FOR = { 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
@@ -4837,7 +4852,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, pos: hero ? (DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t, c: p.c || 'Wheat' })), hu: SILK.hutch, wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, pos: hero ? (DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4865,7 +4880,8 @@ function applySave(d){
     Object.keys(SKILL_XP).forEach(k => { if (typeof d.xp[k] === 'number') SKILL_XP[k] = d.xp[k]; });   // skills from older saves are ignored
     if (typeof d.xp.Melee !== 'number') SKILL_XP.Melee = Math.max(d.xp.Attack || 0, d.xp.Defence || 0);   // Attack and Defence became Melee
   }
-  if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0 }); });   // your crops, as you left them
+  if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0, c: CROPS[p.c] ? p.c : 'Wheat' }); });
+  if (d && d.hu && typeof d.hu.n === 'number') SILK.hutch = { n: d.hu.n, t: d.hu.t || 0 };   /* the leaves in your silkworm hutch */   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
   for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? d.tb[k] : null;
   if (d && d.dv && typeof d.dv.m === 'number' && !DELVE) {   /* you left mid-delve: that counts as fleeing */
@@ -4971,7 +4987,7 @@ function removeRemote(id){
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
 const ACT_LABEL = { eat: 'eating', farm: 'farming', mill: 'milling', chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
-const ACT_TIME = { eat: 1200, farm: 2500, mill: 3000, chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
+const ACT_TIME = { spin: 3000, heal: 3500, hutch: 1500, eat: 1200, farm: 2500, mill: 3000, chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -5045,7 +5061,7 @@ function updateOnline(){
     else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
     else if (act && act.k === 'mill' && !moving) poseChibi(r.sprite, 'pour', 0);
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
-    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
+    else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'spin' || act.k === 'heal' || act.k === 'hutch' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     { const away = inDelveZone(r.tx, r.tz); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; continue; } }   /* down in their own cellar */
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
@@ -5111,7 +5127,7 @@ function frame(){
   updateCellar(); updateDelve();
   updateTrade();
   updateFarmPose();
-  updateMilling();
+  updateMilling(); updateSpinning(); updateBandage();
   updateDrops();
   updateTorch();
   checkDialogDistance();
@@ -5163,6 +5179,7 @@ function craftItem(o){
   if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }
   if (o.water) { FARM_CAN.n -= o.water; renderBag(); }
   addXp(o.skill, o.xp);
+  if (o.msg) { craftSound(); showToast(`${o.msg}  +${o.xp} ${o.skill} XP`); saveNow(false); return; }
   if (o.make === 'Bread dough') { showToast(`You mix the flour with a splash of water and knead it into dough.  +${o.xp} ${o.skill} XP`); saveNow(false); return; }
   sfx((c, t, out) => { nz(c, out, t, 0.35, 'bandpass', 1800, 900, 1, 0.35, 0.02, 0.3); nz(c, out, t + 0.25, 0.5, 'bandpass', 300, 1200, 0.8, 0.3, 0.15, 0.35); });   // a scrape of bark, then the rag catching
   showToast(`You bind some rags to the end of the log and light it. You make a torch.  +${o.xp} ${o.skill} XP`);
@@ -5204,6 +5221,7 @@ function buildFarmland(){
       const ear = add(new THREE.ConeGeometry(0.09, 0.36, 5), 0xe0b850, px, 1.55, pz, g); ear.rotation.x = Math.PI; crops[3].push(ear); }
     for (const list of crops) for (const m of list) m.visible = false;
     const pt = { x, z, g, bed, furrows, crops, grassy, soil, wet, i: F.patches.length };
+    pt.sets = { Wheat: crops, Aloe: cropStages('Aloe', g), Mulberry: cropStages('Mulberry', g) };
     g.userData = { action: 'Till', name: 'Farming patch', rec: { kind: 'patch', state: 'standing', x, z, onClick: () => patchClick(pt) } }; trees.push(g);
     F.patches.push(pt);
   }
@@ -5267,18 +5285,48 @@ function drawPatch(i){
   const pt = FARMLAND.patches[i], p = FARM_PLOTS[i];
   pt.bed.material = p.s === 'grass' ? pt.grassy : (p.w ? pt.wet : pt.soil);
   for (const f of pt.furrows) { f.visible = p.s !== 'grass'; f.material = p.w ? pt.wet : pt.soil; }
-  pt.crops.forEach((list, st) => list.forEach(m => { m.visible = p.s === 'planted' && p.g === st; }));
+  const crop = p.c || 'Wheat'; for (const c in pt.sets) pt.sets[c].forEach((list, st) => list.forEach(m => { m.visible = p.s === 'planted' && p.g === st && c === crop; }));
   pt.g.userData.action = { grass: 'Till', tilled: 'Plant', planted: p.g >= 3 ? 'Harvest' : (p.w ? 'Check' : 'Water') }[p.s] || 'Till';
+}
+
+/* aloe and mulberry plants: every part of a growth stage is merged into one mesh (with its colours baked in), shared by all the patches, to keep the farm cheap to draw */
+function cropStages(kind, parent){
+  const C = cropStages.cache || (cropStages.cache = {});
+  if (!C[kind]) {
+    const parts = [], piece = (g, col, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => {
+      g = g.toNonIndexed(); const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz)); g.applyMatrix4(m);
+      const c = new THREE.Color(col), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(a, 3)); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') g.deleteAttribute(k); parts.push(g); };
+    const stage = fill => { parts.length = 0; fill(); return mergeGeometries(parts); };
+    const seeds = () => { for (let k = 0; k < 4; k++) for (let j = 0; j < 5; j++) piece(new THREE.SphereGeometry(0.06, 5, 4), kind === 'Aloe' ? 0x8a9a60 : 0x6a3a50, -1.4 + j * 0.7, 0.3, -1.3 + k * 0.87); };
+    const spots = kind === 'Aloe' ? [[-1.1, -0.85], [0, -0.85], [1.1, -0.85], [-1.1, 0.85], [0, 0.85], [1.1, 0.85]] : [[-0.85, 0], [0.85, 0]];
+    let geos;
+    if (kind === 'Aloe') {
+      const rosette = (n, len, w, lean, col) => { for (const [x, z] of spots) for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + x; piece(new THREE.ConeGeometry(w, len, 4).translate(0, len / 2, 0), i % 2 ? col : 0x5a9070, x, 0.22, z, Math.cos(a) * lean, 0, -Math.sin(a) * lean, 1, 1, 0.55); }
+        for (const [x, z] of spots) piece(new THREE.ConeGeometry(w * 0.8, len * 0.9, 4).translate(0, len * 0.45, 0), col, x, 0.22, z); };
+      geos = [stage(seeds), stage(() => rosette(3, 0.3, 0.05, 0.4, 0x7ab088)), stage(() => rosette(5, 0.6, 0.09, 0.55, 0x6aa080)),
+        stage(() => { rosette(7, 1.0, 0.14, 0.7, 0x7ab590); for (const [x, z] of spots) for (let i = 0; i < 5; i++) { const a = i * 1.3 + x; piece(new THREE.SphereGeometry(0.03, 4, 3), 0xd8f0d8, x + Math.sin(a) * 0.28, 0.55, z + Math.cos(a) * 0.28); } })];
+    } else {
+      const bush = (r, h, col, berries) => { for (const [x, z] of spots) { piece(new THREE.CylinderGeometry(0.06, 0.08, h, 5), 0x6a4a2a, x, 0.22 + h / 2, z);
+          if (r) for (const [dx, dy, dz, s] of [[0, 0, 0, 1], [0.3, -0.15, 0.1, 0.75], [-0.28, -0.1, -0.15, 0.8], [0.05, 0.25, -0.2, 0.7]]) piece(new THREE.IcosahedronGeometry(r * s, 0), col, x + dx * r * 2, 0.22 + h + dy * r * 2, z + dz * r * 2);
+          if (berries) for (let i = 0; i < 9; i++) { const a = i * 2.4, rr = r * (0.75 + (i % 3) * 0.1); piece(new THREE.SphereGeometry(0.07, 5, 4).scale(1, 1.4, 1), i % 3 ? 0x3a1030 : 0x8a2050, x + Math.sin(a) * rr, 0.22 + h + Math.cos(i * 1.7) * r * 0.5, z + Math.cos(a) * rr); } } };
+      geos = [stage(seeds), stage(() => { for (const [x, z] of spots) { piece(new THREE.CylinderGeometry(0.04, 0.05, 0.4, 5), 0x6a8a3a, x, 0.42, z); for (const s of [-1, 1]) piece(new THREE.SphereGeometry(0.12, 6, 4).scale(1, 0.3, 0.6), 0x6aaa48, x + s * 0.12, 0.6, z, 0, 0, s * 0.4); } }),
+        stage(() => bush(0.45, 0.5, 0x5a9a3a, false)), stage(() => bush(0.7, 0.7, 0x4a8a30, true))];
+    }
+    C[kind] = { geos, mat: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.85 }) };
+  }
+  return C[kind].geos.map(geo => { const m = new THREE.Mesh(geo, C[kind].mat); m.castShadow = true; m.visible = false; parent.add(m); return [m]; });
 }
 // crops grow a stage for each watering, once enough time has passed; the soil dries as they do
 function growCrops(){
   if (!FARM_PLOTS) return;
   const now = Date.now();
   FARM_PLOTS.forEach((p, i) => {
-    if (p.s === 'planted' && p.w && p.g < 3 && now - p.t > GROW_S * 1000) { p.g++; p.w = false; p.t = now; if (p.g === 3) addSystemLine('Some of your wheat is ripe and ready to harvest.'); }
+    if (p.s === 'planted' && p.w && p.g < 3 && now - p.t > GROW_S * 1000) { p.g++; p.w = false; p.t = now; if (p.g === 3) addSystemLine(`Some of your ${(CROPS[p.c] || CROPS.Wheat).say} is ready to harvest.`); }
     drawPatch(i);
   });
   if (FARMLAND && FARMLAND.sails) FARMLAND.sails.rotation.z -= 0.004;
+  updateSilkworks();
 }
 let farmBusy = null;
 let farmChain = null;   // the patch you're working through, one job after another, until you click somewhere else
@@ -5342,26 +5390,28 @@ function patchClick(pt, auto){
   } else if (p.s === 'tilled') {
     openSeedMenu(pt);
   } else if (p.s === 'planted' && p.g >= 3) {
-    if (bag.length >= BAG_SIZE && !hasItem('Wheat')) { showToast('Your bag is full.'); return; }
-    farmAct(pt, 2000, 'harvest', () => { const n = 3 + Math.floor(Math.random() * 3); addItem('Wheat', n, WHEAT_ICON); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', 15 * n); farmSound('harvest'); showToast(`You harvest ${n} wheat.  +${15 * n} Farming XP`); });
+    const cr = CROPS[p.c] || CROPS.Wheat;
+    if (bag.length >= BAG_SIZE && !hasItem(cr.item)) { showToast('Your bag is full.'); return; }
+    farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
     if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Mara sells them.'); return; }
     if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
-    farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the wheat. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
+    farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the ${(CROPS[p.c] || CROPS.Wheat).say}. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
     const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
-    showToast(['The seeds are watered. They should sprout soon', 'The sprouts are watered and growing', 'The wheat is watered and coming along nicely'][p.g] + ` (about ${left} seconds).`);
+    showToast(['The seeds are watered. They should sprout soon', 'The sprouts are watered and growing', `The ${(CROPS[p.c] || CROPS.Wheat).say} is watered and coming along nicely`][p.g] + ` (about ${left} seconds).`);
   }
 }
 /* what can be planted: more seed types slot in here as they are added */
-const SEEDS = [{ name: 'Wheat seeds', crop: 'Wheat', level: 1 }];
+const SEEDS = [{ name: 'Wheat seeds', crop: 'Wheat', level: 1 }, { name: 'Aloe seeds', crop: 'Aloe', level: 3 }, { name: 'Mulberry seeds', crop: 'Mulberry', level: 5 }];
+var CROPS = { Wheat: { item: 'Wheat', n: [3, 5], plantXp: 8, xpEach: 15, say: 'wheat' }, Aloe: { item: 'Aloe leaf', n: [2, 4], plantXp: 10, xpEach: 18, say: 'aloe' }, Mulberry: { item: 'Mulberry leaves', n: [3, 6], plantXp: 12, xpEach: 20, say: 'mulberry' } };
 let lastPtr = { x: innerWidth / 2, y: innerHeight / 2 };
 addEventListener('pointerdown', e => { lastPtr = { x: e.clientX, y: e.clientY }; }, true);
 function plantPatch(pt, seed){
   const p = FARM_PLOTS[pt.i]; if (p.s !== 'tilled') return;
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   farmChain = pt;   /* from here the loop carries on by itself: watering, then harvesting */
-    farmAct(pt, 1400, 'plant', () => { if (p.s !== 'tilled' || !hasItem(seed.name)) return; removeItem(seed.name); p.s = 'planted'; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', 8); farmSound('plant'); showToast('You plant some wheat seeds. Now give them some water.  +8 Farming XP'); });
+    farmAct(pt, 1400, 'plant', () => { if (p.s !== 'tilled' || !hasItem(seed.name)) return; removeItem(seed.name); const cr = CROPS[seed.crop]; p.s = 'planted'; p.c = seed.crop; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', cr.plantXp); farmSound('plant'); showToast(`You plant some ${seed.name.toLowerCase()}. Now give them some water.  +${cr.plantXp} Farming XP`); });
 }
 function openSeedMenu(pt){
   const lv = levelOf(SKILL_XP.Farming);
@@ -5375,6 +5425,186 @@ function openSeedMenu(pt){
   itemMenu.style.left = Math.max(8, Math.min(innerWidth - 220, lastPtr.x + 6)) + 'px'; itemMenu.style.top = Math.max(8, Math.min(innerHeight - itemMenu.offsetHeight - 8, lastPtr.y - 10)) + 'px';
   itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; itemMenu.hidden = true; if (b.dataset.o === 'x') return;
     plantPatch(pt, SEEDS[+b.dataset.o]); };
+}
+
+// ===== silk: a silkworm hutch that turns mulberry leaves into cocoons, and a spinning wheel that spins them into thread =====
+var SILK = { built: false, hutch: { n: 0, t: 0 }, HUT: { x: 101, z: -4.5 }, WHEEL: { x: 101, z: 4.5 } };
+const HUTCH_MS = 90000, HUTCH_MAX = 10, SPIN_MS = 2600;
+function buildSilkworks(){
+  SILK.built = true;
+  const add = (geo, m, x, y, z, parent) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  const wood = texMat(woodTex(), 1, 1, 0x9a7448), dark = mat(0x5a3e22);
+  // the hutch: a roofed rack of three trays where the silkworms munch, on legs to keep the rats off
+  const H = SILK.HUT, hut = new THREE.Group(); hut.position.set(H.x, 0, H.z); hut.rotation.y = -Math.PI / 2; town.add(hut);
+  for (const [x, z] of [[-1.1, -0.6], [1.1, -0.6], [-1.1, 0.6], [1.1, 0.6]]) add(new THREE.BoxGeometry(0.16, 2.4, 0.16), dark, x, 1.2, z, hut);
+  const trays = [], worms = [], cocoons = [], leaves = [];
+  for (let k = 0; k < 3; k++) { const y = 0.7 + k * 0.55; add(new THREE.BoxGeometry(2.3, 0.08, 1.3), wood, 0, y, 0, hut);
+    for (const s of [-1, 1]) add(new THREE.BoxGeometry(2.3, 0.14, 0.06), dark, 0, y + 0.08, s * 0.63, hut);
+    const lv = add(new THREE.BoxGeometry(2.0, 0.04, 1.0), mat(0x5a9a3a), 0, y + 0.07, 0, hut); lv.visible = false; leaves.push(lv);
+    for (let i = 0; i < 4; i++) { const w = add(new THREE.CapsuleGeometry(0.035, 0.14, 2, 6), 0xf2ece0, -0.75 + i * 0.5, y + 0.12, (i % 2 ? 0.2 : -0.2), hut); w.rotation.z = Math.PI / 2; w.visible = false; worms.push(w);
+      const c = add(new THREE.SphereGeometry(0.09, 8, 6), 0xf6f2e6, -0.75 + i * 0.5, y + 0.14, (i % 2 ? -0.22 : 0.22), hut); c.scale.set(1, 0.75, 1.5); c.visible = false; cocoons.push(c); } }
+  const roof = add(new THREE.BoxGeometry(2.8, 0.1, 1.9), texMat(woodTex(), 2, 1, 0x7a5434), 0, 2.45, 0, hut); roof.rotation.x = 0.12;
+  add(new THREE.BoxGeometry(2.3, 1.7, 0.05), mat(0xd8d0b8), 0, 1.4, -0.66, hut);   // a cloth back to keep the wind off
+  hut.userData = { action: 'Use', name: 'Silkworm hutch', rec: { kind: 'hutch', state: 'standing', x: H.x, z: H.z, onClick: () => hutchClick() } }; trees.push(hut);
+  solidAt(H.x, H.z, 0.9, 1.4);
+  Object.assign(SILK, { hut, worms, cocoons, leaves });
+  // the bubble that pops up over the hutch when the cocoons are ready, with a cocoon inside
+  const bub = document.createElement('div'); bub.className = 'readyBubble'; bub.innerHTML = COCOON_ICON; bub.style.display = 'none'; document.body.appendChild(bub); SILK.bubble = bub;
+  // the spinning wheel: a big spoked wheel on a slanted bench, a treadle and a flyer, and a stool
+  const W = SILK.WHEEL, wh = new THREE.Group(); wh.position.set(W.x, 0, W.z); wh.rotation.y = -Math.PI / 2; town.add(wh);
+  const bench = add(new THREE.BoxGeometry(1.9, 0.14, 0.42), wood, 0, 0.62, 0, wh); bench.rotation.z = 0.12;
+  for (const [x, z] of [[-0.8, 0.15], [0.85, 0.15], [0.85, -0.15]]) { const lg = add(new THREE.CylinderGeometry(0.05, 0.06, 0.66, 6), dark, x, 0.3, z, wh); lg.rotation.x = z > 0 ? 0.2 : -0.2; }
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.08, 1.0, 0.08), dark, -0.35, 1.1, s * 0.12, wh);   // the uprights holding the wheel
+  const wheel = new THREE.Group(); wheel.position.set(-0.35, 1.45, 0); wh.add(wheel);
+  add(new THREE.TorusGeometry(0.62, 0.05, 6, 28), wood, 0, 0, 0, wheel);
+  for (let i = 0; i < 8; i++) { const sp = add(new THREE.CylinderGeometry(0.02, 0.02, 1.24, 4), dark, 0, 0, 0, wheel); sp.rotation.z = i / 8 * Math.PI; }
+  add(new THREE.CylinderGeometry(0.08, 0.08, 0.3, 8).rotateX(Math.PI / 2), dark, 0, 0, 0, wheel);
+  const flyer = new THREE.Group(); flyer.position.set(0.65, 1.05, 0); wh.add(flyer);   // the flyer and bobbin, where the thread winds on
+  add(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 6).rotateZ(Math.PI / 2), dark, 0, 0, 0, flyer);
+  const bobbin = add(new THREE.CylinderGeometry(0.09, 0.09, 0.22, 10).rotateZ(Math.PI / 2), mat(0xf4eee0), 0.05, 0, 0, flyer);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.04, 0.24, 0.04), dark, 0.05, s * 0.12, 0, flyer).position.y = s * 0.1;
+  add(new THREE.CylinderGeometry(0.012, 0.012, 0.95, 4).rotateZ(1.35), mat(0xf8f4ea), 0.15, 1.25, 0, wh);   // the drive band
+  const treadle = new THREE.Group(); treadle.position.set(-0.2, 0.12, 0.35); wh.add(treadle);
+  add(new THREE.BoxGeometry(0.5, 0.05, 0.3), wood, 0.2, 0, 0, treadle);
+  const stool = add(new THREE.CylinderGeometry(0.3, 0.32, 0.12, 10), wood, 0.2, 0.55, 1.1, wh); for (let i = 0; i < 3; i++) { const a = i * 2.1; add(new THREE.CylinderGeometry(0.03, 0.04, 0.55, 5), dark, 0.2 + Math.sin(a) * 0.2, 0.27, 1.1 + Math.cos(a) * 0.2, wh); }
+  wh.userData = { action: 'Spin', name: 'Spinning wheel', rec: { kind: 'wheel', state: 'standing', x: W.x, z: W.z, onClick: () => wheelClick() } }; trees.push(wh);
+  solidAt(W.x, W.z, 0.5, 1.0);
+  Object.assign(SILK, { wheel, flyer, bobbin, treadle, wheelGroup: wh });
+}
+function hutchReady(){ return SILK.hutch.n > 0 && Date.now() - SILK.hutch.t >= HUTCH_MS; }
+function updateSilkworks(){
+  if (!SILK.built) { if (typeof town !== 'undefined' && town) buildSilkworks(); return; }
+  const H = SILK.hutch, ready = hutchReady(), busy = H.n > 0 && !ready, t = performance.now() / 1000;
+  // leaves on the trays while they're being eaten; the worms wriggle; cocoons once they're ready
+  SILK.leaves.forEach((l, k) => { l.visible = busy && k < Math.ceil(H.n / 4); l.scale.x = busy ? Math.max(0.15, 1 - (Date.now() - H.t) / HUTCH_MS) : 1; });
+  SILK.worms.forEach((w, i) => { w.visible = busy || H.n === 0; w.position.x = -0.75 + (i % 4) * 0.5 + Math.sin(t * 2 + i) * (busy ? 0.06 : 0.01); w.rotation.y = Math.sin(t * 3 + i * 1.7) * 0.5; });
+  SILK.cocoons.forEach((c, i) => { c.visible = ready && i < H.n; });
+  // the "ready" bubble, bobbing over the hutch
+  const bub = SILK.bubble;
+  if (ready) { const v = new THREE.Vector3(SILK.HUT.x, 3.6 + Math.sin(t * 3) * 0.12, SILK.HUT.z).project(camera);
+    if (v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1) { bub.style.display = 'flex'; bub.style.left = (v.x + 1) / 2 * innerWidth + 'px'; bub.style.top = (-v.y + 1) / 2 * innerHeight + 'px'; } else bub.style.display = 'none'; }
+  else bub.style.display = 'none';
+  if (ready && !SILK.toldReady) { SILK.toldReady = true; addSystemLine('Your silkworms have spun their cocoons. They are ready to collect at the hutch.'); }
+  if (!ready) SILK.toldReady = false;
+}
+function hutchClick(){
+  const H = SILK.hutch, here = SILK.HUT, spot = new THREE.Vector3(here.x - 2, 0, here.z);
+  if (hutchReady()) {
+    walkStart(spot, () => {
+      if (!hutchReady()) return;
+      if (!addItem('Silk cocoon', H.n, COCOON_ICON)) { showToast('Your bag is full.'); return; }
+      const n = H.n; SILK.hutch = { n: 0, t: 0 }; addXp('Crafting', 4 * n); silkSound('collect'); heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
+      showToast(`You gather ${n} silk cocoon${n > 1 ? 's' : ''} from the trays.  +${4 * n} Crafting XP`); saveNow(false); });
+    return;
+  }
+  if (H.n > 0) { const left = Math.ceil((HUTCH_MS - (Date.now() - H.t)) / 1000); showToast(`The silkworms are munching through ${H.n} mulberry leaves. Their cocoons will be ready in about ${left} seconds.`); return; }
+  if (!hasItem('Mulberry leaves')) { showToast('A hutch full of hungry silkworms. Feed them mulberry leaves and they will spin silk cocoons.'); return; }
+  walkStart(spot, () => {
+    const n = Math.min(HUTCH_MAX, countOf('Mulberry leaves')); if (!n || SILK.hutch.n) return;
+    for (let i = 0; i < n; i++) removeItem('Mulberry leaves');
+    SILK.hutch = { n, t: Date.now() }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
+    setAct({ k: 'hutch', t: Date.now() }); setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'hutch') setAct(null); }, 1400);
+    silkSound('feed'); showToast(`You spread ${n} mulberry leaves over the trays. The silkworms set to work.`); saveNow(false);
+  });
+}
+// spinning: a bar fills for each cocoon while the wheel turns and the thread winds onto the bobbin
+let spinning = null;
+function wheelClick(){
+  if (!hasItem('Silk cocoon')) { showToast('A spinning wheel. Spin silk cocoons into thread here.'); return; }
+  if (spinning) return;
+  const W = SILK.WHEEL;
+  walkStart(new THREE.Vector3(W.x, 0, W.z + 1.7), () => {   /* sat on the stool, facing the wheel */
+    if (!hasItem('Silk cocoon')) return;
+    spinning = { t0: performance.now(), last: 0 }; setAct({ k: 'spin', t: Date.now() });
+    document.getElementById('smeltLabel').textContent = 'Spinning silk...'; document.getElementById('smeltBar').style.display = 'block';
+    silkSound('spin');
+  });
+}
+function stopSpinning(){ if (!spinning) return; spinning = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'spin') setAct(null); }
+function updateSpinning(){
+  if (!SILK.built) return;
+  const now = performance.now();
+  SILK.spin = (SILK.spin || 0) + (spinning ? 0.12 : 0) ; SILK.wheel.rotation.z = -SILK.spin; SILK.flyer.rotation.x = SILK.spin * 3.2;   // the flyer turns much faster than the big wheel
+  SILK.treadle.rotation.z = spinning ? Math.sin(SILK.spin * 1.0) * 0.25 : 0;   // your foot working the treadle
+  if (!spinning || !hero) return;
+  const W = SILK.WHEEL;
+  if (walkTarget || Math.hypot(hero.position.x - W.x, hero.position.z - W.z - 1.7) > 2.5) { stopSpinning(); return; }
+  const k = (now - spinning.t0) / SPIN_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  SILK.bobbin.scale.set(1, 1 + 0.6 * Math.min(1, k), 1 + 0.6 * Math.min(1, k));   // thread building up on the bobbin
+  heroAnim.yaw = yawTo(hero.position.x, hero.position.z, W.x, W.z); heroAnim.mode = 'work';
+  if (k < 1) return;
+  if (!hasItem('Silk cocoon')) { stopSpinning(); return; }
+  removeItem('Silk cocoon'); addItem('Silk thread', 1, THREAD_ICON); addXp('Crafting', 12); silkSound('done');
+  showToast(`You spin the cocoon into a fine silk thread (${countOf('Silk thread')}).  +12 Crafting XP`); SILK.bobbin.scale.set(1, 1, 1);
+  if (!hasItem('Silk cocoon')) { stopSpinning(); saveNow(false); return; }
+  spinning.t0 = performance.now(); setAct({ k: 'spin', t: Date.now() }); silkSound('spin');
+}
+function silkSound(kind){ sfx((ctx, t, out) => {
+  if (kind === 'feed') { for (let i = 0; i < 6; i++) nz(ctx, out, t + i * 0.09, 0.12, 'bandpass', 2200 + i * 150, 1800, 1.2, 0.25, 0.01, 0.1); }   // a rustle of leaves
+  if (kind === 'collect') { for (let i = 0; i < 4; i++) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(700 + i * 120, t + i * 0.1); o.frequency.exponentialRampToValueAtTime(1100 + i * 120, t + i * 0.1 + 0.08);
+    g.gain.setValueAtTime(0.0001, t + i * 0.1); g.gain.linearRampToValueAtTime(0.18, t + i * 0.1 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.1 + 0.15); o.connect(g); g.connect(out); o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.2); } }   // soft pops as the cocoons come free
+  if (kind === 'spin') {   // the wheel's whirr, rising and falling with each push of the treadle, and the creak of the treadle
+    for (let i = 0; i < 4; i++) { nz(ctx, out, t + i * 0.62, 0.62, 'bandpass', 500, 900, 2.5, 0.16, 0.2, 0.4); nz(ctx, out, t + i * 0.62, 0.06, 'lowpass', 400, 250, 1, 0.22, 0.004, 0.05); }
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(110, t); o.frequency.linearRampToValueAtTime(150, t + 1.2); o.frequency.linearRampToValueAtTime(130, t + 2.5);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + 0.3); g.gain.setValueAtTime(0.05, t + 2.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.55); o.connect(g); g.connect(out); o.start(t); o.stop(t + 2.6); }
+  if (kind === 'done') { nz(ctx, out, t, 0.12, 'highpass', 3000, 4000, 1, 0.2, 0.005, 0.1); }   // the thread snapped off the bobbin
+}); }
+function craftSound(){ sfx((c, t, out) => { for (let i = 0; i < 3; i++) nz(c, out, t + i * 0.18, 0.16, 'bandpass', 1400 + i * 300, 1000, 1.4, 0.3, 0.02, 0.13); }); }   // cloth being wrapped and tied
+
+// ===== bandages: kneel and bind the wound; a bar fills, green sparkles swirl and red pluses rise over whoever is healed =====
+const BANDAGE_MS = 3200, BANDAGE_HEAL = 12;
+let bandaging = null;
+function startBandage(it){
+  if (bandaging) return;
+  if (HP.cur >= maxHp()) { showToast('You are not hurt.'); return; }
+  walkTarget = null; walkQueue = []; cancelChop(); stopSpinning(); stopMilling();
+  bandaging = { t0: performance.now(), item: it, target: hero, lastPlus: 0 };   /* the target is you for now; in a party delve it can be an ally */
+  if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + BANDAGE_MS + 300);
+  setAct({ k: 'heal', t: Date.now() });
+  document.getElementById('smeltLabel').textContent = 'Applying bandage...'; document.getElementById('smeltBar').style.display = 'block';
+  craftSound();
+}
+function stopBandage(msg){ if (!bandaging) return; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null); if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (msg) showToast(msg); }
+function updateBandage(){
+  const now = performance.now();
+  updateHealFx(now);
+  if (!bandaging || !hero) return;
+  if (walkTarget) { stopBandage('You stop bandaging.'); return; }
+  const k = (now - bandaging.t0) / BANDAGE_MS;
+  document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
+  if (!FIGHT) heroAnim.mode = 'work';
+  healFx(bandaging.target);
+  if (now - bandaging.lastPlus > 380) { bandaging.lastPlus = now; healPlus(bandaging.target); }
+  if (k < 1) return;
+  const it = bandaging.item; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null);
+  if (!removeItem('Bandage', it)) { if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); return; }
+  const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
+  if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now() } : null);
+  hitsplat(hero, HP.cur - before, 'heal'); silkSound('collect');
+  showToast(`The aloe soothes the wound and the silk holds it closed. (+${HP.cur - before} health)`);
+}
+// the healing sparkles: one small cloud of green points, reused, swirling up round the one being healed
+let healCloud = null;
+function healFx(target){
+  if (!healCloud) { const n = 40, pos = new Float32Array(n * 3); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const cv = document.createElement('canvas'); cv.width = cv.height = 32; const cx = cv.getContext('2d'), gr = cx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,.85)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); cx.fillStyle = gr; cx.fillRect(0, 0, 32, 32);   /* a soft round glow, not a square */
+    healCloud = new THREE.Points(g, new THREE.PointsMaterial({ map: new THREE.CanvasTexture(cv), color: 0x2aff4a, size: 0.42, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending })); healCloud.visible = false; healCloud.frustumCulled = false; scene.add(healCloud);
+    healCloud.userData.seed = Array.from({ length: n }, () => [Math.random() * 6.28, Math.random(), 0.5 + Math.random() * 0.6]); }
+  healCloud.userData.target = target; healCloud.visible = !!target;
+}
+function updateHealFx(now){
+  if (!healCloud || !healCloud.visible) return; const tg = healCloud.userData.target; if (!tg) return;
+  const a = healCloud.geometry.attributes.position, t = now / 1000;
+  healCloud.userData.seed.forEach(([ph, h0, r], i) => { const h = (h0 + t * 0.45) % 1, ang = ph + t * 2.2;
+    a.setXYZ(i, tg.position.x + Math.cos(ang) * r * (1 - h * 0.4), 0.3 + h * 3.2, tg.position.z + Math.sin(ang) * r * (1 - h * 0.4)); });
+  a.needsUpdate = true; healCloud.material.opacity = 0.8 + 0.2 * Math.sin(t * 8);
+}
+function healPlus(target){
+  const el = document.createElement('div'); el.className = 'healPlus'; el.textContent = '+';
+  el.style.marginLeft = (Math.random() * 60 - 30) + 'px'; document.body.appendChild(el);
+  SPLATS.push({ el, obj: target, t0: performance.now(), y: 2.4 + Math.random() * 0.6 });
 }
 function troughClick(x, z){
   if (!hasTool('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
@@ -5419,6 +5649,7 @@ function updateMilling(){
   milling.t0 = performance.now(); setAct({ k: 'mill', t: Date.now() });
 }
 // flour and a splash of water from the can make bread dough
+CRAFTS['Silk thread'] = CRAFTS['Aloe leaf'] = [{ label: 'Make a bandage', make: 'Bandage', skill: 'Crafting', level: 1, xp: 20, needs: { 'Silk thread': 1, 'Aloe leaf': 1 }, msg: 'You wrap aloe leaf in a strip of silk and make a soothing bandage.' }];
 CRAFTS['Flour'] = [{ label: 'Make bread dough', make: 'Bread dough', skill: 'Cooking', level: 1, xp: 10, needs: { Flour: 1 }, water: 1 }];
 function farmSound(kind){ sfx((ctx, t, out) => {
   if (kind === 'till') { nz(ctx, out, t, 0.25, 'lowpass', 600, 300, 0.8, 0.6, 0.01, 0.2); nz(ctx, out, t + 0.5, 0.25, 'lowpass', 600, 300, 0.8, 0.5, 0.01, 0.2); }
