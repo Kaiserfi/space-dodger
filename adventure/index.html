@@ -2969,7 +2969,7 @@ const AXE_NAME = "Bronze axe";
 const PICK_NAME = 'Bronze pickaxe';
 const ORE_NAME = 'Copper ore';
 // food doesn't stack: every piece takes its own slot, so the bag limits how much you can carry into a fight
-const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Burnt shrimp', 'Raw chicken', 'Cooked chicken', 'Burnt chicken', 'Raw beef', 'Cooked beef', 'Burnt beef', 'Bread dough', 'Bread', 'Burnt bread', "Brenna's bread"]);
+const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Raw chicken', 'Cooked chicken', 'Raw beef', 'Cooked beef', 'Bread dough', 'Bread', "Brenna's bread"]);   /* burnt food can't be eaten, so it stacks */
 const roomForOne = name => bag.length < BAG_SIZE || (!SINGLE.has(name) && hasItem(name));
 function addItem(name, qty = 1, icon = '') {
   if (name === 'Coins') { COINS += qty; renderBag(); return true; }
@@ -4700,6 +4700,7 @@ function applySave(d){
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
       if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
+    for (const b of bag.slice()) { const first = bag.find(x => x.name === b.name); if (first !== b && !SINGLE.has(b.name)) { first.qty += b.qty; bag.splice(bag.indexOf(b), 1); } }   /* burnt food saved one to a slot joins back into one stack */
     for (const b of bag.slice()) while (SINGLE.has(b.name) && b.qty > 1 && bag.length < BAG_SIZE) { b.qty--; bag.push({ name: b.name, qty: 1, icon: b.icon, slot: freeSlot() }); }   // food from before it stopped stacking: spread into free slots (any left over stays together)
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
