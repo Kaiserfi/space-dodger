@@ -4380,7 +4380,7 @@ const clamp01 = v => Math.max(0, Math.min(1, v));
 const smooth = v => v * v * (3 - 2 * v);
 const segK = (t, a, b) => clamp01((t - a) / (b - a));
 function evActive(){ const d = EV.data; return !!(d && d.start && !d.done && evNow() - d.start < 75 * 60000 && evNow() >= d.start - 5000); }
-function evPhase(){ const d = EV.data; if (!evActive()) return 'none'; const st = d.raid && d.raid.st || 'calm';
+function evPhase(){ const d = EV.data; if (!evActive()) return 'none'; if (d.casual) return 'casual'; const st = d.raid && d.raid.st || 'calm';
   if (st === 'calm' && evNow() >= d.raidAt) return 'creep'; return st; }
 function fuelNow(){
   const d = EV.data; if (!evActive() || !d.fuel) return 0;
@@ -4425,7 +4425,7 @@ async function isEventPhrase(text){
 async function startBonfireNight(){
   if (!ONLINE.ready) return;
   try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();
-    if (cur && cur.start && !cur.done && Date.now() - cur.start < 75 * 60000) { showToast('The bonfire night is already under way.'); return; } } catch (e) { return; }
+    if (cur && cur.start && !cur.done && !cur.casual && Date.now() - cur.start < 75 * 60000) { showToast('The bonfire night is already under way.'); return; } } catch (e) { return; }
   const now = Date.now();
   const ev = { start: now, raidAt: now + 7 * 60000,   // the goblins come seven minutes in
     host: ONLINE.id, fuel: { f: 0.85, at: now + 13000, r: FUEL_RATE }, raid: { st: 'calm' } };
@@ -4573,7 +4573,7 @@ const evSound = (name, x = BF.x, z = BF.z) => { const v = clamp01(1 - evDist(x, 
 
 // ----- sitting: click a bench, walk round behind it, sit; any other click stands you up -----
 function seatTaken(idx){
-  if (VILLAGER_SEATS.has(idx) && evActive()) return true;
+  if (VILLAGER_SEATS.has(idx) && evActive() && !EV.data.casual) return true;
   for (const id in remote) if (remote[id].st === idx) return true;
   return false;
 }
@@ -4610,7 +4610,8 @@ function seatRemote(r){
 let tossLog = null;
 async function bonfireClick(){
   const ph = evPhase(), f = fuelNow();
-  if (ph === 'none' || f <= 0.02) { showToast('A ring of stones with cold ash in it.'); return; }
+  if (ph === 'none' || (ph === 'casual' && f <= 0.02)) { lightCasualFire(); return; }
+  if (f <= 0.02) { showToast('A ring of stones with cold ash in it.'); return; }
   if (ph === 'over' || ph === 'done') { showToast("The fire's burning down for the night now."); return; }
   if (!hasItem('Logs')) { showToast('You need some logs to put on the fire. The trees by the hall will do.'); return; }
   if (f > 0.97) { showToast("The fire's roaring already. Save your logs for later."); return; }
@@ -4626,6 +4627,26 @@ async function bonfireClick(){
     await addFuel(LOG_FUEL);
     setTimeout(() => evSound('land'), 600);
     if (EV.warn > 0) { const b = npcSp('Bram'); if (b) evSay(b, "Ha! Nice one! That's more like it."); EV.warn = 0; }
+  });
+}
+// outside the bonfire night, anyone can light the pit after dark for some light and a place to sit: no villagers, no raid
+function isDark(){ const h = hourNow(); return h >= 19.3 || h < 6.2; }
+function lightCasualFire(){
+  if (!isDark()) { showToast("It's too bright out to need a fire. Come back after sunset."); return; }
+  if (!hasItem('Logs')) { showToast('A ring of stones with cold ash in it. You need some logs to light a fire.'); return; }
+  if (EV.seat >= 0) { showToast("You'll need to get up off the bench to reach the fire."); return; }
+  const dx = hero.position.x - BF.x, dz = hero.position.z - BF.z, L = Math.hypot(dx, dz) || 1;
+  walkStart(new THREE.Vector3(BF.x + dx / L * 3, 0, BF.z + dz / L * 3), async () => {
+    if (!hasItem('Logs')) return;
+    try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();   // never step on a real event, or a fire someone just lit
+      if (cur && cur.start && !cur.done && Date.now() - cur.start < 75 * 60000 && (!cur.casual || fuelNow() > 0.02)) { bonfireClick(); return; } } catch (e) { return; }
+    removeItem('Logs');
+    heroAnim.yaw = yawTo(hero.position.x, hero.position.z, BF.x, BF.z);
+    tossLog = { t0: performance.now(), from: hero.position.clone().add(new THREE.Vector3(0, 1.6, 0)) };
+    const now = Date.now();
+    try { await fetch(`${DB}/adventure/event.json`, { method: 'PUT', body: JSON.stringify({ start: now - 13000, casual: 1, by: ONLINE.name, fuel: { f: LOG_FUEL + 0.1, at: now, r: FUEL_RATE }, raid: { st: 'calm' } }) }); } catch (e) {}
+    setTimeout(() => evSound('catch'), 500);
+    addXp('Firemaking', 25); showToast('You set the log in the pit and get a fire going.  +25 Firemaking XP'); saveNow(false);
   });
 }
 // add to the shared fire without losing anyone else's log: read it, add, and write it back only if nobody changed it meanwhile
@@ -4863,6 +4884,13 @@ function updateBonfire(){
     evWasActive = false; updateRaiders(); return;
   }
   const d = EV.data, t = evT(), ph = evPhase(), st = (d.raid && d.raid.st) || 'calm';
+  if (EV.curStart !== d.start) { EV.curStart = d.start; evWasActive = false; }   // a new fire (say, the night proper starting over a casual one)
+  if (d.casual) {
+    if (!evWasActive) { evWasActive = true; if (Date.now() - d.start < 30000) addSystemLine(`${d.by || 'Someone'} has lit the bonfire in the oak grove.`); }
+    if (fuelNow() <= 0 && Date.now() - d.start > 20000 && !d.done) { d.done = true; evPatch({ done: true }); }   // burnt out: whoever notices first says so
+    casualVisitors(t);
+    return;
+  }
   if (!evWasActive) { evWasActive = true; EV.said = {}; EV.warn = 0; EV.joinT = t; EV.deadNow = false; raidSys = '';
     if (t < 60) addSystemLine('Aldric is lighting a bonfire in the oak grove, south-west of the hall. Come and warm yourselves!');
     else addSystemLine('A bonfire is burning in the oak grove, south-west of the hall.'); }
@@ -4943,6 +4971,35 @@ function updateNightNpcs(t, ph, st){
   if (st === 'calm' && ph === 'calm' && t > 22) {
     const slot = Math.floor((t - 22) / 30), conv = CONVOS[Math.min(slot, CONVOS.length - 1)], into = (t - 22) - slot * 30;
     if (slot < CONVOS.length) conv.forEach(([who, text], i) => { const key = slot + ':' + i; if (into > i * 3.2 && into < i * 3.2 + 1 && !EV.said[key]) { EV.said[key] = 1; evSay(npcSp(who), text); } });
+  }
+}
+// while a fire someone lit stays going, a villager or two wanders over now and then, sits a while, and heads home.
+// Who comes and when is worked out from when the fire was lit, so everyone sees the same visitors.
+const VISIT = {
+  Lyra: ["Ooh, a fire! Mind if I warm my hands for a bit?", "Nothing beats a fire on a cold night. I might write a song about this one."],
+  Fenwick: ["Is this seat taken? My old bones could use the warmth.", "Reminds me of the nights we fished till dawn. Lovely."],
+  Bram: ["Saw the glow from the farm. Thought I'd come and see who's about.", "The cows are tucked in. Time for a proper sit down."],
+  Hilde: ["Lovely fire. Bram's snoring, so I came out here for some peace.", "Don't let it go out, dears. It's ever so cosy."],
+  Pip: ["A fire! Can I sit with you? Mum said I can stay for a bit.", "Look, the sparks are going all the way up to the stars!"],
+};
+function casualVisitors(t){
+  const now = performance.now() / 1000, burning = fuelNow() > 0.05, want = {};
+  if (burning) for (let k = 0; k < 2; k++) {   // two overlapping visits: one every three minutes from a minute in, the second half a cycle later
+    const tt = t - 60 - k * 90; if (tt < 0) continue;
+    const slot = Math.floor(tt / 180), into = tt - slot * 180; if (into > 150) continue;
+    const g = GUESTS[(slot * 2 + k + Math.floor(EV.data.start / 1000)) % GUESTS.length];
+    if (!want[g.name]) want[g.name] = { g, at: t - into, into };
+  }
+  for (const name in EV.npcs) if (!want[name]) { const n = EV.npcs[name]; if (n.casual && !n.bye) { n.bye = 1; evSay(n.sp, "Right, that's me off to bed. Night, all!"); } goHome(n, t); }
+  for (const name in want) {
+    const { g, into } = want[name], seat = BF.seats[g.seat];
+    if (!EV.npcs[name] && into > 140) continue;   // too late in their visit to bother coming now
+    const n = borrowNpc(name); if (!n) continue; n.casual = 1;
+    if (!n.path || n.path.tag !== 'seat') { npcRoute(n, [seat.ax, seat.az], t, g.run ? 7 : 4.5); n.path.tag = 'seat'; n.bye = 0; n.said2 = 0; n.satT = 0; evSay(n.sp, VISIT[name][0]); }
+    if (!followRoute(n, t)) continue;
+    if (!n.satT) { n.satT = now; evSound('sit', seat.x, seat.z); }
+    sitPoseAt(n.sp, seat, now, name.length, g.child); n.sp.position.y = 0.3 * smooth(clamp01((now - n.satT) / 0.45));
+    if (into > 70 && !n.said2) { n.said2 = 1; evSay(n.sp, VISIT[name][1]); }
   }
 }
 function kneelFrame(n, t){
