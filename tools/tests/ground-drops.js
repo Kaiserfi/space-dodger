@@ -28,6 +28,10 @@ const HOOK = `window.__t = {
   console.log('A bag', await A.evaluate(() => window.__t.bag()), '| A ground', JSON.stringify(await A.evaluate(() => window.__t.ground())));
   console.log('B ground (private)', JSON.stringify(await B.evaluate(() => window.__t.ground())));
   console.log('db', JSON.stringify(db.get('adventure/live/ground')));
+  if (process.argv[2] === 'time') { const t0 = Date.now();   // wait for real
+    await B.waitForFunction(() => window.__t.ground().some(g => !g.includes('hidden')), null, { timeout: 200000, polling: 250 }).catch(() => console.log('never appeared'));
+    console.log('appeared for Ben after', ((Date.now() - t0) / 1000 + 5).toFixed(1), 's from the kill;', JSON.stringify(await B.evaluate(() => window.__t.ground())));
+    await b.close(); process.exit(0); }
   const g = db.get('adventure/live/ground'); for (const k in g) db.set(`adventure/live/ground/${k}/pub`, Date.now() - 1000);   // a minute later
   await B.waitForTimeout(4000); console.log('B ground (public)', JSON.stringify(await B.evaluate(() => window.__t.ground())));
   await Promise.all([A.evaluate(() => window.__t.take(0)), B.evaluate(() => window.__t.take(0))]); await B.waitForTimeout(4000);
