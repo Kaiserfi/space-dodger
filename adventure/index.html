@@ -192,7 +192,7 @@
   <div class="bagFoot" id="bagFoot"></div>
 </div>
 <div id="shopPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Mara's shop</span><button id="shopClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span id="shopTitle">Mara's shop</span><button id="shopClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
   <div id="shopList" style="padding:6px 10px;max-height:62vh;overflow-y:auto;"></div>
 </div>
 <div id="setPanel" hidden>
@@ -1570,8 +1570,14 @@ document.getElementById('bagGrid').addEventListener('click', e => {
 
 // ----- Mara's shop: tools for coins -----
 const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 },
-  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }, { name: 'Wheat seeds', price: 3, qty: 5 }, { name: 'Aloe seeds', price: 4, qty: 5 }, { name: 'Mulberry seeds', price: 6, qty: 5 }];   // seeds come five to a packet
-function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
+  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }];
+/* Tilly's farmers' market: seeds and farm tools to buy, and she buys what the farm grows and makes */
+const MARKET_BUY = [{ name: 'Wheat seeds', price: 3, qty: 5 }, { name: 'Aloe seeds', price: 4, qty: 5 }, { name: 'Mulberry seeds', price: 6, qty: 5 }, { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }];   // seeds come five to a packet
+const FARM_GOODS = new Set(['Wheat', 'Flour', 'Bread dough', 'Bread', 'Aloe leaf', 'Mulberry leaves', 'Silk cocoon', 'Silk thread', 'Bandage', 'Feathers', 'Raw chicken', 'Raw beef', 'Cooked chicken', 'Cooked beef']);
+const SHOPS = { mara: { title: "Mara's shop", who: 'Mara', buy: SHOP, buys: n => !FARM_GOODS.has(n), hint: 'Bring me logs, ores, bars or your bronze gear.' },
+  market: { title: "Tilly's market stall", who: 'Tilly', buy: MARKET_BUY, buys: n => FARM_GOODS.has(n), hint: 'Bring me wheat, flour, leaves, silk, meat or feathers.' } };
+let CUR_SHOP = SHOPS.mara;
+function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const SELL = { 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
@@ -1582,16 +1588,17 @@ function demandNow(name){ const d = DEMAND[name]; return d ? Math.max(0, d.n - M
 function sellPrice(name, extra = 0){ const f = Math.max(0.4, 1 - 0.05 * (demandNow(name) + extra)); return Math.max(1, Math.round(SELL[name] * f)); }
 function sellQuote(name, n){ let t = 0; for (let i = 0; i < n; i++) t += sellPrice(name, i); return t; }   // each unit in a big sale pays a little less
 function renderShop(){
-  const buyRows = SHOP.map((it, i) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ICON_FOR[it.name]}
+  const S = CUR_SHOP;
+  const buyRows = S.buy.map((it, i) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ICON_FOR[it.name]}
     <span style="flex:1">${it.name}${it.qty ? ' (' + it.qty + ')' : ''}<br><small style="color:#c9b27a">${it.price} coins</small></span>
     <button data-s="${i}" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 10px;cursor:pointer">Buy</button></div>`).join('');
-  const sellRows = Object.keys(SELL).filter(n => countOf(n) > 0).map(n => `<div style="display:flex;align-items:center;gap:6px;padding:5px 0">${ICON_FOR[n]}
+  const sellRows = Object.keys(SELL).filter(n => countOf(n) > 0 && S.buys(n)).map(n => `<div style="display:flex;align-items:center;gap:6px;padding:5px 0">${ICON_FOR[n]}
     <span style="flex:1">${n}<br><small style="color:#c9b27a">x${countOf(n)} &middot; ${sellPrice(n)} each now <span style="opacity:.7">(base ${SELL[n]})</span></small></span>
     <button data-sell="${n}|1" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 8px;cursor:pointer">Sell 1</button>
     <button data-sell="${n}|all" style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 8px;cursor:pointer">All</button></div>`).join('')
-    || '<div style="color:#c9b27a;padding:5px 0">Bring me logs, ores, bars or your bronze gear.</div>';
+    || `<div style="color:#c9b27a;padding:5px 0">${S.hint}</div>`;
   document.getElementById('shopList').innerHTML = `<div style="color:#f0c35a;margin-top:2px">Buy</div>${buyRows}
-    <div style="color:#f0c35a;margin-top:10px">Sell to Mara</div>${sellRows}
+    <div style="color:#f0c35a;margin-top:10px">Sell to ${S.who}</div>${sellRows}
     <div style="margin-top:8px;color:#c9b27a">You have ${coinCount()} coins.</div>`;
 }
 // sell some of an item to Mara for coins
@@ -1617,7 +1624,7 @@ function buyItem(it){
 }
 document.getElementById('shopClose').addEventListener('click', () => { document.getElementById('shopPanel').hidden = true; });
 document.getElementById('shopList').addEventListener('click', e => {
-  const b = e.target.closest('button[data-s]'); if (b) buyItem(SHOP[+b.dataset.s]);
+  const b = e.target.closest('button[data-s]'); if (b) buyItem(CUR_SHOP.buy[+b.dataset.s]);
   const sb = e.target.closest('button[data-sell]');
   if (sb) { const [name, mode] = sb.dataset.sell.split('|'); sellItem(name, mode === 'all'); }
 });
@@ -1907,7 +1914,7 @@ function openDialog(npc){
     }
     script = [{ me: GREETINGS[Math.floor(Math.random() * GREETINGS.length)] }, ...lines];
     if (npc.asks) script.push({ opts: [...npc.asks.map(a => [a.q, [{ me: a.q }, ...a.a.map(l => typeof l === 'function' ? l() : l)]]), ['Never mind.', []]] });
-    if (npc.choice) script.push(npc.choice.question, { opts: [['Sure, show me.', [{ run: () => { endDialog(); openShop(); } }]], ['Not right now, thanks.', ["Suit yourself. You know where I am."]]] });
+    if (npc.choice) script.push(npc.choice.question, { opts: [['Sure, show me.', [{ run: () => { endDialog(); openShop(npc); } }]], ['Not right now, thanks.', ["Suit yourself. You know where I am."]]] });
   }
   dlg = npc; dlgQ = script.slice(); dlgTalkT = performance.now();
   setAct({ k: 'talk', n: npc.name, t: Date.now() });   // others see who you are talking to, so the NPC can face whoever spoke last
@@ -3127,6 +3134,20 @@ const TOWNSFOLK = [
       ["Aldric says one day I'll be as good as him. He also says that to Pip."],
       ["If you see anything suspicious, shout. Loudly. I'm still getting used to the helmet."] ],
     barks: ["Halt! Oh, sorry, I thought you were someone else. Carry on.", "It gets ever so warm standing this close to the forge.", "The quarry's just down that path, if you're after ore."] },
+  { name: 'Tilly', title: 'the market keeper', x: 110, z: 2.9, rad: 0.5, s: 1.5, hat: 'straw', shop: 'market',
+    look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xe0c070, shirt: 0x8ab060, pants: 0x6a4a30 },
+    talks: [
+      ["Fresh from the fields! Well, fresh-ish. Fresh this morning, anyway.", "I'm Tilly, Hilde's little sister. She runs the farm, I run the market. Somebody has to sell all those turnips.", "Seeds, tools, and I'll buy anything that grows or gets spun round here."],
+      ["Hilde says I talk too much. Hilde says that to everyone, so I don't take it personally."],
+      ["Bram tried to sell me a cabbage he'd named. I couldn't do it. It's on my windowsill now. Its name is Gerald."],
+      ["Pip helps on market days. By helps, I mean he eats the mulberries and tells customers they're poisonous so he can have the rest."],
+      ["Those silkworms in the workshop eat like Bram at a harvest supper. Keep 'em in mulberry leaves and they'll keep you in silk."],
+      ["Aloe's the clever one. Silk and a bit of aloe leaf, and you've a bandage that'll mend near anything."] ],
+    asks: [
+      { q: 'What can I grow?', a: ['Wheat for anyone. Aloe once you know your way round a patch, Farming 3. Mulberry bushes are fussier, Farming 5.', "I sell the seeds. Plant 'em, water 'em, talk to 'em if you're Bram."] },
+      { q: 'How do I make silk?', a: ["Feed mulberry leaves to the silkworms in the workshop, just west of here. Give 'em a minute or two and they'll spin you cocoons.", "Then spin the cocoons into thread on the wheel in there. Lovely stuff. I'll buy it off you, or you can make bandages with aloe."] } ],
+    barks: ["Seeds! Fresh seeds! Wheat, aloe and mulberry!", "Selling your harvest? I pay fair, mostly!", "Silk thread wanted, good prices paid!", "Fresh from the fields, come and have a look!"],
+    choice: { question: 'Fancy a look at my stall?' } },
   { name: 'Ezra', title: 'the old farmer', x: 75.5, z: 70, rad: 0.6, hat: 'straw',
     look: { gender: 'male', skin: 0xd8a878, hair: 'short', hairCol: 0xc8c8c8, shirt: 0x6a5a40, pants: 0x4a4a52 },
     talks: [
@@ -3510,7 +3531,7 @@ function addWorldNpc(x, z, npc){
   const sp = makeChibi(npc.look);
   sp.position.set(x, 0, z);
   scene.add(sp);
-  const rec = { kind: 'npc', asks: npc.asks, name: npc.name, level: npc.level, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, after: npc.after, x, z, s: 0.7, state: 'standing' };
+  const rec = { kind: 'npc', asks: npc.asks, name: npc.name, level: npc.level, title: npc.title, look: npc.look, hat: npc.hat, gear: npc.gear, talks: npc.talks, barks: npc.barks, lines: npc.lines || [], choice: npc.choice, shop: npc.shop, after: npc.after, x, z, s: npc.s || 0.7, state: 'standing' };
   BARKERS.push({ sp, rec });
   Object.assign(sp.userData, { action: 'Talk', name: npc.level ? `${npc.name} (level ${npc.level})` : npc.name, rec });
   trees.push(sp);
@@ -5279,6 +5300,8 @@ function spawnFarmMonsters(){
 function farmRoads(){
   roadPath([[51, 0.6], [58, 1], [62.5, 0]]);                                                  // from the barn doors to the field gate
   roadPath([[62.5, 0], [61.5, 10.5], [80, 11], [FARMLAND.mill.x, 11], [FARMLAND.mill.x, FARMLAND.mill.z + 4.2]]);   // round the field to the windmill
+  roadPath([[FARMLAND.mill.x, 11], [99, 10.5], [104, 9.5], [110, 8.5]]);   // on east to the farmers' market
+  roadPath([[100.5, 10.3], [102, 5], [102.5, 0.4]]);   // and up to the workshop door
 }
 // how a patch looks right now, for you
 function drawPatch(i){
@@ -5385,7 +5408,7 @@ function patchClick(pt, auto){
   }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   if (p.s === 'grass') {
-    if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
+    if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Tilly sells them at the farmers\' market, and Mara has them too.'); return; }
     farmAct(pt, 1800, 'till', () => { p.s = 'tilled'; p.w = false; addXp('Farming', 5); farmSound('till'); showToast('You turn over the soil.  +5 Farming XP'); });
   } else if (p.s === 'tilled') {
     openSeedMenu(pt);
@@ -5394,7 +5417,7 @@ function patchClick(pt, auto){
     if (bag.length >= BAG_SIZE && !hasItem(cr.item)) { showToast('Your bag is full.'); return; }
     farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
-    if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Mara sells them.'); return; }
+    if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the market, and so does Mara.'); return; }
     if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
     farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the ${(CROPS[p.c] || CROPS.Wheat).say}. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
@@ -5427,15 +5450,71 @@ function openSeedMenu(pt){
     plantPatch(pt, SEEDS[+b.dataset.o]); };
 }
 
+
+// ===== the farmers' market, east of the windmill: Tilly's long counter under a striped awning, crates of what the farm grows, and a painted sign =====
+function buildMarket(){
+  const MX = 110, MZ = 4.4, add = (geo, m, x, y, z, parent) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  const g = new THREE.Group(); g.position.set(MX, 0, MZ); town.add(g);
+  const wood = texMat(woodTex(), 3, 1, 0xa07a4a), dark = mat(0x5a3a1e);
+  add(new THREE.BoxGeometry(7, 1.0, 1.1), wood, 0, 0.5, 0, g); add(new THREE.BoxGeometry(7.2, 0.08, 1.3), dark, 0, 1.04, 0, g);   // the counter
+  for (const x of [-3.4, 3.4]) for (const z of [-0.5, -2.4]) add(new THREE.BoxGeometry(0.18, 4.1, 0.18), dark, x, 2.05, z, g);   // posts for the awning, tall enough to clear Tilly's hat
+  for (let i = 0; i < 8; i++) { const a = add(new THREE.BoxGeometry(7.4 / 8 + 0.01, 0.06, 2.9), i % 2 ? 0xf4ecd8 : 0xc83a2a, -3.7 + 7.4 / 16 + i * 7.4 / 8, 4.05, -1.25, g); a.rotation.x = 0.22; }   // the striped awning
+  for (let i = 0; i < 16; i++) { const v = add(new THREE.ConeGeometry(0.24, 0.4, 3), i % 2 ? 0xf4ecd8 : 0xc83a2a, -3.48 + i * 0.465, 3.56, 0.2, g); v.rotation.set(Math.PI, 0, 0); v.scale.z = 0.2; }   // a scalloped edge
+  // crates and baskets of produce along the counter
+  const crate = (x, col, kind) => { add(new THREE.BoxGeometry(1.0, 0.36, 0.7), texMat(woodTex(), 1, 1, 0x8a6438), x, 1.26, 0.05, g);
+    for (let k = 0; k < 9; k++) { const px = x - 0.32 + (k % 3) * 0.32, pz = -0.2 + Math.floor(k / 3) * 0.22;
+      if (kind === 'wheat') { const b = add(new THREE.CylinderGeometry(0.05, 0.08, 0.6, 5), col, px, 1.6, pz, g); b.rotation.z = (k % 3 - 1) * 0.25; }
+      else if (kind === 'aloe') { const l = add(new THREE.ConeGeometry(0.07, 0.4, 4), col, px, 1.62, pz, g); l.rotation.z = (k % 3 - 1) * 0.5; }
+      else add(new THREE.SphereGeometry(kind === 'cocoon' ? 0.1 : 0.08, 7, 5), col, px, 1.5, pz, g).scale.set(1, kind === 'cocoon' ? 0.75 : 1, kind === 'cocoon' ? 1.4 : 1); } };
+  crate(-2.6, 0xe0b850, 'wheat'); crate(-1.3, 0x6aa080, 'aloe'); crate(1.3, 0x3a1030, 'berry'); crate(2.6, 0xf4f0e2, 'cocoon');
+  const sack = add(new THREE.SphereGeometry(0.42, 10, 8), 0xe8dcc0, 0, 1.45, 0, g); sack.scale.set(1, 0.8, 0.8);   // a sack of seed in the middle
+  for (const [x, z] of [[-4.3, 0.5], [4.4, 0.2], [4.2, -0.9]]) { add(new THREE.BoxGeometry(0.9, 0.8, 0.9), texMat(woodTex(), 1, 1, 0x7a5430), x, 0.4, z, g); }   // spare crates at the ends
+  add(new THREE.CylinderGeometry(0.42, 0.35, 0.8, 10), 0x8a6a40, -4.4, 0.4, -1.1, g);   // a barrel
+  // the sign, on two posts to the west of the stall, facing the road
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d');
+  c.fillStyle = '#5a3a1e'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#c9a050'; c.lineWidth = 6; c.strokeRect(5, 5, 502, 118);
+  c.fillStyle = '#f0d890'; c.font = 'bold 54px Georgia'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText("Farmers' Market", 256, 68);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const sg = new THREE.Group(); sg.position.set(MX - 6, 0, MZ + 2.6); sg.rotation.y = 0.35; town.add(sg);
+  for (const x of [-1.3, 1.3]) add(new THREE.BoxGeometry(0.14, 2.4, 0.14), dark, x, 1.2, 0, sg);
+  add(new THREE.BoxGeometry(3.0, 0.75, 0.08), new THREE.MeshStandardMaterial({ map: tex }), 0, 2.05, 0, sg);
+  // solid: the counter and the end crates; Tilly stands behind
+  solidBoxes.push({ x0: MX - 3.6, x1: MX + 3.6, z0: MZ - 0.6, z1: MZ + 0.6 }, { x0: MX - 4.8, x1: MX - 3.8, z0: MZ - 1.6, z1: MZ + 1.0 }, { x0: MX + 3.9, x1: MX + 4.9, z0: MZ - 1.4, z1: MZ + 0.7 });
+  solidAt(MX - 6, MZ + 2.6, 1.4, 0.3);
+}
 // ===== silk: a silkworm hutch that turns mulberry leaves into cocoons, and a spinning wheel that spins them into thread =====
-var SILK = { built: false, hutch: { n: 0, t: 0 }, HUT: { x: 101, z: -4.5 }, WHEEL: { x: 101, z: 4.5 } };
+var SILK = { built: false, hutch: { n: 0, t: 0 }, HUT: { x: 100.3, z: -5.6 }, WHEEL: { x: 105, z: -4.4 }, SHED: { x: 102.5, z: -4.2, hw: 4.5, hd: 3 } };
 const HUTCH_MS = 90000, HUTCH_MAX = 10, SPIN_MS = 2600;
 function buildSilkworks(){
   SILK.built = true;
   const add = (geo, m, x, y, z, parent) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
   const wood = texMat(woodTex(), 1, 1, 0x9a7448), dark = mat(0x5a3e22);
-  // the hutch: a roofed rack of three trays where the silkworms munch, on legs to keep the rats off
-  const H = SILK.HUT, hut = new THREE.Group(); hut.position.set(H.x, 0, H.z); hut.rotation.y = -Math.PI / 2; town.add(hut);
+  // the workshop: plank floor, timber walls with a wide doorway on the south side, small windows, and a pitched roof that lifts away while you're inside
+  const B = SILK.SHED, shed = new THREE.Group(); shed.position.set(B.x, 0, B.z); town.add(shed);
+  const plank = texMat(woodTex(), 3, 2, 0xb08858), wall = texMat(woodTex(), 3, 1, 0x8a6440), beam = mat(0x4a3018);
+  add(new THREE.BoxGeometry(B.hw * 2, 0.1, B.hd * 2), plank, 0, 0.05, 0, shed);
+  const Hh = 3.0, T = 0.2;
+  add(new THREE.BoxGeometry(B.hw * 2, Hh, T), wall, 0, Hh / 2, -B.hd, shed);   // back wall
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(T, Hh, B.hd * 2), wall, sx * B.hw, Hh / 2, 0, shed);   // end walls
+  const door = 3.0, side = (B.hw * 2 - door) / 2;
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(side, Hh, T), wall, sx * (door / 2 + side / 2), Hh / 2, B.hd, shed);   // front wall either side of the doorway
+  add(new THREE.BoxGeometry(door, 0.6, T), wall, 0, Hh - 0.3, B.hd, shed);   // over the doorway
+  for (const [x, z] of [[-B.hw, -B.hd], [B.hw, -B.hd], [-B.hw, B.hd], [B.hw, B.hd], [-door / 2, B.hd], [door / 2, B.hd]]) add(new THREE.BoxGeometry(0.3, Hh + 0.1, 0.3), beam, x, (Hh + 0.1) / 2, z, shed);
+  const glass = new THREE.MeshStandardMaterial({ color: 0xffd890, emissive: 0xffa040, emissiveIntensity: 0.5 }); GLOW_MATS.push(glass);
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(1.0, 0.7, 0.05), glass, sx * 2.9, 1.9, B.hd + 0.11, shed);   // little windows either side of the door
+  const roof = new THREE.Group(); roof.position.y = Hh; shed.add(roof); const roofM = texMat(woodTex(), 4, 2, 0x6a3a22);
+  for (const sz of [-1, 1]) { const r = add(new THREE.BoxGeometry(B.hw * 2 + 0.8, 0.14, B.hd + 0.6), roofM, 0, 0.75, sz * (B.hd / 2 + 0.1), roof); r.rotation.x = sz * 0.45; }
+  for (const sx of [-1, 1]) { const gab = add(new THREE.CylinderGeometry(0.01, B.hd + 0.1, 1.4, 3, 1), wall, sx * B.hw, 0.7, 0, roof); gab.rotation.y = Math.PI / 2; gab.scale.set(1, 1, 0.14); }
+  const sign = document.createElement('canvas'); sign.width = 256; sign.height = 64; const sg = sign.getContext('2d'); sg.fillStyle = '#5a3a1e'; sg.fillRect(0, 0, 256, 64); sg.strokeStyle = '#c9a050'; sg.lineWidth = 4; sg.strokeRect(3, 3, 250, 58);
+  sg.fillStyle = '#f0d890'; sg.font = 'bold 30px Georgia'; sg.textAlign = 'center'; sg.textBaseline = 'middle'; sg.fillText('Workshop', 128, 34);
+  const st = new THREE.CanvasTexture(sign); st.colorSpace = THREE.SRGBColorSpace; add(new THREE.BoxGeometry(2.0, 0.5, 0.06), new THREE.MeshStandardMaterial({ map: st }), 0, Hh - 0.3, B.hd + 0.14, shed);   /* on the board over the doorway, under the eaves */
+  SILK.roof = roof;
+  // walls are solid; the doorway is left open
+  const W0 = (x0, x1, z0, z1) => solidBoxes.push({ x0: B.x + x0, x1: B.x + x1, z0: B.z + z0, z1: B.z + z1 });
+  W0(-B.hw - 0.15, B.hw + 0.15, -B.hd - 0.15, -B.hd + 0.15); W0(-B.hw - 0.15, -B.hw + 0.15, -B.hd, B.hd); W0(B.hw - 0.15, B.hw + 0.15, -B.hd, B.hd);
+  W0(-B.hw, -door / 2, B.hd - 0.15, B.hd + 0.15); W0(door / 2, B.hw, B.hd - 0.15, B.hd + 0.15);
+  // the hutch: a roofed rack of three trays where the silkworms munch, against the back wall
+  const H = SILK.HUT, hut = new THREE.Group(); hut.position.set(H.x, 0, H.z); town.add(hut);
   for (const [x, z] of [[-1.1, -0.6], [1.1, -0.6], [-1.1, 0.6], [1.1, 0.6]]) add(new THREE.BoxGeometry(0.16, 2.4, 0.16), dark, x, 1.2, z, hut);
   const trays = [], worms = [], cocoons = [], leaves = [];
   for (let k = 0; k < 3; k++) { const y = 0.7 + k * 0.55; add(new THREE.BoxGeometry(2.3, 0.08, 1.3), wood, 0, y, 0, hut);
@@ -5443,15 +5522,15 @@ function buildSilkworks(){
     const lv = add(new THREE.BoxGeometry(2.0, 0.04, 1.0), mat(0x5a9a3a), 0, y + 0.07, 0, hut); lv.visible = false; leaves.push(lv);
     for (let i = 0; i < 4; i++) { const w = add(new THREE.CapsuleGeometry(0.035, 0.14, 2, 6), 0xf2ece0, -0.75 + i * 0.5, y + 0.12, (i % 2 ? 0.2 : -0.2), hut); w.rotation.z = Math.PI / 2; w.visible = false; worms.push(w);
       const c = add(new THREE.SphereGeometry(0.09, 8, 6), 0xf6f2e6, -0.75 + i * 0.5, y + 0.14, (i % 2 ? -0.22 : 0.22), hut); c.scale.set(1, 0.75, 1.5); c.visible = false; cocoons.push(c); } }
-  const roof = add(new THREE.BoxGeometry(2.8, 0.1, 1.9), texMat(woodTex(), 2, 1, 0x7a5434), 0, 2.45, 0, hut); roof.rotation.x = 0.12;
+  const hutRoof = add(new THREE.BoxGeometry(2.8, 0.1, 1.9), texMat(woodTex(), 2, 1, 0x7a5434), 0, 2.45, 0, hut); hutRoof.rotation.x = 0.12;
   add(new THREE.BoxGeometry(2.3, 1.7, 0.05), mat(0xd8d0b8), 0, 1.4, -0.66, hut);   // a cloth back to keep the wind off
   hut.userData = { action: 'Use', name: 'Silkworm hutch', rec: { kind: 'hutch', state: 'standing', x: H.x, z: H.z, onClick: () => hutchClick() } }; trees.push(hut);
-  solidAt(H.x, H.z, 0.9, 1.4);
+  solidAt(H.x, H.z, 1.3, 0.8);
   Object.assign(SILK, { hut, worms, cocoons, leaves });
   // the bubble that pops up over the hutch when the cocoons are ready, with a cocoon inside
   const bub = document.createElement('div'); bub.className = 'readyBubble'; bub.innerHTML = COCOON_ICON; bub.style.display = 'none'; document.body.appendChild(bub); SILK.bubble = bub;
   // the spinning wheel: a big spoked wheel on a slanted bench, a treadle and a flyer, and a stool
-  const W = SILK.WHEEL, wh = new THREE.Group(); wh.position.set(W.x, 0, W.z); wh.rotation.y = -Math.PI / 2; town.add(wh);
+  const W = SILK.WHEEL, wh = new THREE.Group(); wh.position.set(W.x, 0, W.z); wh.rotation.y = Math.PI / 2; town.add(wh);   /* side-on to the east wall, so you sit facing it */
   const bench = add(new THREE.BoxGeometry(1.9, 0.14, 0.42), wood, 0, 0.62, 0, wh); bench.rotation.z = 0.12;
   for (const [x, z] of [[-0.8, 0.15], [0.85, 0.15], [0.85, -0.15]]) { const lg = add(new THREE.CylinderGeometry(0.05, 0.06, 0.66, 6), dark, x, 0.3, z, wh); lg.rotation.x = z > 0 ? 0.2 : -0.2; }
   for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.08, 1.0, 0.08), dark, -0.35, 1.1, s * 0.12, wh);   // the uprights holding the wheel
@@ -5466,15 +5545,16 @@ function buildSilkworks(){
   add(new THREE.CylinderGeometry(0.012, 0.012, 0.95, 4).rotateZ(1.35), mat(0xf8f4ea), 0.15, 1.25, 0, wh);   // the drive band
   const treadle = new THREE.Group(); treadle.position.set(-0.2, 0.12, 0.35); wh.add(treadle);
   add(new THREE.BoxGeometry(0.5, 0.05, 0.3), wood, 0.2, 0, 0, treadle);
-  const stool = add(new THREE.CylinderGeometry(0.3, 0.32, 0.12, 10), wood, 0.2, 0.55, 1.1, wh); for (let i = 0; i < 3; i++) { const a = i * 2.1; add(new THREE.CylinderGeometry(0.03, 0.04, 0.55, 5), dark, 0.2 + Math.sin(a) * 0.2, 0.27, 1.1 + Math.cos(a) * 0.2, wh); }
+  const stool = add(new THREE.CylinderGeometry(0.3, 0.32, 0.12, 10), wood, 1.2, 0.55, 1.5, wh); for (let i = 0; i < 3; i++) { const a = i * 2.1; add(new THREE.CylinderGeometry(0.03, 0.04, 0.55, 5), dark, 1.2 + Math.sin(a) * 0.2, 0.27, 1.5 + Math.cos(a) * 0.2, wh); }   /* a spare stool, off to the side */
   wh.userData = { action: 'Spin', name: 'Spinning wheel', rec: { kind: 'wheel', state: 'standing', x: W.x, z: W.z, onClick: () => wheelClick() } }; trees.push(wh);
-  solidAt(W.x, W.z, 0.5, 1.0);
+  solidAt(W.x, W.z, 0.4, 1.0);
   Object.assign(SILK, { wheel, flyer, bobbin, treadle, wheelGroup: wh });
 }
 function hutchReady(){ return SILK.hutch.n > 0 && Date.now() - SILK.hutch.t >= HUTCH_MS; }
 function updateSilkworks(){
-  if (!SILK.built) { if (typeof town !== 'undefined' && town) buildSilkworks(); return; }
+  if (!SILK.built) { buildSilkworks(); buildMarket(); return; }   /* built on the first frame: the town is put up before this part of the script has run */
   const H = SILK.hutch, ready = hutchReady(), busy = H.n > 0 && !ready, t = performance.now() / 1000;
+  const B = SILK.SHED, inside = hero && Math.abs(hero.position.x - B.x) < B.hw + 0.5 && Math.abs(hero.position.z - B.z) < B.hd + 0.5; SILK.roof.visible = !inside;   /* see in while you're inside */
   // leaves on the trays while they're being eaten; the worms wriggle; cocoons once they're ready
   SILK.leaves.forEach((l, k) => { l.visible = busy && k < Math.ceil(H.n / 4); l.scale.x = busy ? Math.max(0.15, 1 - (Date.now() - H.t) / HUTCH_MS) : 1; });
   SILK.worms.forEach((w, i) => { w.visible = busy || H.n === 0; w.position.x = -0.75 + (i % 4) * 0.5 + Math.sin(t * 2 + i) * (busy ? 0.06 : 0.01); w.rotation.y = Math.sin(t * 3 + i * 1.7) * 0.5; });
@@ -5488,7 +5568,7 @@ function updateSilkworks(){
   if (!ready) SILK.toldReady = false;
 }
 function hutchClick(){
-  const H = SILK.hutch, here = SILK.HUT, spot = new THREE.Vector3(here.x - 2, 0, here.z);
+  const H = SILK.hutch, here = SILK.HUT, spot = new THREE.Vector3(here.x, 0, here.z + 2.1);
   if (hutchReady()) {
     walkStart(spot, () => {
       if (!hutchReady()) return;
@@ -5513,7 +5593,7 @@ function wheelClick(){
   if (!hasItem('Silk cocoon')) { showToast('A spinning wheel. Spin silk cocoons into thread here.'); return; }
   if (spinning) return;
   const W = SILK.WHEEL;
-  walkStart(new THREE.Vector3(W.x, 0, W.z + 1.7), () => {   /* sat on the stool, facing the wheel */
+  walkStart(new THREE.Vector3(W.x - 1.7, 0, W.z), () => {   /* standing at the wheel, facing it */
     if (!hasItem('Silk cocoon')) return;
     spinning = { t0: performance.now(), last: 0 }; setAct({ k: 'spin', t: Date.now() });
     document.getElementById('smeltLabel').textContent = 'Spinning silk...'; document.getElementById('smeltBar').style.display = 'block';
@@ -5528,7 +5608,7 @@ function updateSpinning(){
   SILK.treadle.rotation.z = spinning ? Math.sin(SILK.spin * 1.0) * 0.25 : 0;   // your foot working the treadle
   if (!spinning || !hero) return;
   const W = SILK.WHEEL;
-  if (walkTarget || Math.hypot(hero.position.x - W.x, hero.position.z - W.z - 1.7) > 2.5) { stopSpinning(); return; }
+  if (walkTarget || Math.hypot(hero.position.x - W.x + 1.7, hero.position.z - W.z) > 2.5) { stopSpinning(); return; }
   const k = (now - spinning.t0) / SPIN_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   SILK.bobbin.scale.set(1, 1 + 0.6 * Math.min(1, k), 1 + 0.6 * Math.min(1, k));   // thread building up on the bobbin
