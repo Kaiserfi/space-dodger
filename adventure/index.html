@@ -3868,11 +3868,15 @@ function startFight(rec){
   if (FIGHT && FIGHT.m === rec) return;
   if (FIGHT) endFight();
   // walk up to it, then lock in: you and it face each other and stay put until one of you falls or you run
-  const dx = hero.position.x - rec.x, dz = hero.position.z - rec.z, L = Math.hypot(dx, dz) || 1;
-  const spot = new THREE.Vector3(rec.x + dx / L * 2.1, 0, rec.z + dz / L * 2.1);
-  rec.state = 'engaged';
+  // the nearest free side of it, so a rat by a fence or a dead tree can still be reached
+  const base = Math.atan2(hero.position.x - rec.x, hero.position.z - rec.z);
+  let spot = null;
+  for (let i = 0; i < 8 && !spot; i++) { const a = base + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * Math.PI / 4, x = rec.x + Math.sin(a) * 2.1, z = rec.z + Math.cos(a) * 2.1; if (!blocked(x, z)) spot = new THREE.Vector3(x, 0, z); }
+  if (!spot) spot = new THREE.Vector3(rec.x + Math.sin(base) * 2.1, 0, rec.z + Math.cos(base) * 2.1);
+  if (Math.hypot(hero.position.x - rec.x, hero.position.z - rec.z) < 3) spot = hero.position.clone();   // already beside it
+  rec.state = 'engaged'; rec.engagedAt = performance.now();
   walkStart(spot, () => {
-    if (rec.state !== 'engaged') return;
+    if (rec.state !== 'engaged' || Math.hypot(hero.position.x - rec.x, hero.position.z - rec.z) > 3.5) { if (rec.state === 'engaged') rec.state = 'standing'; return; }
     FIGHT = { m: rec, nextP: performance.now() + 300, nextM: performance.now() + 1500, pAnim: null, mAnim: null };
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, rec.x, rec.z);
     rec.g.rotation.y = yawTo(rec.x, rec.z, hero.position.x, hero.position.z);
@@ -3974,7 +3978,8 @@ function updateFight(){
             w.pause = 120 + Math.random() * 200; }
           else { const st = Math.min(d, 0.022); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); } }
         m.x = m.g.position.x; m.z = m.g.position.z;
-      } else if (m.state === 'engaged') { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
+      } else if (m.state === 'engaged' && !walkTarget && now - (m.engagedAt || 0) > 1500) { m.state = 'standing'; }   // you never reached it (or walked off): it goes back to its business
+      else if (m.state === 'engaged') { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); }
       if (c) c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
     }
     // the health bar shows while it is hurt or fighting
