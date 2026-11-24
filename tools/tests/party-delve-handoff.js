@@ -12,6 +12,10 @@ const HOOK = `window.__t = {
   smite: () => { for (const m of DELVE.mons) if (m.state !== 'dying' && m.state !== 'dead') { if (m.ghost) partyHit(m, 50); else { m.hp = 0; m.state = 'dying'; m.dieT = performance.now(); } } },
   fx: () => JSON.stringify(fxSeen),
   attack: () => { const m = DELVE.mons.find(q => q.state === 'standing' || q.state === 'engaged'); if (m && !FIGHT) startFight(m); return !!m; },
+  rule: () => [topThreat({ tg: 'a', dmgBy: { b: 2 } }, ['a', 'b']), topThreat({ tg: 'a', dmgBy: { a: 3, b: 2 } }, ['a', 'b']), topThreat({ tg: 'a', dmgBy: { a: 2, b: 2 } }, ['a', 'b']), topThreat({ tg: 'a', dmgBy: { a: 9, b: 2 } }, ['b'])],
+  dmg: () => DELVE && DELVE.mons.map(m => m.sp + ':' + JSON.stringify(m.dmgBy || {})),
+  tg: () => DELVE && DELVE.mons.map(m => m.sp + '->' + m.tg),
+  poke: d => { const m = DELVE.mons.find(q => q.state !== 'dying' && q.state !== 'dead'); if (m.ghost) partyHit(m, d); else { m.hp -= d; threat(m, ONLINE.id, d); } },
   remPose: () => Object.values(remote).map(r => r.name + ':' + (r.act && r.act.k) + ':' + (r.act && r.act.d)),
 };`;
 (async () => {
@@ -39,6 +43,17 @@ const HOOK = `window.__t = {
   console.log('wave0 A', JSON.stringify(await st(A))); console.log('wave0 B', JSON.stringify(await st(B)));
   await until(B, () => window.__t.st().fight || false, 40000); await A.waitForTimeout(3000);
   console.log('A sees', JSON.stringify(await A.evaluate(() => window.__t.remPose())), 'fx from Ben', await A.evaluate(() => window.__t.fx()));
+  if (process.argv[2] === 'threat') {
+    console.log('rule (expect b, null, null, b):', JSON.stringify(await A.evaluate(() => window.__t.rule())));
+    await B.evaluate(() => window.__t.poke(1)); await A.waitForTimeout(3000); console.log('leader counts Ben\'s blow:', JSON.stringify(await A.evaluate(() => window.__t.dmg())));
+    await b.close(); process.exit(0);
+    await A.waitForTimeout(3000); console.log('target at first', JSON.stringify(await A.evaluate(() => window.__t.tg())));
+    const first = (await A.evaluate(() => window.__t.tg()))[0].split('->')[1], other = first === 'idAnna' ? B : A, same = first === 'idAnna' ? A : B;
+    await other.evaluate(() => window.__t.poke(2)); await A.waitForTimeout(3000); console.log('after the other hits for 2', JSON.stringify(await A.evaluate(() => window.__t.tg())), 'B sees', JSON.stringify(await B.evaluate(() => window.__t.tg())));
+    await same.evaluate(() => window.__t.poke(1)); await A.waitForTimeout(3000); console.log('first hits back for 1 (not enough)', JSON.stringify(await A.evaluate(() => window.__t.tg())));
+    await same.evaluate(() => window.__t.poke(2)); await A.waitForTimeout(3000); console.log('first hits for 2 more (3 vs 2)', JSON.stringify(await A.evaluate(() => window.__t.tg())));
+    await b.close(); process.exit(0);
+  }
   if (process.argv[2] === 'fight') {   // no shortcuts: the follower fights it, then the leader fights the next one
     for (let i = 0; i < 40; i++) { const sb = await st(B); if (sb.wave >= 1) break; await B.evaluate(() => window.__t.attack()); await B.waitForTimeout(2000); if (i % 5 === 4) { console.log('A', JSON.stringify(await st(A))); console.log('B', JSON.stringify(await st(B))); } }
     console.log('after follower fight A', JSON.stringify(await st(A))); console.log('B', JSON.stringify(await st(B)));

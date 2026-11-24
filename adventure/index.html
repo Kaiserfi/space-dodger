@@ -1416,7 +1416,7 @@ function clickNode(rec){
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec) { showToast("You're already in combat!"); return; } startFight(rec); return; }
+  if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec && !(rec.delve && DELVE)) { showToast("You're already in combat!"); return; } startFight(rec); return; }   /* the cellar is multi-combat: clicking another creature switches to it */
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasTool('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
   if (rec.kind === 'fish' && levelOf(SKILL_XP.Fishing) < FISHES[rec.fish].lvl) { showToast(`You need Fishing ${FISHES[rec.fish].lvl} to catch ${FISHES[rec.fish].word} here.`); return; }
@@ -4338,7 +4338,7 @@ function playerSwing(m){
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(me.att, it.def)) {
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
-      if (dmg > 0) { if (m.delve && DELVE) DELVE.dmg = (DELVE.dmg || 0) + dmg; if (m.raid) raidHit(m, dmg); else if (m.ghost) partyHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
+      if (dmg > 0) { if (m.delve && DELVE) DELVE.dmg = (DELVE.dmg || 0) + dmg; if (m.raid) raidHit(m, dmg); else if (m.ghost) partyHit(m, dmg); else { m.hp = Math.max(0, m.hp - dmg); if (m.delve && DELVE && DELVE.party) threat(m, ONLINE.id, dmg); } hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', dmg * 4); }   /* the same for both: Melee stands for Attack, Strength and Defence together, and Hitpoints keeps pace with it as it does with each of those in RuneScape */
       else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'block'); }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'miss'); }
@@ -6019,7 +6019,7 @@ function onParties(){
   // the leader counts the blows everyone else lands
   if (DELVE && DELVE.party && dv && dv.host === me && PARTY.d.hits) for (const k in PARTY.d.hits) { const h = PARTY.d.hits[k]; delete PARTY.d.hits[k];
     fetch(partyPath(PARTY.id, '/hits/' + k), { method: 'DELETE' }).catch(() => {});
-    const m = DELVE.mons.find(q => q.sp === h.sp); if (m && m.state !== 'dying' && m.state !== 'dead') { m.hp = Math.max(0, m.hp - Math.max(0, Math.min(50, h.d || 0))); if (m.hp <= 0) { m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die'); } } }
+    const m = DELVE.mons.find(q => q.sp === h.sp); if (m && m.state !== 'dying' && m.state !== 'dead') { m.hp = Math.max(0, m.hp - Math.max(0, Math.min(50, h.d || 0))); threat(m, h.by, Math.max(0, Math.min(50, h.d || 0))); if (m.hp <= 0) { m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die'); } } }
   partyFramesDirty = true;
 }
 function inviteToParty(id){
@@ -6108,6 +6108,10 @@ function partyFxApply(){
       if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, lbl); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : 'miss')); }
     } }
 }
+// threat: each creature goes for whoever has hurt it most, and only turns when someone overtakes its current target
+function threat(m, id, d){ if (!id || !(d > 0)) return; (m.dmgBy || (m.dmgBy = {}))[id] = (m.dmgBy[id] || 0) + d; }
+function topThreat(m, alive){ let best = null, bd = 0; for (const id in (m.dmgBy || {})) if (alive.includes(id) && m.dmgBy[id] > bd) { bd = m.dmgBy[id]; best = id; }
+  return best && (!m.tg || !alive.includes(m.tg) || bd > ((m.dmgBy || {})[m.tg] || 0)) ? best : null; }
 function partyHit(m, dmg){ m.hp = Math.max(0, m.hp - dmg); m.pendAt = performance.now(); fetch(partyPath(DELVE.party, '/hits'), { method: 'POST', body: JSON.stringify({ sp: m.sp, d: dmg, by: ONLINE.id }) }).catch(() => {}); }
 function partyAlive(dv){ const me = ONLINE.id; return Object.keys(dv.who || {}).filter(id => !(dv.dead && dv.dead[id]) && !(dv.left && dv.left[id]) && (id === me || (remote[id] && inDelveZone(remote[id].tx, remote[id].tz)))); }
 function updatePartyDelve(){
@@ -6165,6 +6169,7 @@ function hostPartyDelve(dv, now, dt, alive){
   }
   // each creature picks someone still standing and goes for them
   for (const m of DELVE.mons) { if (m.state === 'dying' || m.state === 'dead') continue;
+    const top = topThreat(m, alive); if (top && top !== m.tg) m.tg = top;   /* the one hurting it most */
     if (!m.tg || !alive.includes(m.tg)) { let best = null, bd = 1e9; for (const id of alive) { const q = playerPos(id); if (!q) continue; const d = Math.hypot(q[0] - m.x, q[1] - m.z) + (DELVE.mons.filter(o => o.tg === id).length * 3); if (d < bd) { bd = d; best = id; } } m.tg = best; }
     if (m.tg && m.tg !== ONLINE.id) { const q = playerPos(m.tg); if (q) { const dx = q[0] - m.g.position.x, dz = q[1] - m.g.position.z, d = Math.hypot(dx, dz), want = reachOf(m);
       if (d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'walk'); }
