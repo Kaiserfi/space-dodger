@@ -1775,11 +1775,54 @@ addEventListener('pointerdown', startMusic, { once: true });   // browsers only 
 let dlg = null;
 // ----- quests -----
 // A Hearty Welcome: Brenna's oven is cold. A walk round the village that hands out each tool as it is needed.
-const QUEST = { hw: 0, qp: 0 };
+const QUEST = { hw: 0, qp: 0, rt: 0 };
 const HW_STEPS = 9;   // 9 means done
+/* Roots and Threads, Tilly's farming quest: 0 not started, 1 plant wheat, 2 talk to Tilly, 3 grow and harvest, 4 show Tilly, 5 feed the silkworms,
+   6 collect the cocoons, 7 spin silk, 8 show Tilly the thread, 9 done */
+const RT_DONE = 9;
 const cnt = n => countOf(n);
 function giveTool(name, icon){ if (hasItem(name)) return false; addItem(name, 1, icon); return true; }
+function rtTalk(){
+  const s = QUEST.rt || 0, me = t => ({ me: t }), run = f => ({ run: f });
+  if (s === 0) return [me('Hello! Are you the one who runs this market?'), "That's me! Tilly, Hilde's little sister. You look like someone who's never grown so much as a cress.",
+    { opts: [["Could you teach me to farm?", ["Oh, would I! Right. First things first: you'll want a hoe and some seed.",
+        run(() => { const got = []; if (giveFarmTool('Hoe', HOE_ICON)) got.push('a hoe'); addItem('Wheat seeds', 5, ICON_FOR['Wheat seeds']); got.push('5 wheat seeds');
+          showToast(`Tilly gives you ${got.join(' and ')}.`); }),
+        "Take a patch in the fields by the windmill. Turn the soil over with the hoe, then plant your seed.", me("Till it, then plant it. Got it."), "Off you go! Come back once it's in the ground.",
+        run(() => { QUEST.rt = 1; questStep('Till a patch in the fields and plant some wheat seeds.'); })]],
+      ["Not right now.", ["Suit yourself! The fields aren't going anywhere."]]] }];
+  if (s === 2) return [me("I've planted the wheat!"), "Look at you, soil under your nails already! Now, seed won't grow on wishes.",
+    run(() => { if (giveFarmTool('Watering can', CAN_ICON)) { FARM_CAN.n = CAN_MAX; renderBag(); renderBelt && renderBelt(); showToast('Tilly gives you a watering can, already full.'); } }),
+    "Water it, and every time it grows a little, water it again. When it's golden, harvest it.", "If the can runs dry, there's a trough by the field gate.",
+    run(() => { QUEST.rt = 3; questStep('Water your wheat each time it grows, then harvest it.'); })];
+  if (s === 4) return [me('My first harvest!'), "Would you look at that! Bram'll be jealous.", "Now for the clever bit. Wheat feeds us, but silk pays. Here, mulberry leaves from my own bushes.",
+    run(() => { addItem('Mulberry leaves', 6, ICON_FOR['Mulberry leaves']); showToast('Tilly gives you 6 mulberry leaves.'); }),
+    "The silkworms in the workshop, just west of here, eat nothing else. Feed them those and they'll spin you cocoons.",
+    run(() => { QUEST.rt = 5; questStep('Feed the mulberry leaves to the silkworms in the workshop.'); })];
+  if (s === 8) return [me("I spun my first silk thread!"), "Ooh, let me see. That's lovely and even! You've a knack for this.",
+    "You've grown it, fed it and spun it. That's farming, start to finish.", "Here, seed for whatever you fancy growing next. Aloe and silk make a fine bandage, by the way.",
+    run(() => completeRootsAndThreads())];
+  return null;   /* nothing to hand over at this step: her usual chat, and her stall */
+}
+/* only if you don't have one already, in your bag or on your toolbelt */
+function giveFarmTool(name, icon){ if (hasTool(name)) return false; addItem(name, 1, icon); return true; }
+function rtAdvance(from, to, text){ if ((QUEST.rt || 0) === from) { QUEST.rt = to; questStep(text); } }
+function completeRootsAndThreads(){
+  if ((QUEST.rt || 0) >= RT_DONE) return;
+  QUEST.rt = RT_DONE; QUEST.qp = (QUEST.qp || 0) + 1;
+  closeDialogBox();
+  for (const n of ['Wheat seeds', 'Aloe seeds', 'Mulberry seeds']) addItem(n, 5, ICON_FOR[n]);
+  quietLevelUps = true; addXp('Farming', 250); addXp('Crafting', 100); quietLevelUps = false;
+  questJingle();
+  const row = (icon, text) => `<div class="qr"><span class="qi">${icon}</span>${text}</div>`;
+  showRewardScroll({ banner: 'Quest complete', title: 'Roots and Threads', sub: 'From seed to silk, with a little help from Tilly.',
+    rewards: row(ICON_FOR['Wheat seeds'], '5 wheat seeds') + row(ICON_FOR['Aloe seeds'], '5 aloe seeds') + row(ICON_FOR['Mulberry seeds'], '5 mulberry seeds') + row('<span style="color:#a07a2c">&#9733;</span>', '1 quest point'),
+    xp: '<div class="qr">Farming<b>+250</b></div><div class="qr">Crafting<b>+100</b></div>',
+    quote: '&ldquo;Come and sell me some of that silk when you have it. I pay fair. Mostly.&rdquo; &mdash; Tilly' });
+  renderStats(); saveNow(false);
+}
 function questTalk(name){
+  if (name === 'Tilly') { const r = rtTalk(); if (r) return r; }
   const s = QUEST.hw, me = t => ({ me: t }), run = f => ({ run: f });
   if (s >= HW_STEPS) return null;
   if (name === 'Aldric' && s === 0) return [me("Hi! I'm new here."), 'Halt. State your business.', me("...I just did. I'm new here."),
@@ -1852,11 +1895,16 @@ function questTarget(){
 }
 let questShown = '', qMark = null;
 const qV = new THREE.Vector3();
+function rtObjective(){ return ['Talk to Tilly at the farmers\' market, east of the windmill.', 'Till a patch in the fields and plant some wheat seeds.', 'Talk to Tilly at the farmers\' market.',
+  'Water your wheat each time it grows, then harvest it.', 'Show Tilly your harvest.', 'Feed the mulberry leaves to the silkworms in the workshop.',
+  'Collect the cocoons from the hutch when the silkworms are done.', 'Spin a cocoon into silk thread at the spinning wheel.', 'Show Tilly your silk thread.', 'Complete!'][Math.min(QUEST.rt || 0, RT_DONE)]; }
 function updateQuest(){
-  const text = QUEST.hw >= HW_STEPS ? '' : questObjective();
-  if (text !== questShown) { questShown = text; const el = document.getElementById('questTrack'); el.hidden = !text; el.innerHTML = text ? `<b>A Hearty Welcome</b><br>${text}` : ''; if (statsSub === 'quests') renderStats(); }
+  const rtOn = (QUEST.rt || 0) > 0 && QUEST.rt < RT_DONE;   /* Tilly's quest, once started, takes the tracker */
+  const title = rtOn ? 'Roots and Threads' : 'A Hearty Welcome';
+  const text = rtOn ? rtObjective() : QUEST.hw >= HW_STEPS ? '' : questObjective();
+  if (text + title !== questShown) { questShown = text + title; const el = document.getElementById('questTrack'); el.hidden = !text; el.innerHTML = text ? `<b>${title}</b><br>${text}` : ''; if (statsSub === 'quests') renderStats(); }
   if (!qMark) { qMark = document.createElement('div'); qMark.id = 'qMark'; qMark.textContent = '!'; document.body.appendChild(qMark); }
-  const who = questTarget(), b = who && BARKERS.find(x => x.rec.name === who);
+  const rs = QUEST.rt || 0, who = (rs === 2 || rs === 4 || rs === 8 || (rs === 0 && QUEST.hw >= HW_STEPS)) ? 'Tilly' : questTarget(), b = who && BARKERS.find(x => x.rec.name === who);
   if (!b || dlg) { qMark.style.display = 'none'; return; }
   b.sp.getWorldPosition(qV); qV.y += 5.2 * (b.sp.scale.x / CHIBI_SCALE) + Math.sin(performance.now() / 250) * 0.15;
   qV.project(camera);
@@ -2884,6 +2932,8 @@ function renderStats(){
     body.innerHTML = `<h4>Quests</h4>
       <div class="qRow ${done ? 'qDone' : QUEST.hw ? 'qOn' : ''}">${done ? '&#10003;' : QUEST.hw ? '&#9679;' : '&#9675;'} A Hearty Welcome</div>
       <div class="qStep">${done ? 'Completed. Brenna\'s oven roars again.' : questObjective()}</div>
+      <div class="qRow ${QUEST.rt >= RT_DONE ? 'qDone' : QUEST.rt ? 'qOn' : ''}">${QUEST.rt >= RT_DONE ? '&#10003;' : QUEST.rt ? '&#9679;' : '&#9675;'} Roots and Threads</div>
+      <div class="qStep">${QUEST.rt >= RT_DONE ? 'Completed. Tilly says you have a knack for it.' : rtObjective()}</div>
       <div class="qRow qLock">&#128274; More quests are coming</div>
       <div class="statRow" style="margin-top:8px"><span>Quest points</span><b>${QUEST.qp || 0}</b></div>`;
     return;
@@ -5438,7 +5488,7 @@ function patchClick(pt, auto){
   } else if (p.s === 'planted' && p.g >= 3) {
     const cr = CROPS[p.c] || CROPS.Wheat;
     if (bag.length >= BAG_SIZE && !hasItem(cr.item)) { showToast('Your bag is full.'); return; }
-    farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
+    farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); if (cr.item === 'Wheat') rtAdvance(3, 4, 'Show Tilly your harvest.'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
     if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the farmers\' market.'); return; }
     if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
@@ -5457,7 +5507,7 @@ function plantPatch(pt, seed){
   const p = FARM_PLOTS[pt.i]; if (p.s !== 'tilled') return;
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   farmChain = pt;   /* from here the loop carries on by itself: watering, then harvesting */
-    farmAct(pt, 1400, 'plant', () => { if (p.s !== 'tilled' || !hasItem(seed.name)) return; removeItem(seed.name); const cr = CROPS[seed.crop]; p.s = 'planted'; p.c = seed.crop; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', cr.plantXp); farmSound('plant'); showToast(`You plant some ${seed.name.toLowerCase()}. Now give them some water.  +${cr.plantXp} Farming XP`); });
+    farmAct(pt, 1400, 'plant', () => { if (p.s !== 'tilled' || !hasItem(seed.name)) return; removeItem(seed.name); const cr = CROPS[seed.crop]; p.s = 'planted'; if (seed.crop === 'Wheat') rtAdvance(1, 2, 'Talk to Tilly at the farmers\' market.'); p.c = seed.crop; p.g = 0; p.w = false; p.t = Date.now(); addXp('Farming', cr.plantXp); farmSound('plant'); showToast(`You plant some ${seed.name.toLowerCase()}. Now give them some water.  +${cr.plantXp} Farming XP`); });
 }
 function openSeedMenu(pt){
   const lv = levelOf(SKILL_XP.Farming);
@@ -5584,7 +5634,7 @@ function hutchClick(){
     walkStart(spot, () => {
       if (!hutchReady()) return;
       if (!addItem('Silk cocoon', H.n, COCOON_ICON)) { showToast('Your bag is full.'); return; }
-      const n = H.n; SILK.hutch = { n: 0, t: 0 }; addXp('Crafting', 4 * n); silkSound('collect'); heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
+      const n = H.n; SILK.hutch = { n: 0, t: 0 }; addXp('Crafting', 4 * n); rtAdvance(6, 7, 'Spin a cocoon into silk thread at the spinning wheel.'); silkSound('collect'); heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
       showToast(`You gather ${n} silk cocoon${n > 1 ? 's' : ''} from the trays.  +${4 * n} Crafting XP`); saveNow(false); });
     return;
   }
@@ -5593,7 +5643,7 @@ function hutchClick(){
   walkStart(spot, () => {
     const n = Math.min(HUTCH_MAX, countOf('Mulberry leaves')); if (!n || SILK.hutch.n) return;
     for (let i = 0; i < n; i++) removeItem('Mulberry leaves');
-    SILK.hutch = { n, t: Date.now() }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
+    SILK.hutch = { n, t: Date.now() }; rtAdvance(5, 6, 'Collect the cocoons from the hutch when the silkworms are done.'); heroAnim.yaw = yawTo(hero.position.x, hero.position.z, here.x, here.z);
     setAct({ k: 'hutch', t: Date.now() }); setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'hutch') setAct(null); }, 1400);
     silkSound('feed'); showToast(`You spread ${n} mulberry leaves over the trays. The silkworms set to work.`); saveNow(false);
   });
@@ -5626,7 +5676,7 @@ function updateSpinning(){
   heroAnim.yaw = yawTo(hero.position.x, hero.position.z, W.x, W.z); heroAnim.mode = 'work';
   if (k < 1) return;
   if (!hasItem('Silk cocoon')) { stopSpinning(); return; }
-  removeItem('Silk cocoon'); addItem('Silk thread', 1, THREAD_ICON); addXp('Crafting', 12); silkSound('done');
+  removeItem('Silk cocoon'); addItem('Silk thread', 1, THREAD_ICON); addXp('Crafting', 12); silkSound('done'); rtAdvance(7, 8, 'Show Tilly your silk thread.');
   showToast(`You spin the cocoon into a fine silk thread (${countOf('Silk thread')}).  +12 Crafting XP`); SILK.bobbin.scale.set(1, 1, 1);
   if (!hasItem('Silk cocoon')) { stopSpinning(); saveNow(false); return; }
   spinning.t0 = performance.now(); setAct({ k: 'spin', t: Date.now() }); silkSound('spin');
