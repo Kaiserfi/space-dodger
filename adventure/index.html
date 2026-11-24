@@ -2697,7 +2697,7 @@ function startEatAnim(){
   eatUntil = performance.now() + EAT_MS;
   if (FIGHT) FIGHT.pAnim = { kind: 'eat', t0: performance.now(), dur: EAT_MS };
   setAct({ k: 'eat', t: Date.now() });
-  setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'eat') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null); }, EAT_MS);
+  setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'eat') setAct(FIGHT ? fightAct(FIGHT.m) : null); }, EAT_MS);
 }
 function poseChibi(g, mode, t, tool = 'axe'){
   const c = g.userData.chibi; if (!c) return;
@@ -4276,6 +4276,8 @@ function spawnMonster(kind, x, z, rad = 3, box = null){
   MONSTERS.push(rec); return rec;
 }
 let FIGHT = null;
+// what others are told you're fighting: a farm monster by its shared id, a party cellar creature by its spawn tag
+const fightAct = m => ({ k: 'fight', n: m.name, t: Date.now(), m: m.sid, d: m.delve && DELVE && DELVE.party ? m.sp : undefined });
 /* how far apart you stand to fight: the farmer is a full-sized person, so he stands off further than a chicken */
 const reachOf = m => m.type === 'farmer' ? 3.0 : m.type === 'cow' ? 2.8 : 2.3;
 function startFight(rec){
@@ -4298,7 +4300,7 @@ function startFight(rec){
     mobClaim(rec);
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, rec.x, rec.z);
     rec.g.rotation.y = yawTo(rec.x, rec.z, hero.position.x, hero.position.z);
-    setAct({ k: 'fight', n: rec.name, t: Date.now(), m: rec.sid, d: rec.delve && DELVE && DELVE.party ? rec.sp : undefined });
+    setAct(fightAct(rec));
   });
 }
 function endFight(msg){
@@ -6210,7 +6212,7 @@ function partyFight(now, dt, host){
     else if (Math.hypot(hero.position.x - m.g.position.x, hero.position.z - m.g.position.z) < reach + 0.6) {
       m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
       if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready');
-      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now(), d: m.sp }); }
+      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct(fightAct(m)); }
       else if (FIGHT && FIGHT.m !== m) { if (!m.nextHit) m.nextHit = now + 900 + Math.random() * 600; if (now > m.nextHit) { m.nextHit = now + m.t.speed; sideSwing(m); } }
     }
     m.x = m.g.position.x; m.z = m.g.position.z; });
@@ -6477,7 +6479,7 @@ function updateBandage(){
     if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal'); if (DELVE && DELVE.party) DELVE.heal = (DELVE.heal || 0) + gain;   /* what they'll really gain, the same number they see */ bandageChime(); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
-  if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
+  if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? fightAct(FIGHT.m) : null);
   hitsplat(hero, HP.cur - before, 'heal'); bandageChime();
   showToast(`The aloe soothes the wound and the silk holds it closed. (+${HP.cur - before} health)`);
 }
