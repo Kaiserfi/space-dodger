@@ -70,6 +70,13 @@
             ".write": true
           }
         },
+        "ground": {
+          ".read": true,
+          "$key": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['n', 'q', 'by', 'pub', 'until']) && newData.child('q').isNumber() && newData.child('until').isNumber() && newData.child('until').val() <= now + 200000"
+          }
+        },
         "parties": {
           "$p": {
             ".write": true
