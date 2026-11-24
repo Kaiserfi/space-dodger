@@ -1782,8 +1782,25 @@ const HW_STEPS = 9;   // 9 means done
 const RT_DONE = 9;
 const cnt = n => countOf(n);
 function giveTool(name, icon){ if (hasItem(name)) return false; addItem(name, 1, icon); return true; }
+/* how many free bag slots handing over these things would take (stacks you already have need no new slot; tools you already own aren't given) */
+function slotsFor(list){ let n = 0; for (const name of list) { if (beltSlotFor(name) && hasTool(name)) continue; if (SINGLE.has(name) || !hasItem(name)) n++; } return n; }
+const bagRoomFor = list => bag.length + slotsFor(list) <= BAG_SIZE;
+const FULL_HANDS = () => [{ me: "Sorry, I've got my hands full." }, "Your pack's stuffed to bursting! Clear a bit of space and come back, and I'll sort you out."];
 function rtTalk(){
   const s = QUEST.rt || 0, me = t => ({ me: t }), run = f => ({ run: f });
+  // anything that should have been handed over but went missing (a full bag, sold off): Tilly hands it over again
+  const missing = s === 1 ? ['Hoe', 'Wheat seeds'].filter(n => n === 'Hoe' ? !hasTool(n) : !hasItem(n))
+    : s === 3 ? (hasTool('Watering can') ? [] : ['Watering can'])
+    : s === 5 ? (hasItem('Mulberry leaves') ? [] : ['Mulberry leaves']) : [];
+  if (missing.length) {
+    if (!bagRoomFor(missing)) return FULL_HANDS();
+    return [me("I seem to have lost what you gave me."), "Lost it? Already? Honestly, you're as bad as Pip. Here, have another go.",
+      run(() => { for (const n of missing) { if (n === 'Hoe' || n === 'Watering can') { addItem(n, 1, ICON_FOR[n]); if (n === 'Watering can') { FARM_CAN.n = CAN_MAX; renderBag(); } } else addItem(n, n === 'Mulberry leaves' ? 6 : 5, ICON_FOR[n]); }
+        showToast(`Tilly gives you ${missing.map(n => n.toLowerCase()).join(' and ')}.`); saveNow(false); })];
+  }
+  // before handing anything over, make sure it'll fit
+  const gives = s === 0 ? ['Hoe', 'Wheat seeds'] : s === 2 ? ['Watering can'] : s === 4 ? ['Mulberry leaves'] : s === 8 ? ['Wheat seeds', 'Aloe seeds', 'Mulberry seeds'] : [];
+  if (gives.length && !bagRoomFor(gives)) return FULL_HANDS();
   if (s === 0) return [me('Hello! Are you the one who runs this market?'), "That's me! Tilly, Hilde's little sister. You look like someone who's never grown so much as a cress.",
     { opts: [["Could you teach me to farm?", ["Oh, would I! Right. First things first: you'll want a hoe and some seed.",
         run(() => { const got = []; if (giveFarmTool('Hoe', HOE_ICON)) got.push('a hoe'); addItem('Wheat seeds', 5, ICON_FOR['Wheat seeds']); got.push('5 wheat seeds');
