@@ -1090,6 +1090,7 @@ function findPath(fromV, toV){
 }
 function walkStart(point, then, replan = false){
   if (typeof farmChain !== 'undefined') farmChain = null;   // a new walk ends any farming run
+  if (typeof farmBusy !== 'undefined' && farmBusy) { farmBusy.cancelled = true; farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); }   /* and stops the job in hand: walking away means it doesn't get done */
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   unstick();
   const path = findPath(hero.position, point);
@@ -5284,9 +5285,10 @@ let farmChain = null;   // the patch you're working through, one job after anoth
 function farmAct(pt, ms, label, done){
   if (farmBusy) return;
   const go = () => {
-    farmBusy = { t0: performance.now(), ms, done, kind: label }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
+    const job = farmBusy = { t0: performance.now(), ms, done, kind: label }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
     setAct({ k: 'farm', f: label, t: Date.now() });
     setTimeout(() => {
+      if (job.cancelled) return;   /* you walked off before it was done */
       farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); done(); saveNow(false);
       if (farmChain === pt && !walkTarget) setTimeout(() => { if (farmChain === pt && !walkTarget && !farmBusy) patchClick(pt, true); }, 250);   // straight on to the next job
     }, ms);
