@@ -1533,7 +1533,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
-  if (it && FOOD[it.name]) { removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
+  if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
 
@@ -2430,6 +2430,23 @@ function swingArm(p, tool){
   return lerp(hit, rest, ease((p - 0.55) / 0.45));
 }
 // pose a character: mode is 'idle', 'walk' or 'swing'; t is the time in seconds (or the swing's 0-1 phase); tool is 'axe' or 'pick'
+// eating: the right hand brings a bite up to the mouth twice, with a little nod as you chew
+const EAT_MS = 1100;
+function eatPose(c, k){
+  const lift = Math.sin(Math.min(1, k) * Math.PI * 2) > 0 ? Math.sin(Math.min(1, k) * Math.PI * 2) : 0.4 * Math.sin(Math.min(1, k) * Math.PI);
+  const [AL, AR] = c.arms;
+  AR.rotation.set(-0.6 - 1.7 * lift, 0, 0.75 * lift); AL.rotation.set(-0.25, 0, -0.2);
+  c.head.rotation.x = 0.12 * Math.abs(Math.sin(k * Math.PI * 6));
+  if (!c.bite) { c.bite = chibiPart(c.arms[1], geo('bite', () => new THREE.SphereGeometry(0.11, 8, 6)), 0xc8843a, 0, -0.5, 0.12, false); }
+  c.bite.visible = k < 0.85; c.bite.scale.setScalar(1 - 0.6 * k);   // it gets smaller as you eat it
+}
+let eatUntil = 0;
+function startEatAnim(){
+  eatUntil = performance.now() + EAT_MS;
+  if (FIGHT) FIGHT.pAnim = { kind: 'eat', t0: performance.now(), dur: EAT_MS };
+  setAct({ k: 'eat', t: Date.now() });
+  setTimeout(() => { if (ONLINE.act && ONLINE.act.k === 'eat') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now() } : null); }, EAT_MS);
+}
 function poseChibi(g, mode, t, tool = 'axe'){
   const c = g.userData.chibi; if (!c) return;
   const now = performance.now() / 1000;
@@ -2442,6 +2459,8 @@ function poseChibi(g, mode, t, tool = 'axe'){
   const [L, R] = c.legs, [AL, AR] = c.arms;
   c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
+  if (c.bite) c.bite.visible = false;
+  if (mode === 'eat') { eatPose(c, t); return; }
   if (mode === 'water') {   // the can held out and tipped over the crops, swaying gently along the row
     const sw = Math.sin(now * 2.2) * 0.25;
     AR.rotation.set(-1.15, sw * 0.4, 0.25); AL.rotation.set(-0.5, 0, -0.3);
@@ -2521,6 +2540,7 @@ function setHeroFrame(frame, facing, pose = null, tool = 'axe'){
 function setHeroSwing(phase, tool, yaw){ heroAnim.mode = 'swing'; heroAnim.phase = phase; heroAnim.tool = tool; heroAnim.yaw = yaw; }
 function updateHeroAnim(){
   if (!hero) return;
+  if (!FIGHT && performance.now() < eatUntil) { turnChibi(hero, heroAnim.yaw); poseChibi(hero, 'eat', 1 - (eatUntil - performance.now()) / EAT_MS); return; }
   if (heroSeatFrame()) return;   // sat at the bonfire
   if (FIGHT && heroAnim.mode === 'fight') { turnChibi(hero, heroAnim.yaw); return; }
   if (heroFrame === '') { heroFrame = 0; dressChibi(hero, equipped); }
@@ -3899,6 +3919,7 @@ function fightPose(c, kind, k){
     AR.rotation.set(a, 0, 0.05); c.body.rotation.x = k < 0.45 ? -0.12 * ease(k / 0.45) : (k < 0.75 ? 0.2 : 0.2 * (1 - (k - 0.75) / 0.25)); c.legs[0].rotation.x = -0.35;
   } else if (kind === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); AL.rotation.set(-1.45 * b, 0.5 * b, -0.2 + 0.3 * b); c.body.rotation.x = 0.06 * b; c.legs[1].rotation.x = 0.3 * b; }
   else if (kind === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); c.body.rotation.x = -0.3 * b; c.head.rotation.z = 0.2 * b; AL.rotation.set(0.4 * b, 0, -0.2 - 0.4 * b); AR.rotation.set(0.4 * b, 0, 0.2 + 0.4 * b); }
+  else if (kind === 'eat') eatPose(c, k);
   else if (kind === 'dead') { c.body.rotation.x = -1.45 * k; c.body.position.y = -0.62 * k; AL.rotation.set(-2.6 * k, 0, -0.4); AR.rotation.set(-2.6 * k, 0, 0.4); c.legs.forEach(l => l.rotation.x = 1.2 * k); }
   else { const b = Math.sin(performance.now() / 300) * 0.04; c.body.position.y = 0; AR.rotation.x = -0.4 + b; AL.rotation.x = -0.3; }   // ready stance
 }
@@ -4559,8 +4580,8 @@ function removeRemote(id){
 }
 let nodeMap = null;
 function nodeRecByKey(k){ if (!nodeMap) { nodeMap = {}; treeRecs.forEach(rc => { nodeMap[rc.key] = rc; }); } return nodeMap[k]; }
-const ACT_LABEL = { farm: 'farming', mill: 'milling', chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
-const ACT_TIME = { farm: 2500, mill: 3000, chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
+const ACT_LABEL = { eat: 'eating', farm: 'farming', mill: 'milling', chop: 'chopping', mine: 'mining', smelt: 'smelting', fish: 'fishing', cook: 'cooking', talk: 'talking', smith: 'smithing', fight: 'fighting' };
+const ACT_TIME = { eat: 1200, farm: 2500, mill: 3000, chop: 3600, mine: 3600, smelt: 3000, fish: 3600, cook: 2600, talk: 300000, smith: 6000, fight: 300000 };
 // a grey line in the chat for things that happen in the village (not from a player)
 function addSystemLine(text){
   const line = document.createElement('div');
@@ -4630,7 +4651,8 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
+    } else if (act && act.k === 'eat') poseChibi(r.sprite, 'eat', Math.min(1, (t - r.actAt) / EAT_MS));
+    else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
     else if (act && act.k === 'mill' && !moving) poseChibi(r.sprite, 'pour', 0);
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
     else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
