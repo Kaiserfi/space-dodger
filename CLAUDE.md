@@ -68,6 +68,7 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 ### Sound and music
 
 - Sound effects are made in code (`sfx`, `nz`, oscillators). An audio file the owner gives you for a sound effect is embedded as base64 and decoded once through Web Audio (see `EAT_MP3`); don't make the browser fetch it.
+- **Sounds from elsewhere fade with distance.** Any sound caused by another player or happening away from the hero (their rocks and trees, their fights, raid goblins) must be played through `soundAt(x, z, () => ...)`: full volume within 8 units, silent beyond 40. Only your own actions play at full volume everywhere.
 - Music levels: the battle theme plays at 30% of the music setting, the boss theme at 80%.
 - Headless tests have no audio, so say when a sound hasn't been heard.
 

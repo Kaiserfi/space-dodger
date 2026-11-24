@@ -1211,7 +1211,16 @@ function audio(){
 function sfxOut(ctx){
   if (!ctx.sfxBus) { ctx.sfxBus = ctx.createGain(); ctx.sfxBus.connect(ctx.destination); }
   ctx.sfxBus.gain.value = SETTINGS.sfxMute ? 0 : SETTINGS.sfx / 100;
+  if (SOUND_AT && hero) {   /* a sound from somewhere in the world: quieter the further it is from you */
+    const g = ctx.createGain(); g.gain.value = soundFalloff(Math.hypot(SOUND_AT.x - hero.position.x, SOUND_AT.z - hero.position.z)); g.connect(ctx.sfxBus); return g; }
   return ctx.sfxBus;
+}
+// sounds made somewhere else (other players' rocks, trees and fights): full within 8 units, fading to silence at 40
+let SOUND_AT = null;
+const soundFalloff = d => d <= 8 ? 1 : Math.pow(Math.max(0, 1 - (d - 8) / 32), 1.6);
+function soundAt(x, z, play){
+  if (hero && soundFalloff(Math.hypot(x - hero.position.x, z - hero.position.z)) <= 0) return;   // too far away to hear at all
+  const prev = SOUND_AT; SOUND_AT = { x, z }; try { play(); } finally { SOUND_AT = prev; }
 }
 function noiseBuffer(ctx, dur){
   const n = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -2051,7 +2060,7 @@ function updateTrees(){
       rec.t++;
       const k = Math.min(1, rec.t / 40);
       rec.g.rotation.z = rec.dir * (Math.PI / 2) * k * k;
-      if (k >= 1) { hideNode(rec); fallSound(); if (rec.remoteFall) rec.remoteFall = false; else giveLogs(rec); }
+      if (k >= 1) { hideNode(rec); if (rec.remoteFall) { soundAt(rec.x, rec.z, fallSound); rec.remoteFall = false; } else { fallSound(); giveLogs(rec); } }
     }
   }
   if (chop.rec) {
@@ -2098,8 +2107,8 @@ function applyNodeStates(nodes, animate){
     rec.until = n && n.until ? n.until : 0;
     if (!(rec.until > now && (rec.state === 'standing' || rec.state === 'growing'))) continue;
     if (!animate) hideNode(rec);   // the state when we join: no effects
-    else if (rec.state === 'standing' && rec.kind === 'rock') { burstRock(rec); explosionSound(); hideNode(rec); }
-    else if (rec.state === 'standing') { rec.remoteFall = true; rec.state = 'falling'; rec.t = 0; rec.dir = hero.position.x < rec.x ? -1 : 1; creakSound(0.7); }
+    else if (rec.state === 'standing' && rec.kind === 'rock') { burstRock(rec); soundAt(rec.x, rec.z, explosionSound); hideNode(rec); }   /* someone else's rock or tree: heard from where it is */
+    else if (rec.state === 'standing') { rec.remoteFall = true; rec.state = 'falling'; rec.t = 0; rec.dir = hero.position.x < rec.x ? -1 : 1; soundAt(rec.x, rec.z, () => creakSound(0.7)); }
     else hideNode(rec);
   }
 }
@@ -5961,7 +5970,7 @@ function mobPath(m, T){
 }
 function mobUpdate(m, now){
   const st = MOBST[m.sid], dt = Math.min(0.1, (now - (m.lastT || now)) / 1000); m.lastT = now;
-  if (mobDeadNow(m)) { if (m.state === 'standing' || m.state === 'engaged') { m.state = 'dying'; m.dieT = now; combatSound((m.t.snd || 'goblin') + 'Die'); } m.foreign = false; return; }
+  if (mobDeadNow(m)) { if (m.state === 'standing' || m.state === 'engaged') { m.state = 'dying'; m.dieT = now; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Die')); } m.foreign = false; return; }
   const theirs = mobFresh(st) && st.f !== ONLINE.id;
   m.foreign = theirs;
   if (theirs) {   // someone else is fighting it: it stands where the fight is, facing them, and its health is theirs to tell
@@ -5986,8 +5995,8 @@ function mobApply(sid, st){
   const h = st.h; if (h.k === m.lastK) return; m.lastK = h.k; if (h.by === ONLINE.id) return;
   const r = remote[h.by], now = performance.now();
   if (h.w === 'ps' && r) r.fAnim = { kind: 'swing', t0: now, dur: 900 };
-  if (h.w === 'ms') m.anim = { kind: 'swing', t0: now, dur: 900 };
-  if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; if (h.ty === 'hit') combatSound('hit'); }
+  if (h.w === 'ms') { m.anim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Attack')); }
+  if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : h.ty === 'block' ? 'thud' : 'miss')); }
   if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; }
 }
 function startMobStream(){
@@ -6294,7 +6303,7 @@ function updateRaiders(){
     if (s && d.raid && d.raid.st === 'over' && s.hp > 0) s.hp = 0;   // the raid is over: none are left standing
     if (!s) { m.g.visible = false; m.state = 'dead'; if (FIGHT && FIGHT.m === m) endFight(); continue; }
     if (s.hp <= 0 || s.s === 'dead') {
-      if (m.state !== 'dying' && m.state !== 'dead') { m.state = 'dying'; m.dieT = now; combatSound('goblinDie'); if (FIGHT && FIGHT.m === m) endFight(); }
+      if (m.state !== 'dying' && m.state !== 'dead') { m.state = 'dying'; m.dieT = now; soundAt(m.x, m.z, () => combatSound('goblinDie')); if (FIGHT && FIGHT.m === m) endFight(); }
       m.hp = 0; continue;
     }
     if (s.s === 'lurk' && EV.data.raid && (Date.now() - EV.data.raid.at) / 1000 < (s.ap || 0)) { m.g.visible = false; continue; }   // they appear out of the dark one by one
@@ -6505,7 +6514,7 @@ function updateBonfire(){
   // the raid's news, once each
   if (st !== raidSys) {
     if (ph === 'creep' && raidSys !== 'creep') { addSystemLine('Something is moving in the darkness south of the bonfire...'); evSay(npcSp('Aldric'), "Hold on... something's moving out past the trees."); }
-    if (st === 'rush') { addSystemLine('Goblins are attacking the bonfire!'); for (let i = 0; i < 4; i++) setTimeout(() => combatSound('goblinAttack'), i * 140); }
+    if (st === 'rush') { addSystemLine('Goblins are attacking the bonfire!'); for (let i = 0; i < 4; i++) setTimeout(() => soundAt(BF.x, BF.z, () => combatSound('goblinAttack')), i * 140); }
     if (st === 'lost') { addSystemLine('Everyone at the fire has fallen! The village guards are coming!'); evSay(npcSp('Osric'), "Guards, to the bonfire! Now!"); }
     if (st === 'over') raidOver(d);
     raidSys = ph === 'creep' ? 'creep' : st;
