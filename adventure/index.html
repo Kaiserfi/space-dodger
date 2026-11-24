@@ -1317,7 +1317,7 @@ function clickNode(rec){
   if (rec.kind === 'monster') { startFight(rec); return; }
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
-  if (rec.kind === 'range' && !hasItem('Raw shrimp') && !hasItem('Bread dough')) { showToast('You have nothing to cook.'); return; }
+  if (rec.kind === 'range' && !nextToCook()) { showToast('You have nothing to cook.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
   else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
   else if (rec.kind === 'rock') { if (!hasItem(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
@@ -1359,10 +1359,18 @@ function smelt(rec){
 }
 // cooking: raw shrimp on a fireplace, one at a time; low levels burn some
 const COOK_MS = 1900;
+// everything that can go on the range: what it becomes, what it becomes if burnt, and the Cooking XP
+const COOKS = {
+  'Raw shrimp': { out: 'Shrimp', burnt: 'Burnt shrimp', xp: 30, word: 'shrimp', done: 'You cook the shrimp' },
+  'Raw chicken': { out: 'Cooked chicken', burnt: 'Burnt chicken', xp: 30, word: 'chicken', done: 'You roast the chicken' },
+  'Raw beef': { out: 'Cooked beef', burnt: 'Burnt beef', xp: 35, word: 'beef', done: 'You cook the beef' },
+  'Bread dough': { out: 'Bread', burnt: 'Burnt bread', xp: 40, word: 'bread', done: 'You bake a loaf of bread' },
+};
+const nextToCook = () => Object.keys(COOKS).find(n => hasItem(n)) || null;
 let cooking = null;
 function cook(rec){
   if (cooking || smelting) return;
-  if (!hasItem('Raw shrimp') && !hasItem('Bread dough')) { showToast('You have nothing to cook.'); return; }
+  if (!nextToCook()) { showToast('You have nothing to cook.'); return; }
   cooking = { rec, t0: performance.now() };
   setAct({ k: 'cook', t: Date.now() });
   document.getElementById('smeltLabel').textContent = 'Cooking...';
@@ -1381,16 +1389,13 @@ function updateCook(){
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, cooking.rec.x, cooking.rec.z);
   heroAnim.mode = 'work';
   if (k < 1) return;
-  const raw = hasItem('Raw shrimp') ? 'Raw shrimp' : hasItem('Bread dough') ? 'Bread dough' : null;
+  const raw = nextToCook();
   if (!raw) { stopCooking(); return; }
   removeItem(raw);
-  const burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - 1));
-  if (raw === 'Bread dough') {   // a loaf of bread from the farm's own wheat
-    if (Math.random() < burn) { addItem('Burnt bread', 1, BURNT_LOAF_ICON); showToast('Oops. You burn the bread.'); sizzleSound(true); }
-    else { addItem('Bread', 1, LOAF_ICON); addXp('Cooking', 40); showToast(`You bake a loaf of bread (${countOf('Bread')}).  +40 Cooking XP`); sizzleSound(false); }
-  } else if (Math.random() < burn) { addItem('Burnt shrimp', 1, BURNT_ICON); showToast('Oops. You burn the shrimp.'); sizzleSound(true); }
-  else { addItem('Shrimp', 1, COOKED_SHRIMP_ICON); addXp('Cooking', 30); showToast(`You cook the shrimp (${countOf('Shrimp')} cooked).  +30 Cooking XP`); sizzleSound(false); }
-  if (!hasItem('Raw shrimp') && !hasItem('Bread dough')) { stopCooking(); return; }
+  const burn = Math.max(0.02, 0.32 - 0.035 * (levelOf(SKILL_XP.Cooking) - 1)), c = COOKS[raw];
+  if (Math.random() < burn) { addItem(c.burnt, 1, ICON_FOR[c.burnt]); showToast(`Oops. You burn the ${c.word}.`); sizzleSound(true); }
+  else { addItem(c.out, 1, ICON_FOR[c.out]); addXp('Cooking', c.xp); showToast(`${c.done} (${countOf(c.out)}).  +${c.xp} Cooking XP`); sizzleSound(false); }
+  if (!nextToCook()) { stopCooking(); return; }
   cooking.t0 = performance.now(); setAct({ k: 'cook', t: Date.now() });
 }
 function sizzleSound(burnt){ sfx((ctx, t, out) => { out.gain.value = 0.5;   // a short sizzle with a couple of pops; burnt is harsher, with a smoky rumble
@@ -1535,7 +1540,7 @@ const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2853,8 +2858,8 @@ const CLOAK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
   <path d="M5 2 L11 2 L14 14 L2 14 Z" fill="#5c7e44" stroke="#d8b048" stroke-width="1"/><circle cx="8" cy="8" r="2" fill="none" stroke="#e2b84c" stroke-width="0.8"/><rect x="7.4" y="2" width="1.2" height="1.2" fill="#e2b84c"/></svg>`;
 // food you can eat from the bag
 const FOOD = { 'Shrimp': 'You eat the shrimp. Sweet and smoky.', "Brenna's bread": "You eat a hunk of Brenna's bread. Still warm, somehow.", 'Burnt shrimp': 'You eat the burnt shrimp. Crunchy. Very crunchy.' };
-const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0, 'Bread': 4, 'Burnt bread': 0 };
-FOOD['Bread'] = 'You eat the bread. Simple, but it fills you up.'; FOOD['Burnt bread'] = 'You eat the burnt bread. It tastes like the bottom of a fireplace.';
+const HEALS = { 'Shrimp': 3, "Brenna's bread": 5, 'Burnt shrimp': 0, 'Bread': 4, 'Burnt bread': 0, 'Cooked chicken': 3, 'Cooked beef': 3, 'Burnt chicken': 0, 'Burnt beef': 0 };
+FOOD['Bread'] = 'You eat the bread. Simple, but it fills you up.'; FOOD['Cooked chicken'] = 'You eat the roast chicken. Juicy and golden.'; FOOD['Cooked beef'] = 'You eat the beef. Hearty and filling.'; FOOD['Burnt chicken'] = 'You eat the burnt chicken. Charcoal with a hint of bird.'; FOOD['Burnt beef'] = 'You eat the burnt beef. It crunches.'; FOOD['Burnt bread'] = 'You eat the burnt bread. It tastes like the bottom of a fireplace.';
 const HELM_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M3 10 Q3 3 8 3 Q13 3 13 10 L13 12 L11 12 L11 9 L5 9 L5 12 L3 12 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="3" y="8" width="10" height="1.4" fill="#6a3c18"/><path d="M7.4 1.2 L8.6 1.2 L8 3 Z" fill="#e0a458"/></svg>`;
 const CHEST_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -3815,8 +3820,8 @@ const MONSTERS = [];
 const MONSTER_TYPES = {
   goblin: { name: 'Goblin', level: 2, hp: 6, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2600, respawn: 25000, snd: 'goblin' },
   // the farm biome, from Idle Tap Adventure's monster list (hit points and max hits as there)
-  chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [1, 3] },
-  cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [2, 6] },
+  chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [1, 3], drops: [['Raw chicken', 1, 1], ['Feathers', 5, 15]] },
+  cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [2, 6], drops: [['Raw beef', 1, 1]] },
   rat: { name: 'Giant Rat', level: 3, hp: 10, melee: 2, atk: 2, def: 2, maxHit: 2, speed: 2400, respawn: 25000, snd: 'rat', coins: [2, 6] },
   farmer: { name: 'Angry Farmer', level: 10, hp: 25, melee: 10, atk: 10, def: 10, maxHit: 3, speed: 2400, respawn: 60000, snd: 'farmer', coins: [25, 60] },
 };
@@ -3909,7 +3914,12 @@ function monsterSwing(m){
 function killMonster(m){
   m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
   const [c0, c1] = m.t.coins || [3, 10], coins = c0 + Math.floor(Math.random() * (c1 - c0 + 1));
-  setTimeout(() => { if (addItem('Coins', coins, COIN_ICON)) showToast(`The ${m.t.name.toLowerCase()} is defeated! It dropped ${coins} coins.`); }, 900);
+  setTimeout(() => {
+    const got = [];
+    if (addItem('Coins', coins, COIN_ICON)) got.push(`${coins} coins`);
+    for (const [name, lo, hi] of m.t.drops || []) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (addItem(name, n, ICON_FOR[name])) got.push(n > 1 ? `${n} ${name.toLowerCase()}` : name.toLowerCase()); else { showToast('Your bag is full, so some of the drop is left behind.'); } }
+    if (got.length) showToast(`The ${m.t.name.toLowerCase()} is defeated! It dropped ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`);
+  }, 900);
   endFight();
 }
 function playerDies(){
@@ -4265,12 +4275,19 @@ const FLOUR_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
 const DOUGH_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><ellipse cx="8" cy="10" rx="6" ry="3.6" fill="#f0e0c0" stroke="#b09870" stroke-width="0.7"/><ellipse cx="7" cy="9" rx="2.5" ry="1" fill="#fff4dc"/></svg>`;
 const LOAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 11 Q2 5 8 5 Q14 5 14 11 L14 13 L2 13 Z" fill="#c8843a" stroke="#6a4018" stroke-width="0.7"/><path d="M5 7 L6 9 M8 6.5 L8.6 8.8 M11 7 L10.4 9" stroke="#e8b070" stroke-width="0.8"/></svg>`;
 const BURNT_LOAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 11 Q2 5 8 5 Q14 5 14 11 L14 13 L2 13 Z" fill="#3a2a1e" stroke="#1a120a" stroke-width="0.7"/></svg>`;
+const FEATHER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M12 2 Q5 4 4 12 L5 13 Q12 9 12 2 Z" fill="#f4eee0" stroke="#9a8a70" stroke-width="0.6"/><path d="M11 3 L3.5 14" stroke="#9a8a70" stroke-width="0.7"/></svg>`;
+const RAW_CHICKEN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><ellipse cx="7" cy="9" rx="5" ry="4" fill="#f0b0a0" stroke="#a06050" stroke-width="0.7"/><rect x="11" y="4" width="1.6" height="5" fill="#f4e8d8" transform="rotate(30 12 6)"/><circle cx="13" cy="4" r="1.2" fill="#f4e8d8"/></svg>`;
+const COOKED_CHICKEN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><ellipse cx="7" cy="9" rx="5" ry="4" fill="#c8823a" stroke="#6a4018" stroke-width="0.7"/><ellipse cx="6" cy="8" rx="2" ry="1" fill="#e0a860"/><rect x="11" y="4" width="1.6" height="5" fill="#f4e8d8" transform="rotate(30 12 6)"/><circle cx="13" cy="4" r="1.2" fill="#f4e8d8"/></svg>`;
+const RAW_BEEF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#c8383a" stroke="#6a1a1a" stroke-width="0.7"/><path d="M5 6 Q8 8 11 7 M5 10 Q8 9 11 11" stroke="#f0d0c8" stroke-width="0.8" fill="none"/></svg>`;
+const COOKED_BEEF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#7a4020" stroke="#3a1a0a" stroke-width="0.7"/><path d="M5 6 L6 9 M8 5.5 L9 9 M11 6.5 L11.5 10" stroke="#3a1a0a" stroke-width="0.9"/></svg>`;
+const BURNT_MEAT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><path d="M2 8 Q3 3 9 4 Q14 5 14 9 Q13 13 7 13 Q2 12 2 8 Z" fill="#2a1e16" stroke="#120a06" stroke-width="0.7"/></svg>`;
 const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
-  'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON };
+  'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON,
+  'Feathers': FEATHER_ICON, 'Raw chicken': RAW_CHICKEN_ICON, 'Cooked chicken': COOKED_CHICKEN_ICON, 'Burnt chicken': BURNT_MEAT_ICON, 'Raw beef': RAW_BEEF_ICON, 'Cooked beef': COOKED_BEEF_ICON, 'Burnt beef': BURNT_MEAT_ICON };
 function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
 const setStatus = t => { document.getElementById('onlineStatus').textContent = t; };
 function showJoin(msg, withName){
