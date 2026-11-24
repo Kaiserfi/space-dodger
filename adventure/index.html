@@ -2519,7 +2519,8 @@ function poseChibi(g, mode, t, tool = 'axe'){
   c.tools.hoe.visible = mode === 'swing' && tool === 'hoe';
   c.tools.can.visible = mode === 'water';
   c.gear.visible = mode !== 'swing';
-  for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = mode !== 'swing'; });
+  const handsBusy = mode === 'swing' || mode === 'water' || mode === 'pour';   /* a tool in hand: the sword, shield or torch is put away for the moment */
+  for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = !handsBusy; });
   const [L, R] = c.legs, [AL, AR] = c.arms;
   c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
