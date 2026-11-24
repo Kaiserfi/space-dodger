@@ -3894,7 +3894,7 @@ function updateGuard(w, talker, dt){
       g2.strokeText('z', 8, 56); g2.fillText('z', 8, 56); g2.font = 'bold 34px Georgia'; g2.strokeText('Z', 30, 34); g2.fillText('Z', 30, 34); const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace; ZZZ_MAT = new THREE.SpriteMaterial({ map: tx2, transparent: true, depthWrite: false }); }
     w.zzz = new THREE.Sprite(ZZZ_MAT.clone()); w.zzz.scale.set(0.9, 0.9, 1); scene.add(w.zzz); }
   if (w.zzz) { w.zzz.visible = lying; if (lying) { const k = (performance.now() / 2400 + GUARD_NAMES.indexOf(w.rec.name) * 0.3) % 1; w.zzz.position.set(tx + 0.3, 5.6 + k * 1.2, tz - 1.4 - k * 0.3); w.zzz.material.opacity = Math.sin(k * Math.PI); } }
-  w.sitting = sitting && d < 0.3; w.lying = lying;
+  w.sitting = sitting && d < 0.3; w.lying = lying; w.rec.sitting = w.sitting;
   return moving;
 }
 function updateWanderers(){
@@ -4691,11 +4691,46 @@ function combatSound(kind){
 const BARKERS = [], NPC_SPOTS = [];
 let nextBark = performance.now() + 5000;
 const barkV = new THREE.Vector3();
+// guards sat at the mess table chat with each other instead of calling out: a random exchange, line by line, in their bubbles
+const TABLE_TALK = [
+  [[0, "Pass the bread."], [1, "Brenna's?"], [0, "Is there any other kind?"]],
+  [[0, "Rennick asked me for a spoon again."], [1, "Don't you dare."], [0, "I gave him a fork. Seemed safer."]],
+  [[0, "Pip's been at the well again."], [1, "Of course he has."], [0, "Said he was looking for frogs."], [1, "In a well?"]],
+  [[0, "Heard something out past the woods last night."], [1, "Goblins?"], [0, "Or Hobb's socks. Hard to say."]],
+  [[0, "Aldric snored through the whole bell this morning."], [1, "Don't let him hear you say that."], [0, "He wouldn't. He's asleep."]],
+  [[0, "Bram tried to give me another cabbage."], [1, "Did it have a name?"], [0, "Gerald."], [1, "Poor Gerald."]],
+  [[0, "This stew's cold."], [1, "That's breakfast."], [0, "...Oh."]],
+  [[0, "Truffle got out again."], [1, "Where'd she end up?"], [0, "Mara's shop. Sat in the bucket aisle like she owned it."]],
+  [[0, "My boots are still wet from that rain."], [1, "Stuff 'em with straw."], [0, "Then my feet'll itch."], [1, "Then don't complain."]],
+  [[0, "Think Rennick's actually innocent?"], [1, "Did you see him sell Bram his own cabbages?"], [0, "Fair point."]],
+  [[0, "Hilde's hens were loose by the bonfire."], [1, "All of them?"], [0, "All but the brown one. She's got sense."]],
+  [[0, "Quiet night."], [1, "Don't say that."], [0, "Why?"], [1, "Because then it won't be."]],
+];
+const TT = { lines: null, i: 0, pair: null, next: performance.now() + 4000, last: -1 };
+function tableTalk(now){
+  if (!hero) return;
+  if (!TT.lines) {
+    if (now < TT.next) return;
+    const sat = BARKERS.filter(b => b.rec.sitting && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
+    if (sat.length < 2) { TT.next = now + 3000; return; }
+    const a = sat.splice(Math.floor(Math.random() * sat.length), 1)[0], b = sat[Math.floor(Math.random() * sat.length)];
+    let k; do { k = Math.floor(Math.random() * TABLE_TALK.length); } while (k === TT.last && TABLE_TALK.length > 1);
+    TT.last = k; TT.lines = TABLE_TALK[k]; TT.i = 0; TT.pair = [a, b]; TT.next = now;
+  }
+  if (now < TT.next) return;
+  const [who, text] = TT.lines[TT.i] || [], b = who !== undefined && TT.pair[who];
+  if (!b || !b.rec.sitting || dlg === b.rec) { TT.lines = null; TT.next = now + 8000; return; }   // someone got up (or is being talked to): the chat ends
+  if (b.el) b.el.remove();
+  b.el = document.createElement('div'); b.el.className = 'npcBub'; b.el.textContent = text; document.body.appendChild(b.el);
+  b.until = now + 2200 + text.length * 55; TT.next = b.until + 300; TT.i++;
+  if (TT.i >= TT.lines.length) { TT.lines = null; TT.next = b.until + 9000 + Math.random() * 9000; }   // a pause before the next chat
+}
 function updateBarks(){
   const now = performance.now();
+  tableTalk(now);
   if (hero && now > nextBark) {
     nextBark = now + 5000 + Math.random() * 8000;
-    const near = BARKERS.filter(b => b.rec.barks && !b.rec.asleep && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
+    const near = BARKERS.filter(b => b.rec.barks && !b.rec.asleep && !b.rec.sitting && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
     if (near.length) {
       const b = near[Math.floor(Math.random() * near.length)];
       b.el = document.createElement('div'); b.el.className = 'npcBub'; b.el.textContent = b.rec.barks[Math.floor(Math.random() * b.rec.barks.length)];
