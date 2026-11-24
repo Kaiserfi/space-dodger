@@ -442,7 +442,7 @@ const gp = groundGeo.attributes.position;
 for (let i = 0; i < gp.count; i++) {
   const x = gp.getX(i), z = gp.getZ(i);
   const inHall = Math.abs(x - 16) < 11.2 && Math.abs(z - 2) < 9.8;   // the hall's floor sits on flat ground
-  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > 58 && x < 112 && z > -11 && z < 84);   // the village, the fields, the pens and the ruined farm   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
+  const inVillage = (x > -110 && x < 62 && z > -11.6 && z < 60) || (x > -54 && x < -8 && z > 56 && z < 88) || (x > 58 && x < 112 && z > -11 && z < 84);   // the village, the fields, the pens and the ruined farm   // the village, and the new fields and windmill east of the farm   // the village and its roads are flat, so the paths lie on the ground   // the village is flat, so grass cannot poke through the houses
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   let y = inHall || inVillage ? 0 : Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12;
@@ -3245,6 +3245,152 @@ document.querySelectorAll('.subTabs button').forEach(b => b.addEventListener('cl
 }));
 renderStats();
 
+// ===== the guards' barracks, with the jail joined on its east side: warm cut stone like the hall, battlements, a corner tower
+// flying the village flag, and the emblem banners at the door. Static parts are merged by material so it stays cheap to draw.
+const BARRACKS = { x0: -50, x1: -26, z0: 60, z1: 84, jx1: -12, jz0: 64, jz1: 82, H: 7, JH: 6, roof: null };
+function buildBarracks(){
+  const B = BARRACKS, t = 0.9;
+  // warm, honey-coloured cut stone, as on the hall
+  const stoneCv = document.createElement('canvas'); stoneCv.width = stoneCv.height = 32; const sg = stoneCv.getContext('2d');
+  sg.fillStyle = '#7a6a52'; sg.fillRect(0, 0, 32, 32);
+  for (let row = 0; row < 4; row++) { const off = row % 2 ? 8 : 0;
+    for (let x = -8; x < 32; x += 16) { const v = (row * 7 + x * 3 + 40) % 30; sg.fillStyle = `rgb(${196 + v},${178 + v},${144 + v})`; sg.fillRect(x + off + 1, row * 8 + 1, 14, 6);
+      sg.fillStyle = 'rgba(255,250,230,.25)'; sg.fillRect(x + off + 1, row * 8 + 1, 14, 1); sg.fillStyle = 'rgba(60,40,20,.2)'; sg.fillRect(x + off + 1, row * 8 + 6, 14, 1); } }
+  const stoneTx = new THREE.CanvasTexture(stoneCv); stoneTx.wrapS = stoneTx.wrapT = THREE.RepeatWrapping; stoneTx.magFilter = THREE.NearestFilter; stoneTx.colorSpace = THREE.SRGBColorSpace;
+  const flagCv = document.createElement('canvas'); flagCv.width = flagCv.height = 32; const fg = flagCv.getContext('2d');   // big flagstones for the floors
+  fg.fillStyle = '#5a5248'; fg.fillRect(0, 0, 32, 32); for (const [x, y, w, h] of [[1, 1, 14, 14], [17, 1, 14, 9], [17, 12, 14, 19], [1, 17, 14, 14]]) { fg.fillStyle = `rgb(${128 + (x + y) % 18},${120 + (x + y) % 18},${108 + (x + y) % 18})`; fg.fillRect(x, y, w, h); }
+  const flagTx = new THREE.CanvasTexture(flagCv); flagTx.wrapS = flagTx.wrapT = THREE.RepeatWrapping; flagTx.magFilter = THREE.NearestFilter; flagTx.colorSpace = THREE.SRGBColorSpace;
+  const M = {
+    stone: new THREE.MeshStandardMaterial({ map: stoneTx, color: 0xffffff, flatShading: true, roughness: 0.95 }),
+    plinth: new THREE.MeshStandardMaterial({ map: stoneTx, color: 0xa89a84, flatShading: true, roughness: 0.95 }),
+    floor: new THREE.MeshStandardMaterial({ map: flagTx, color: 0xffffff, roughness: 1 }),
+    slab: new THREE.MeshStandardMaterial({ color: 0x6a6258, flatShading: true, roughness: 1 }),
+    wood: mat(0x7a5232), dark: mat(0x4a2e18), iron: new THREE.MeshStandardMaterial({ color: 0x3a3a42, flatShading: true, roughness: 0.6, metalness: 0.5 }),
+    gold: mat(0xd8b048), green: mat(0x4e7038), straw: mat(0xd8b860), cloth: mat(0x8a3a2a), soot: mat(0x150e08), steel: new THREE.MeshStandardMaterial({ color: 0xb8bcc4, flatShading: true, roughness: 0.4, metalness: 0.6 }),
+    glow: new THREE.MeshStandardMaterial({ color: 0xffd48a, emissive: 0xc07a20, emissiveIntensity: 0.8, roughness: 0.4 }),
+  };
+  GLOW_MATS.push(M.glow);
+  const bins = { main: new Map(), roof: new Map() };
+  // a box with its texture tiled by size, so stone and flagstones keep the same scale on every wall
+  const boxGeo = (w, h, d) => { const g = new THREE.BoxGeometry(w, h, d), uv = g.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / 2.4, uv.getY(i) * dims[f][1] / 2.4); } return g; };
+  const put = (m, geo, x, y, z, ry = 0, rz = 0, bin = 'main') => { if (rz) geo.rotateZ(rz); if (ry) geo.rotateY(ry); geo.translate(x, y, z); const b = bins[bin]; if (!b.has(m)) b.set(m, []); b.get(m).push(geo.index ? geo.toNonIndexed() : geo); };
+  const box = (m, x0, x1, y0, y1, z0, z1, bin) => put(m, boxGeo(x1 - x0, y1 - y0, z1 - z0), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0, 0, bin);
+  const solid = (x0, x1, z0, z1) => solidBoxes.push({ x0, x1, z0, z1 });
+  const wall = (x0, x1, z0, z1, h) => { box(M.stone, x0, x1, 0, h, z0, z1); box(M.plinth, x0 - 0.15, x1 + 0.15, 0, 0.8, z0 - 0.15, z1 + 0.15); solid(x0, x1, z0, z1); };
+  // ----- the barracks walls: a wide arched door in the north, a doorway through to the jail in the east -----
+  const D0 = -39.8, D1 = -36.2, DH = 5.2;   // the front door: 3.6 wide and 5.2 high, well clear of the tallest hat
+  wall(B.x0, D0, B.z0, B.z0 + t, B.H); wall(D1, B.x1, B.z0, B.z0 + t, B.H); box(M.stone, D0, D1, DH + 0.6, B.H, B.z0, B.z0 + t);
+  wall(B.x0, B.x1, B.z1 - t, B.z1, B.H); wall(B.x0, B.x0 + t, B.z0, B.z1, B.H);
+  const J0 = 71.5, J1 = 74.5, JDH = 4.9;    // through to the jail
+  wall(B.x1 - t, B.x1, B.z0, J0, B.H); wall(B.x1 - t, B.x1, J1, B.z1, B.H); box(M.stone, B.x1 - t, B.x1, JDH, B.H, J0, J1);
+  // ----- the jail walls -----
+  wall(B.x1, B.jx1, B.jz0, B.jz0 + t, B.JH); wall(B.x1, B.jx1, B.jz1 - t, B.jz1, B.JH); wall(B.jx1 - t, B.jx1, B.jz0, B.jz1, B.JH);
+  // arched door and jail doorway trims: stone posts and a ring of voussoirs with a pale keystone
+  const arch = (cx, cz, half, top, alongX) => { for (const s of [-1, 1]) { if (alongX) box(M.plinth, cx + s * half - 0.3, cx + s * half + 0.3, 0, top, cz - 0.6, cz + 0.6); else box(M.plinth, cx - 0.6, cx + 0.6, 0, top, cz + s * half - 0.3, cz + s * half + 0.3); }
+    for (let i = 0; i <= 8; i++) { const a = Math.PI * i / 8, g = boxGeo(0.55, 0.4, 1.3); g.rotateZ(Math.atan2(Math.sin(a) * 0.6, Math.cos(a) * half) - Math.PI / 2 + Math.PI / 2 * 0 + (Math.PI / 2 - a) * 0);
+      if (!alongX) g.rotateY(Math.PI / 2); g.translate(alongX ? cx + Math.cos(a) * half : cx, top + Math.sin(a) * 0.6, alongX ? cz : cz + Math.cos(a) * half); put(i === 4 ? M.gold : M.plinth, g, 0, 0, 0); } };
+  arch((D0 + D1) / 2, B.z0 + t / 2, 1.8, DH, true); arch(B.x1 - t / 2, (J0 + J1) / 2, 1.5, JDH, false);
+  // buttresses at every outside corner
+  for (const [x, z, h] of [[B.x0, B.z1, B.H], [B.x1, B.z0, B.H], [B.jx1, B.jz0, B.JH], [B.jx1, B.jz1, B.JH], [B.x1, B.z1, B.H]]) { box(M.stone, x - 0.75, x + 0.75, 0, h + 0.3, z - 0.75, z + 0.75); put(M.slab, new THREE.ConeGeometry(1.1, 0.9, 4), x, h + 0.75, z, Math.PI / 4); }
+  // ----- the corner tower, north-west, with the flag on top -----
+  const TX0 = B.x0 - 1, TX1 = B.x0 + 4.5, TZ0 = B.z0 - 1, TZ1 = B.z0 + 4.5, TH = 11.5;
+  box(M.stone, TX0, TX1, 0, TH, TZ0, TZ1); box(M.plinth, TX0 - 0.2, TX1 + 0.2, 0, 0.9, TZ0 - 0.2, TZ1 + 0.2); solid(TX0, TX1, TZ0, TZ1);
+  box(M.slab, TX0 - 0.3, TX1 + 0.3, TH, TH + 0.4, TZ0 - 0.3, TZ1 + 0.3);
+  for (let i = 0; i < 4; i++) for (const s of [0, 1]) { const u = TX0 - 0.3 + 0.45 + i * ((TX1 - TX0 + 0.6 - 0.9) / 3); box(M.stone, u - 0.45, u + 0.45, TH + 0.4, TH + 1.3, s ? TZ1 - 0.3 : TZ0 - 0.3, s ? TZ1 + 0.3 : TZ0 + 0.3); box(M.stone, s ? TX1 - 0.3 : TX0 - 0.3, s ? TX1 + 0.3 : TX0 + 0.3, TH + 0.4, TH + 1.3, u - (TX0 - TZ0) - 0.45, u - (TX0 - TZ0) + 0.45); }
+  for (const [x, z, ry] of [[(TX0 + TX1) / 2, TZ0 - 0.02, 0], [TX0 - 0.02, (TZ0 + TZ1) / 2, Math.PI / 2]]) { const g = boxGeo(0.7, 1.6, 0.2); put(M.soot, g, x, 8.4, z, ry); }   // arrow slits
+  // ----- battlements round the barracks and the jail roofs, and the flat roofs themselves (lifted off while you're inside) -----
+  const merlons = (x0, x1, z0, z1, h) => { const step = 1.7;
+    for (let x = x0 + 0.6; x <= x1 - 0.4; x += step) for (const z of [z0, z1]) box(M.stone, x - 0.45, x + 0.45, h, h + 0.9, z - 0.05, z + t + 0.05 - (z === z1 ? t : 0) * 0 , 'roof');
+    for (let z = z0 + 0.6; z <= z1 - 0.4; z += step) for (const x of [x0, x1 - t]) box(M.stone, x - 0.05, x + t + 0.05, h, h + 0.9, z - 0.45, z + 0.45, 'roof'); };
+  merlons(B.x0, B.x1, B.z0, B.z1 - t, B.H); merlons(B.x1, B.jx1, B.jz0, B.jz1 - t, B.JH);
+  box(M.slab, B.x0 + t, B.x1 - t, B.H - 0.35, B.H - 0.05, B.z0 + t, B.z1 - t, 'roof'); box(M.slab, B.x1, B.jx1 - t, B.JH - 0.35, B.JH - 0.05, B.jz0 + t, B.jz1 - t, 'roof');
+  // ----- windows: arched, glowing warm after dark -----
+  const win = (x, z, ry, y = 3.0) => { put(M.glow, boxGeo(1.1, 1.6, 0.3), x, y, z, ry); put(M.glow, new THREE.CylinderGeometry(0.55, 0.55, 0.3, 14, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), x, y + 0.8, z, ry);
+    put(M.dark, boxGeo(0.1, 2.1, 0.36), x, y + 0.2, z, ry); put(M.dark, boxGeo(1.1, 0.1, 0.36), x, y + 0.2, z, ry); put(M.plinth, boxGeo(1.5, 0.22, 0.6), x, y - 0.9, z, ry); };
+  for (const x of [-46, -31]) win(x, B.z0 + t / 2, 0);
+  for (const x of [-46, -38, -30]) win(x, B.z1 - t / 2, 0);
+  for (const z of [68, 76]) win(B.x0 + t / 2, z, Math.PI / 2);
+  for (const z of [67.5, 73, 78.5]) win(B.jx1 - t / 2, z, Math.PI / 2, 3.6);   // small high windows in each cell
+  // ----- floors -----
+  const floorAt = (w, d, x, z) => { const g = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 3, uv.getY(i) * d / 3); put(M.floor, g, x, 0.08, z); };   /* flagstones about 1.5 units across */
+  floorAt(B.x1 - B.x0 - 1.2, B.z1 - B.z0 - 1.2, (B.x0 + B.x1) / 2, (B.z0 + B.z1) / 2); floorAt(B.jx1 - B.x1 - 1, B.jz1 - B.jz0 - 1.2, (B.x1 + B.jx1) / 2, (B.jz0 + B.jz1) / 2);
+  // ----- inside the barracks -----
+  // four bunk beds along the west wall: two decks each, green guard blankets, a chest at the foot
+  for (const z of [67, 71.5, 76, 80.5]) {   /* clear of the corner tower */ const x0 = B.x0 + t, x1 = x0 + 2.0, z0 = z - 1.8, z1 = z + 1.8;
+    for (const [px, pz] of [[x0 + 0.15, z0 + 0.15], [x1 - 0.15, z0 + 0.15], [x0 + 0.15, z1 - 0.15], [x1 - 0.15, z1 - 0.15]]) box(M.dark, px - 0.15, px + 0.15, 0, 3.4, pz - 0.15, pz + 0.15);
+    for (const y of [0.7, 2.5]) { box(M.wood, x0, x1, y, y + 0.2, z0, z1); box(M.green, x0 + 0.1, x1 - 0.1, y + 0.2, y + 0.42, z0 + 0.6, z1 - 0.1); box(M.straw, x0 + 0.2, x1 - 0.2, y + 0.2, y + 0.5, z0 + 0.15, z0 + 0.7); }
+    box(M.wood, x1 + 0.2, x1 + 1.4, 0, 0.9, z - 0.6, z + 0.6); box(M.iron, x1 + 0.18, x1 + 1.42, 0.55, 0.65, z - 0.62, z + 0.62);
+    solid(x0, x1 + 1.4, z0, z1); }
+  // the long mess table and its benches, with mugs and a loaf
+  { const x = -38, z0 = 69.5, z1 = 77.5; box(M.wood, x - 1.1, x + 1.1, 1.05, 1.25, z0, z1); for (const zz of [z0 + 0.4, z1 - 0.4]) for (const s of [-1, 1]) box(M.dark, x + s * 0.9 - 0.12, x + s * 0.9 + 0.12, 0, 1.05, zz - 0.12, zz + 0.12);
+    for (const s of [-1, 1]) { box(M.wood, x + s * 1.75 - 0.3, x + s * 1.75 + 0.3, 0.6, 0.75, z0 + 0.3, z1 - 0.3); for (const zz of [z0 + 0.8, z1 - 0.8]) box(M.dark, x + s * 1.75 - 0.08, x + s * 1.75 + 0.08, 0, 0.6, zz - 0.08, zz + 0.08); }
+    for (const zz of [70.6, 72.4, 74.8, 76.6]) put(M.steel, new THREE.CylinderGeometry(0.12, 0.1, 0.28, 8), x + (zz % 2 > 1 ? 0.5 : -0.5), 1.39, zz);
+    put(mat(0xc8843a), new THREE.SphereGeometry(0.35, 8, 6).scale(1.4, 0.7, 0.9), x, 1.45, 73.6);
+    solid(x - 2.1, x + 2.1, z0 + 0.2, z1 - 0.2); }
+  // the hearth in the south wall: a stone chimney breast, a sooty firebox and a fire that glows (no new light: the night lights find it)
+  { const x = -38, z = B.z1 - t; box(M.stone, x - 2.2, x + 2.2, 0, B.H, z - 1.4, z); box(M.soot, x - 1.2, x + 1.2, 0.2, 1.9, z - 1.45, z - 0.9); box(M.dark, x - 2.5, x + 2.5, 2.7, 3.0, z - 1.7, z);
+    put(fireMat, boxGeo(1.4, 0.8, 0.2), x, 0.6, z - 1.3); for (const s of [-1, 1]) put(M.dark, new THREE.CylinderGeometry(0.12, 0.12, 1.1, 6).rotateZ(Math.PI / 2), x + s * 0.2, 0.35, z - 1.2, s * 0.4);
+    solid(x - 2.2, x + 2.2, z - 1.5, z); LIGHT_SPOTS.push([x, 2.4, z - 2.6]); }
+  // a weapon rack on the south wall: swords and spears
+  { const x0 = -33.5, x1 = -29, z = B.z1 - t; box(M.dark, x0, x1, 0, 0.25, z - 0.7, z); box(M.dark, x0, x1, 2.4, 2.6, z - 0.4, z); for (const x of [x0 + 0.1, x1 - 0.1]) box(M.dark, x - 0.1, x + 0.1, 0, 2.6, z - 0.6, z - 0.3);
+    for (let i = 0; i < 5; i++) { const x = x0 + 0.6 + i * 0.85; if (i % 2) { put(M.dark, new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6), x, 1.65, z - 0.45); put(M.steel, new THREE.ConeGeometry(0.13, 0.5, 4), x, 3.45, z - 0.45); }
+      else { put(M.steel, boxGeo(0.12, 1.5, 0.04), x, 1.35, z - 0.45); put(M.gold, boxGeo(0.5, 0.08, 0.1), x, 0.58, z - 0.45); put(M.dark, boxGeo(0.08, 0.4, 0.08), x, 0.32, z - 0.45); } }
+    solid(x0, x1, z - 0.8, z); }
+  // two armour stands just inside the door, wearing guard's iron and the green cloak
+  for (const x of [-43.5, -32.5]) { const z = B.z0 + t + 0.8; box(M.dark, x - 0.5, x + 0.5, 0, 0.15, z - 0.5, z + 0.5); box(M.dark, x - 0.06, x + 0.06, 0, 2.6, z - 0.06, z + 0.06);
+    box(M.steel, x - 0.55, x + 0.55, 1.5, 2.5, z - 0.35, z + 0.35); box(M.green, x - 0.6, x + 0.6, 1.4, 2.4, z - 0.42, z - 0.36); put(M.steel, new THREE.SphereGeometry(0.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), x, 2.75, z); put(M.gold, new THREE.ConeGeometry(0.08, 0.35, 5), x, 3.2, z);
+    solid(x - 0.6, x + 0.6, z - 0.6, z + 0.6); }
+  // supply crates and a barrel in the north-east corner
+  for (const [x, z, s] of [[-28.6, 62.4, 1.2], [-28.6, 64.0, 1.0], [-30.0, 62.4, 0.9]]) { box(M.wood, x - s / 2, x + s / 2, 0, s, z - s / 2, z + s / 2); }
+  put(M.wood, new THREE.CylinderGeometry(0.55, 0.48, 1.3, 10), -28.6, 0.65, 66.2); put(M.iron, new THREE.CylinderGeometry(0.57, 0.57, 0.08, 10), -28.6, 1.1, 66.2);
+  solid(-30.5, -27.9, 61.7, 66.8);
+  // wall torches: an iron bracket, a stick and a glowing flame
+  const sconce = (x, z, ry) => { put(M.iron, boxGeo(0.12, 0.5, 0.4), x, 3.4, z, ry); put(M.dark, new THREE.CylinderGeometry(0.06, 0.08, 0.6, 6), x + Math.sin(ry) * 0.28, 3.75, z + Math.cos(ry) * 0.28); put(fireMat, new THREE.ConeGeometry(0.13, 0.35, 6), x + Math.sin(ry) * 0.28, 4.2, z + Math.cos(ry) * 0.28); };
+  sconce(-41.5, B.z0 + t + 0.06, 0); sconce(-34.5, B.z0 + t + 0.06, 0); sconce(B.x0 + t + 0.06, 73.75, Math.PI / 2);
+  LIGHT_SPOTS.push([-38, 3, 64], [-44, 3, 73]);
+  // ----- the jail: a corridor along the west side, three barred cells to the east -----
+  const BX = -20, cells = [[B.jz0 + t, 70.2], [70.6, 75.4], [75.8, B.jz1 - t]];
+  box(M.stone, BX, B.jx1 - t, 0, B.JH, 70.2, 70.6); box(M.stone, BX, B.jx1 - t, 0, B.JH, 75.4, 75.8); solid(BX, B.jx1 - t, 70.2, 70.6); solid(BX, B.jx1 - t, 75.4, 75.8);   // the walls between the cells
+  for (const [z0, z1] of cells) {
+    for (let z = z0 + 0.25; z < z1 - 0.1; z += 0.38) put(M.iron, new THREE.CylinderGeometry(0.05, 0.05, B.JH - 0.4, 6), BX, (B.JH - 0.4) / 2, z);
+    for (const y of [0.35, 2.6, B.JH - 0.5]) box(M.iron, BX - 0.08, BX + 0.08, y - 0.08, y + 0.08, z0, z1);
+    const cz = (z0 + z1) / 2; box(M.iron, BX - 0.12, BX + 0.12, 0, 4.4, cz - 0.95, cz - 0.8); box(M.iron, BX - 0.12, BX + 0.12, 0, 4.4, cz + 0.8, cz + 0.95); box(M.iron, BX - 0.12, BX + 0.12, 4.3, 4.45, cz - 0.95, cz + 0.95);   // the cell door's frame
+    box(M.iron, BX - 0.28, BX - 0.1, 1.8, 2.3, cz + 0.45, cz + 0.75);   // its lock
+    solid(BX - 0.15, BX + 0.15, z0, z1);
+    // a straw pallet, a stool and a bucket in every cell
+    box(M.straw, B.jx1 - t - 2.4, B.jx1 - t - 0.1, 0.05, 0.35, z0 + 0.3, z0 + 1.6); put(M.wood, new THREE.CylinderGeometry(0.28, 0.24, 0.45, 8), BX + 1.0, 0.24, z1 - 0.7);
+    put(M.wood, new THREE.CylinderGeometry(0.32, 0.32, 0.12, 8), BX + 2.4, 0.75, z1 - 0.6); for (const a of [0, 2.1, 4.2]) put(M.dark, new THREE.CylinderGeometry(0.04, 0.04, 0.7, 4), BX + 2.4 + Math.cos(a) * 0.22, 0.35, z1 - 0.6 + Math.sin(a) * 0.22);
+  }
+  sconce(-23, B.jz0 + t + 0.06, 0); sconce(-23, B.jz1 - t - 0.06, Math.PI); LIGHT_SPOTS.push([-23, 3, 73]);
+  // ----- merge everything: one mesh per material -----
+  const g = new THREE.Group(), roof = new THREE.Group(); g.add(roof); town.add(g);
+  for (const [bin, parent] of [['main', g], ['roof', roof]]) for (const [m, geos] of bins[bin]) { const mesh = new THREE.Mesh(mergeGeometries(geos), m); mesh.castShadow = mesh.receiveShadow = true; parent.add(mesh); }
+  B.roof = roof; B.group = g;
+  // ----- the banners by the door and the flags on the tower and the jail, all swaying in the wind -----
+  const cloth = (W, Hh, swallow) => { const cv = document.createElement('canvas'); cv.width = 128; cv.height = swallow ? 256 : 96; const c = cv.getContext('2d'), w = cv.width, h = cv.height;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(w, 0); if (swallow) { c.lineTo(w, h); c.lineTo(w / 2, h * 0.84); c.lineTo(0, h); } else { c.lineTo(w, h); c.lineTo(0, h); } c.closePath(); c.fillStyle = '#4e7038'; c.fill();
+    c.strokeStyle = '#d8b048'; c.lineWidth = swallow ? 9 : 6; c.stroke(); if (swallow) { c.fillStyle = '#d8b048'; c.fillRect(0, 0, w, 14); }
+    drawEmblem(c, w / 2, swallow ? h * 0.42 : h / 2, swallow ? 44 : 32, '#e2b84c', '#4e7038');
+    const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.PlaneGeometry(W, Hh, 8, 12); geo.translate(0, -Hh / 2, 0);
+    return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tx, side: THREE.DoubleSide, alphaTest: 0.5, roughness: 1 })); };
+  const sway = (m, ph) => { hallBanners.push({ cloth: m, base: Float32Array.from(m.geometry.attributes.position.array), ph }); };
+  for (const x of [-42.2, -33.8]) { const z = B.z0 - 0.05;   // a long banner either side of the door, hanging from an iron pole
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.3, 6).rotateZ(Math.PI / 2), M.iron); pole.position.set(x, 6.1, z - 0.5); g.add(pole);
+    for (const s of [-1, 1]) { const k = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), M.gold); k.position.set(x + s * 1.18, 6.1, z - 0.5); g.add(k); }
+    const b = cloth(2.0, 4.4, true); b.position.set(x, 6.05, z - 0.55); g.add(b); sway(b, x * 0.7); }
+  const flag = (x, y, z, ph) => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4.5, 6), M.dark); pole.position.set(x, y + 2.25, z); g.add(pole);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), M.gold); knob.position.set(x, y + 4.55, z); g.add(knob);
+    const f = cloth(1.8, 3.0, false); f.rotation.set(0, 0, Math.PI / 2); f.position.set(x + 0.05, y + 4.3, z); g.add(f); sway(f, ph); };   // the flag streams out sideways from the pole
+  flag((TX0 + TX1) / 2, TH + 0.4, (TZ0 + TZ1) / 2, 0.3); flag(B.jx1 - 1.5, B.JH, B.jz0 + 1.5, 2.1);
+  // the banners inside, either side of the hearth
+  for (const x of [-42, -34]) { const b = cloth(1.5, 3.2, true); b.position.set(x, 5.9, B.z1 - t - 0.06); b.rotation.y = Math.PI; g.add(b); }
+  return B;
+}
+// lift both roofs while you're in the barracks or the jail, so you can see inside
+function updateBarracks(){ const B = BARRACKS; if (!B.roof || !hero) return; const x = hero.position.x, z = hero.position.z;
+  B.roof.visible = !((x > B.x0 && x < B.x1 && z > B.z0 && z < B.z1) || (x > B.x1 && x < B.jx1 && z > B.jz0 && z < B.jz1)); }
 // ----- the village: houses spread out, a smithy building, a woodland, a quarry and a fishing spot -----
 const sk = n => levelOf(SKILL_XP[n]);
 const VILLAGERS = [
@@ -3279,6 +3425,16 @@ const VILLAGERS = [
 ];
 // the people outside, each with their own place, manner and things to say
 const TOWNSFOLK = [
+  { name: 'Rennick', title: 'the prisoner', x: -16.6, z: 73, rad: 0.9, s: 1.5,   /* in the middle cell; s keeps the talk spot out in the corridor */
+    look: { gender: 'male', skin: 0xe0b088, hair: 'short', hairCol: 0x8a5a2a, shirt: 0x7a6a4a, pants: 0x4a3a2a },
+    talks: [
+      ["Oh, a visitor! Don't mind the bars, they're mostly for show.", "Rennick. Travelling merchant. Wrongly accused, naturally."],
+      ["All I did was offer Bram a very fair price on some cabbages.", "How was I to know they were his? He names them, you know. Took it ever so personally."],
+      ["Osric caught me. Well. Osric tripped over me. Came to the same thing, sadly."],
+      ["Is Aldric still snoring through his watch? You can hear him from in here on a quiet night."],
+      ["Brenna sends bread over. I think she feels sorry for me. I let her."],
+      ["I'll be out by morning. I'm always out by morning.", "...It's been three mornings."] ],
+    barks: ["Psst! You've got an honest face. Got a spoon?", "I'm innocent! Mostly!", "Lovely day out there, I expect."] },
   { asks: [{ q: "What's out past the farm, to the south?", a: ["The old Haldane farm. Burned down years ago, long before your time.", "Folk say the family dug a cellar under it. Deep. Deeper than any cellar has a right to be.", "If I were you, I'd leave it well alone. But you're not me, are you?"] }],
     name: 'Aldric', title: 'the guard captain', level: 20, x: 11, z: 16, rad: 1.5,
     gear: { head: 'Iron helmet', body: 'Iron chestplate', legs: 'Iron leg armour', feet: 'Iron boots', back: "Villager's cloak", weapon: 'Iron sword', shield: "Iron Guard's shield" },
@@ -4035,6 +4191,7 @@ function grassMaskTexture(){
   g.beginPath(); g.arc(X(BF.x), Z(BF.z), BF.clearR * GM.ppu, 0, 7); g.fill();   // the bonfire clearing
   g.fillStyle = 'rgba(110,70,0,1)'; g.fillRect(X(62), Z(37), 46 * GM.ppu, 43 * GM.ppu); g.fillStyle = '#000';   // the ruined farm: patchy, stunted grass
   g.fillRect(X(97.6), Z(-7.6), 9.8 * GM.ppu, 6.8 * GM.ppu);   // the workshop floor
+  g.fillRect(X(BARRACKS.x0 - 1.5), Z(BARRACKS.z0 - 1.5), (BARRACKS.jx1 - BARRACKS.x0 + 3) * GM.ppu, (BARRACKS.z1 - BARRACKS.z0 + 3) * GM.ppu);   // the barracks and the jail
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   for (let pz = -20; pz < 98; pz += 0.5) for (let px = pz > -9 ? -118 : GM.x0; px < (pz > -9 ? -64 : GM.x1); px += 0.5) {   // the water and its muddy banks
     if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1); }
@@ -4519,7 +4676,8 @@ function populateVillage(){
   const h3 = house(-22, -4, 5, 4.5, 0x9a7a5a, 0x5a3a7a, 0, (g, h) => addNpc(g, h, -0.4, -0.6, VILLAGERS[2]));
   const h4 = house(-30, 40, 5.5, 4.5, 0x7a6a5a, 0x6a3a2a, Math.PI / 2);   // turned, with its doorway facing the hall
   const smithyHouse = house(38, 46, 6, 5, 0x8a6a4a, 0x5a3a2a, 0, furnishSmithy);   // the smithy, its own building
-  const store = house(-75, 52, 4.5, 3.8, 0x8a7a6a, 0x3a6a5a, Math.PI / 2, furnishStore);   // Mara's general store, out in the open ground to the south-west, its door facing east
+  const store = house(-75, 52, 4.5, 3.8, 0x8a7a6a, 0x3a6a5a, Math.PI / 2, furnishStore);
+  buildBarracks();   // the guards' barracks and the jail, south-west of the bonfire   // Mara's general store, out in the open ground to the south-west, its door facing east
   // the roads: one network from the village green, each house reached by its front door
   const G = hub;
   const D = h => [h.door.x, h.door.z];
@@ -4540,7 +4698,8 @@ function populateVillage(){
   roadPath([[26, 54], [23, 59], [QUARRY.x + 8.6, QUARRY.z - 9.6]]);   // south-west to the quarry gate
   roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
   roadPath([[-58, 51], [-61, 60], [-66, 69], [-72.5, 78]]);            // south from the back lane to the trout pond
-  roadPath([[-46, 47], [-58, 51], out(store), D(store)]);           // Mara's store, off the back lane to the south-west
+  roadPath([[-46, 47], [-58, 51], out(store), D(store)]);
+  roadPath([[-40, 52], [-38, 55], [-38, 58.6]]); cobbleDisc(-38, 58.4, 2.2);   // off the back lane to the barracks door           // Mara's store, off the back lane to the south-west
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
   buildQuarry();
@@ -5545,7 +5704,7 @@ function frame(){
   updateHeroAnim();
   updateTrees();
   updateDebris();
-  updateHouses();
+  updateHouses(); updateBarracks();
   updateFolds();
   updateFish();
   updateOnline();
