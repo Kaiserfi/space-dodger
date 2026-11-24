@@ -956,6 +956,8 @@ function updateDayNight(){
     const spots = LIGHT_SPOTS.map(p => ({ p, d: Math.hypot(p[0] - c0.x, p[2] - c0.z) }));
     for (const id in remote) { const sp = remote[id].sprite, c = sp.userData.chibi;   // other players' torches, ahead of lamps the same distance away
       if (c && c.torch) spots.push({ follow: sp, d: Math.hypot(sp.position.x - c0.x, sp.position.z - c0.z) - 8 }); }
+    for (const w of WANDER) if (w.dark && w.k === 1 && GUARD_NAMES.includes(w.rec.name)) { const sp = w.sp;   // the guards' torches too
+      spots.push({ follow: sp, d: Math.hypot(sp.position.x - c0.x, sp.position.z - c0.z) - 8 }); }
     spots.sort((a, b) => a.d - b.d);
     nightLights.forEach((L, i) => { const sp = spots[i]; L.follow = sp && sp.follow || null; if (sp && sp.p) L.position.set(sp.p[0], sp.p[1], sp.p[2]); }); }
   for (const L of nightLights) if (L.follow) L.position.set(L.follow.position.x, 2.6, L.follow.position.z);   // a carried torch's light moves with them
