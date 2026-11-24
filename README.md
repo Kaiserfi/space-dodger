@@ -49,6 +49,7 @@ A low-poly village to explore, found from the arcade menu (or at `adventure/`).
 - **Torches:** click logs in your bag and choose *Make a torch* (Firemaking 1, one log). Equip it in your off-hand to light the way at night.
 - **Brightness:** a slider in Settings lifts the night for dim phone screens, without changing it for anyone else.
 - **Seeing each other's gear:** other players' armour, weapons, cloaks and torches show on your screen, and their torches light the ground at night.
+- **Character creator:** 10 hairstyles, 13 hair colours, 8 skin tones, 6 eye colours, cheeks, facial hair (moustache, goatee, full beard), 12 tops, 10 trousers and 5 boot colours, plus a *Surprise me* button.
 - **Gravestones:** when you die you keep your three most valuable items. Everything else goes into a gravestone where you fell, which only you can collect from, within 10 minutes.
 - **Guards:** Aldric (the captain), Osric, Edda, Bertram and Godwin patrol the village in iron and the village cloak. Their combat level shows next to their name.
 - **Grass:** real blades of grass sway in the wind and part around anyone walking through. It's kept short in the village, grows long in the wilds, and stays off paths and floors. Settings has Grass: Off / Low / High (Low by default on phones).

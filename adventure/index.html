@@ -16,7 +16,9 @@
   .crBox { pointer-events:auto; background:rgba(30,24,16,.95); border:2px solid #f0c35a; border-radius:10px; padding:12px 14px; width:290px; max-width:92vw; position:relative; }
   .crBox:after { content:''; position:absolute; left:50%; bottom:-12px; transform:translateX(-50%); border:10px solid transparent; border-top:12px solid #f0c35a; border-bottom:0; }
   .crBox h2 { margin:0 0 8px; font-size:15px; color:#f0c35a; text-transform:uppercase; letter-spacing:1px; text-align:center; }
-  .crRow { display:flex; align-items:center; justify-content:space-between; margin:4px 0; font-size:14px; }
+  .crRow { display:flex; align-items:center; justify-content:space-between; margin:3px 0; font-size:14px; }
+  #crRows { max-height:min(46vh, 380px); overflow-y:auto; padding-right:2px; }
+  #crRandom { font-family:inherit; background:#1d150b; color:#e8efe6; border:1px solid #5b4324; border-radius:5px; padding:5px 10px; cursor:pointer; width:100%; margin-top:8px; }
   .crRow span { min-width:160px; text-align:center; }
   .crRow button, #crStart { font-family:inherit; background:#1d150b; color:#e8efe6; border:1px solid #5b4324; border-radius:5px; padding:3px 11px; cursor:pointer; }
   #crStart { margin-top:10px; font-size:15px; padding:7px 18px; color:#f0c35a; width:100%; }
@@ -228,6 +230,7 @@
   <div class="crBox">
     <h2>Create your adventurer</h2>
     <div id="crRows"></div>
+    <button id="crRandom">Surprise me</button>
     <button id="crStart">Start playing</button>
   </div>
 </div>
@@ -248,13 +251,17 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 // ----- the look options -----
 const LOOK = [
   {key: 'gender', label: 'Build', values: [{id: 'male', label: 'Male'}, {id: 'female', label: 'Female'}]},
-  {key: 'hair', label: 'Hair', values: [{id: 'short', label: 'Short'}, {id: 'long', label: 'Long'}, {id: 'topknot', label: 'Top knot'}]},
-  {key: 'hairCol', label: 'Hair colour', values: [{id: 0x4a2a14, label: 'Brown'}, {id: 0x1a1a1a, label: 'Black'}, {id: 0xe0c070, label: 'Blonde'}, {id: 0xa03a1e, label: 'Red'}, {id: 0x9a9aa0, label: 'Grey'}]},
-  {key: 'skin', label: 'Skin', values: [{id: 0xf1cba0, label: 'Light'}, {id: 0xe8c39c, label: 'Fair'}, {id: 0xc9955f, label: 'Tan'}, {id: 0x8a5a33, label: 'Dark'}]},
-  {key: 'shirt', label: 'Top', values: [{id: 0x3d6fb8, label: 'Blue'}, {id: 0x3f8f4f, label: 'Green'}, {id: 0x8c2f2f, label: 'Red'}, {id: 0x7a5a2a, label: 'Brown'}, {id: 0x8a8f98, label: 'Grey'}]},
-  {key: 'pants', label: 'Trousers', values: [{id: 0x5c4a2a, label: 'Brown'}, {id: 0x2a3a5c, label: 'Navy'}, {id: 0x3a3a3a, label: 'Charcoal'}, {id: 0x6a4a8a, label: 'Plum'}]},
+  {key: 'skin', label: 'Skin', values: [{id: 0xf6d6b8, label: 'Pale'}, {id: 0xf1cba0, label: 'Light'}, {id: 0xe8c39c, label: 'Fair'}, {id: 0xd9a878, label: 'Warm'}, {id: 0xc9955f, label: 'Tan'}, {id: 0xa8744a, label: 'Olive'}, {id: 0x8a5a33, label: 'Dark'}, {id: 0x5e3a22, label: 'Deep'}]},
+  {key: 'hair', label: 'Hair', values: [{id: 'short', label: 'Short'}, {id: 'long', label: 'Long'}, {id: 'topknot', label: 'Top knot'}, {id: 'ponytail', label: 'Ponytail'}, {id: 'pigtails', label: 'Pigtails'}, {id: 'bob', label: 'Bob'}, {id: 'spiky', label: 'Spiky'}, {id: 'curly', label: 'Curly'}, {id: 'buzz', label: 'Buzz cut'}, {id: 'bald', label: 'Bald'}]},
+  {key: 'hairCol', label: 'Hair colour', values: [{id: 0x4a2a14, label: 'Brown'}, {id: 0x2e1a0e, label: 'Dark brown'}, {id: 0x1a1a1a, label: 'Black'}, {id: 0xe0c070, label: 'Blonde'}, {id: 0xd9a066, label: 'Strawberry'}, {id: 0x8a4a22, label: 'Auburn'}, {id: 0xa03a1e, label: 'Red'}, {id: 0x9a9aa0, label: 'Grey'}, {id: 0xeeeeee, label: 'White'}, {id: 0x3a6ad0, label: 'Blue'}, {id: 0xe070b0, label: 'Pink'}, {id: 0x3a9a5a, label: 'Green'}, {id: 0x7a4ac0, label: 'Purple'}]},
+  {key: 'eye', label: 'Eyes', values: [{id: 0x1e1a2a, label: 'Dark'}, {id: 0x5a3418, label: 'Brown'}, {id: 0x2a5ab0, label: 'Blue'}, {id: 0x2a8a4a, label: 'Green'}, {id: 0x7a6a2a, label: 'Hazel'}, {id: 0x6a7a8a, label: 'Grey'}]},
+  {key: 'cheeks', label: 'Cheeks', values: [{id: 'auto', label: 'Natural'}, {id: 'rosy', label: 'Rosy'}, {id: 'none', label: 'Plain'}]},
+  {key: 'face', label: 'Facial hair', values: [{id: 'none', label: 'None'}, {id: 'moustache', label: 'Moustache'}, {id: 'goatee', label: 'Goatee'}, {id: 'beard', label: 'Full beard'}]},
+  {key: 'shirt', label: 'Top', values: [{id: 0x3d6fb8, label: 'Blue'}, {id: 0x3f8f4f, label: 'Green'}, {id: 0x8c2f2f, label: 'Red'}, {id: 0x7a5a2a, label: 'Brown'}, {id: 0x8a8f98, label: 'Grey'}, {id: 0xd8b040, label: 'Yellow'}, {id: 0x6a3a8a, label: 'Purple'}, {id: 0x2a8a8a, label: 'Teal'}, {id: 0xe8e4d8, label: 'White'}, {id: 0x2a2a30, label: 'Black'}, {id: 0xd8703a, label: 'Orange'}, {id: 0xd87aa0, label: 'Pink'}]},
+  {key: 'pants', label: 'Trousers', values: [{id: 0x5c4a2a, label: 'Brown'}, {id: 0x2a3a5c, label: 'Navy'}, {id: 0x3a3a3a, label: 'Charcoal'}, {id: 0x6a4a8a, label: 'Plum'}, {id: 0x1e1e22, label: 'Black'}, {id: 0x7a7a80, label: 'Grey'}, {id: 0x3a5a2a, label: 'Green'}, {id: 0xb09a6a, label: 'Tan'}, {id: 0x3a5a9a, label: 'Blue'}, {id: 0x7a2a2a, label: 'Red'}]},
+  {key: 'boots', label: 'Boots', values: [{id: 0x5a3a22, label: 'Brown'}, {id: 0x1e1a18, label: 'Black'}, {id: 0x6a6a70, label: 'Grey'}, {id: 0x7a2a22, label: 'Red'}, {id: 0x9a7a4a, label: 'Tan'}]},
 ];
-let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a};
+let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, eye: 0x1e1a2a, cheeks: 'auto', face: 'none', boots: 0x5a3a22};
 let lookMade = false;
 try { const d = JSON.parse(localStorage.getItem('lowpolyLook')); if (d) { look = {...look, ...d.look}; lookMade = !!d.made; } } catch (e) {}
 const saveLook = () => { try { localStorage.setItem('lowpolyLook', JSON.stringify({look, made: lookMade})); } catch (e) {} };
@@ -2178,7 +2185,7 @@ function makeChibi(o){
   for (const x of [-0.2, 0.2]) {
     const leg = new THREE.Group(); leg.position.set(x, 0.62, 0); body.add(leg); legs.push(leg);
     chibiPart(leg, gCapsule(0.15, 0.3), o.pants, 0, -0.25, 0);
-    chibiPart(leg, gRound(0.19, 16), 0x5a3a22, 0, -0.5, 0.06).scale.set(1, 0.65, 1.3);   // boots
+    chibiPart(leg, gRound(0.19, 16), o.boots || 0x5a3a22, 0, -0.5, 0.06).scale.set(1, 0.65, 1.3);   // boots
   }
   chibiPart(body, gCapsule(female ? 0.36 : 0.38, 0.35), o.shirt, 0, 1.0, 0).scale.set(1, 1, 0.85);
   if (female) chibiPart(body, geo('skirt', () => new THREE.CylinderGeometry(0.34, 0.5, 0.4, 20)), o.pants, 0, 0.75, 0);
@@ -2197,17 +2204,55 @@ function makeChibi(o){
   chibiPart(head, gRound(0.62), o.skin, 0, 0, 0).scale.set(1.05, 0.95, 1);
   const eyes = [];
   for (const s of [-1, 1]) {
-    const eye = new THREE.Mesh(gRound(0.12, 16), basic(0x1e1a2a)); eye.scale.set(0.8, 1.15, 0.5); eye.position.set(s * 0.22, 0.02, 0.56); head.add(eye); eyes.push(eye);
+    const eye = new THREE.Mesh(gRound(0.12, 16), basic(o.eye || 0x1e1a2a)); eye.scale.set(0.8, 1.15, 0.5); eye.position.set(s * 0.22, 0.02, 0.56); head.add(eye); eyes.push(eye);
     const shine = new THREE.Mesh(gRound(0.04, 8), basic(0xffffff)); shine.position.set(s * 0.22 + 0.03, 0.08, 0.62); head.add(shine); eyes.push(shine);
-    if (female) { const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek); }   // rosy cheeks on the female build only
+    if (o.cheeks === 'rosy' || ((!o.cheeks || o.cheeks === 'auto') && female)) { const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek); }   // rosy cheeks on the female build only
   }
   const smile = new THREE.Mesh(geo('smile', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), basic(0x5a2a2a)); smile.rotation.z = Math.PI; smile.position.set(0, -0.14, 0.6); head.add(smile);
   // hair: a rounded cap tipped forward over the brow, and a patch behind the ears down to the nape so no scalp shows
-  chibiPart(head, geo('cap', () => new THREE.SphereGeometry(0.66, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.5)), o.hairCol, 0, 0.04, -0.03).rotation.x = -0.35;
-  const nape = chibiPart(head, geo('nape', () => new THREE.SphereGeometry(0.655, 24, 12, Math.PI * 1.14, Math.PI * 0.72, Math.PI * 0.2, Math.PI * 0.55)), o.hairCol, 0, 0.02, -0.02, false);
-  nape.material = nape.material.clone(); nape.material.side = THREE.DoubleSide;
-  if (o.hair === 'long') chibiPart(head, gRound(0.56, 28), o.hairCol, 0, -0.26, -0.2).scale.set(1.22, 1.22, 0.78);   // one smooth fall behind the head
-  const knot = o.hair === 'topknot' ? chibiPart(head, gRound(0.2, 14), o.hairCol, 0, 0.7, -0.15) : null;
+  const hs = o.hair || 'short', hc = o.hairCol;
+  if (hs !== 'bald') {
+    if (hs === 'buzz') chibiPart(head, geo('buzzCap', () => new THREE.SphereGeometry(0.64, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.46)), hc, 0, 0.02, -0.04).rotation.x = -0.2;   // close-cropped, no fringe
+    else chibiPart(head, geo('cap', () => new THREE.SphereGeometry(0.66, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.5)), hc, 0, 0.04, -0.03).rotation.x = -0.35;
+    const nape = chibiPart(head, geo('nape', () => new THREE.SphereGeometry(0.655, 24, 12, Math.PI * 1.14, Math.PI * 0.72, Math.PI * 0.2, Math.PI * 0.55)), hc, 0, 0.02, -0.02, false);
+    nape.material = nape.material.clone(); nape.material.side = THREE.DoubleSide;
+  }
+  if (hs === 'long') chibiPart(head, gRound(0.56, 28), hc, 0, -0.26, -0.2).scale.set(1.22, 1.22, 0.78);   // one smooth fall behind the head
+  if (hs === 'ponytail') {   // tied high at the back, hanging down behind the neck, clear of the shoulders
+    chibiPart(head, gRound(0.13, 12), hc, 0, 0.12, -0.66);
+    chibiPart(head, gCapsule(0.12, 0.42), hc, 0, -0.2, -0.78).rotation.x = 0.3;
+  }
+  if (hs === 'pigtails') for (const s of [-1, 1]) {   // two bunches behind the ears
+    chibiPart(head, gRound(0.18, 12), hc, s * 0.5, 0.02, -0.38);
+    chibiPart(head, gCapsule(0.1, 0.26), hc, s * 0.6, -0.26, -0.44).rotation.z = s * 0.25;
+  }
+  if (hs === 'bob') {   // a rounded bob down to the jaw, open at the face
+    const bob = chibiPart(head, geo('bob', () => new THREE.SphereGeometry(0.7, 28, 14, Math.PI * 0.8, Math.PI * 1.4, Math.PI * 0.22, Math.PI * 0.46)), hc, 0, 0.02, -0.02, false);
+    bob.material = bob.material.clone(); bob.material.side = THREE.DoubleSide; bob.scale.set(1.04, 1, 1.02);
+  }
+  if (hs === 'spiky') for (let i = 0; i < 9; i++) {   // spikes standing up off the crown
+    const a = i / 9 * Math.PI * 2, r = i % 2 ? 0.4 : 0.22, sp = chibiPart(head, geo('spike', () => new THREE.ConeGeometry(0.15, 0.5, 6)), hc, Math.cos(a) * r, 0.7 - r * 0.35, Math.sin(a) * r - 0.08);
+    sp.rotation.set(Math.sin(a) * r * 1.6, 0, -Math.cos(a) * r * 1.6);
+  }
+  if (hs === 'curly') for (let i = 0; i < 16; i++) {   // a mop of round curls over the top and back
+    const a = i * 2.39996, y = 0.1 + (i % 4) * 0.13, rr = Math.sqrt(Math.max(0, 0.68 * 0.68 - y * y));
+    const z = Math.sin(a) * rr; if (z > 0.38 && y < 0.35) continue;   // keep the face clear
+    chibiPart(head, gRound(0.17, 10), hc, Math.cos(a) * rr, y, z - 0.04);
+  }
+  const knot = hs === 'topknot' ? chibiPart(head, gRound(0.2, 14), hc, 0, 0.7, -0.15) : null;
+  // facial hair, under the smile so it never covers it
+  const fh = o.face || 'none', fc = hs === 'bald' ? 0x3a2a1a : hc;
+  if (fh === 'moustache' || fh === 'beard') for (const s of [-1, 1]) chibiPart(head, gRound(0.06, 8), fc, s * 0.08, -0.08, 0.6, false).scale.set(1.6, 0.7, 0.8);
+  if (fh === 'goatee') {   // a small pointed tuft hanging from the chin
+    chibiPart(head, gRound(0.09, 10), fc, 0, -0.42, 0.44, false).scale.set(1.1, 0.8, 0.8);
+    const tip = chibiPart(head, geo('goateeTip', () => new THREE.ConeGeometry(0.1, 0.26, 8)), fc, 0, -0.58, 0.42); tip.rotation.set(Math.PI - 0.35, 0, 0);
+  }
+  if (fh === 'beard') {   // a proper beard: hair along the jaw from ear to ear, falling into a rounded point below the chin, in front of the chest
+    const jaw = chibiPart(head, geo('beardJaw', () => new THREE.SphereGeometry(0.655, 24, 10, Math.PI * 0.08, Math.PI * 0.84, Math.PI * 0.7, Math.PI * 0.2)), fc, 0, -0.02, 0.02, false);
+    jaw.material = jaw.material.clone(); jaw.material.side = THREE.DoubleSide;
+    const fall = chibiPart(head, geo('beardFall', () => new THREE.SphereGeometry(0.32, 16, 12)), fc, 0, -0.6, 0.36); fall.scale.set(1.15, 1.15, 0.62); fall.rotation.x = -0.3;
+    const point = chibiPart(head, geo('beardPoint', () => new THREE.ConeGeometry(0.26, 0.42, 10)), fc, 0, -0.86, 0.42); point.rotation.set(Math.PI - 0.3, 0, 0); point.scale.set(1, 1, 0.6);
+  }
   // tools and worn gear
   const tools = { axe: makeTool('axe'), pick: makeTool('pick') };
   for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
@@ -2463,6 +2508,10 @@ document.getElementById('crRows').addEventListener('click', e => {
   renderCreator(); rebuildHero(); saveLook();
 });
 document.getElementById('crStart').addEventListener('click', closeCreator);
+document.getElementById('crRandom').addEventListener('click', () => {   // a random look: every option picked at random, facial hair less often
+  for (const o of LOOK) { const v = o.values; look[o.key] = o.key === 'face' && Math.random() < 0.6 ? 'none' : v[Math.floor(Math.random() * v.length)].id; }
+  renderCreator(); rebuildHero(); saveLook();
+});
 document.getElementById('lookBtn').addEventListener('click', openCreator);
 
 // ----- walking: click the ground and the adventurer walks there -----
