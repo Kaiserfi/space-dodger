@@ -167,6 +167,7 @@
   <div class="bagHead">Settings</div>
   <div class="setRow"><button class="muteBtn" id="muteMusic" title="Mute music"></button><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100"></div>
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
+  <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
   <div class="setRow"><label style="width:auto;flex:1">Grass</label><div class="grassOpts" id="grassOpts"><button data-g="off">Off</button><button data-g="low">Low</button><button data-g="high">High</button></div></div>
 </div>
 <div id="gearPanel" hidden>
@@ -818,15 +819,16 @@ function updateDayNight(){
   SUN_OFF.copy(dir).multiplyScalar(40);
   sun.color.set(up ? (dusk > 0.5 ? 0xffb070 : 0xffe7c2) : 0x9ab0e0);
   sun.intensity = up ? 0.3 + 1.8 * light : 0.35;
-  hemi.intensity = 0.18 + 0.72 * light; hemi.color.set(light > 0.3 ? 0xdff0ff : 0x6a80b0);
-  renderer.toneMappingExposure = 0.85 + 0.2 * light;
+  const bk = (SETTINGS.bright - 50) / 100;   // the brightness setting, -0.5 to +0.5: mostly lifts the dark, barely touches the day
+  hemi.intensity = 0.18 + 0.72 * light + night * 1.4 * Math.max(0, bk); hemi.color.set(light > 0.3 ? 0xdff0ff : 0x6a80b0);
+  renderer.toneMappingExposure = (0.85 + 0.2 * light) * (1 + bk * (0.25 + 0.45 * night));
   // sky colours: day, sunset and night, blended
   const c = (i) => new THREE.Color(SKY.night[i]).lerp(new THREE.Color(SKY.day[i]), light).lerp(new THREE.Color(SKY.dusk[i]), dusk * 0.7);
   skyMat.uniforms.top.value.copy(c(0)); skyMat.uniforms.mid.value.copy(c(1)); skyMat.uniforms.bot.value.copy(c(2));
   skyMat.uniforms.sunDir.value.copy(dir); skyMat.uniforms.sunCol.value.setRGB(1, 0.85, 0.6).multiplyScalar(up ? 1 : 0.15);
   scene.fog.color.copy(c(2)); scene.background.copy(c(2));
   clouds.traverse(o => { if (o.isMesh) { o.material.emissiveIntensity = 0.05 + 0.3 * light; o.material.color.setScalar(0.35 + 0.65 * light); } });
-  if (grass) grass.uni.lightK.value = 0.1 + 0.9 * Math.pow(light, 1.3);   // the grass darkens with the ground
+  if (grass) grass.uni.lightK.value = 0.1 + 0.9 * Math.pow(light, 1.3) + night * 0.5 * Math.max(0, bk);   // the grass darkens with the ground
   // stars and the moon
   if (!stars) {
     const pos = []; for (let i = 0; i < 700; i++) { const a = Math.random() * Math.PI * 2, y = 0.1 + Math.random() * 0.9, r = Math.sqrt(1 - y * y); pos.push(Math.cos(a) * r * 170, y * 170, Math.sin(a) * r * 170); }
@@ -842,8 +844,12 @@ function updateDayNight(){
   const now = performance.now();
   if (!updateDayNight.next || now > updateDayNight.next) { updateDayNight.next = now + 700;
     const c0 = hero ? hero.position : target;
-    const near = LIGHT_SPOTS.slice().sort((a, b) => Math.hypot(a[0] - c0.x, a[2] - c0.z) - Math.hypot(b[0] - c0.x, b[2] - c0.z));
-    nightLights.forEach((L, i) => { const sp = near[i]; if (sp) L.position.set(sp[0], sp[1], sp[2]); }); }
+    const spots = LIGHT_SPOTS.map(p => ({ p, d: Math.hypot(p[0] - c0.x, p[2] - c0.z) }));
+    for (const id in remote) { const sp = remote[id].sprite, c = sp.userData.chibi;   // other players' torches, ahead of lamps the same distance away
+      if (c && c.torch) spots.push({ follow: sp, d: Math.hypot(sp.position.x - c0.x, sp.position.z - c0.z) - 8 }); }
+    spots.sort((a, b) => a.d - b.d);
+    nightLights.forEach((L, i) => { const sp = spots[i]; L.follow = sp && sp.follow || null; if (sp && sp.p) L.position.set(sp.p[0], sp.p[1], sp.p[2]); }); }
+  for (const L of nightLights) if (L.follow) L.position.set(L.follow.position.x, 2.6, L.follow.position.z);   // a carried torch's light moves with them
   nightLights.forEach(L => { L.intensity = 6 * night * (0.92 + Math.random() * 0.08); });
 }
 // ----- the hall's facelift: warm cut stone, buttresses, an arched doorway, glowing windows, a bell tower,
@@ -1571,6 +1577,8 @@ const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
 // the volume settings, saved in this browser
 const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false, grass: (matchMedia('(pointer: coarse)').matches ? 'low' : 'high') };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
+if (typeof SETTINGS.bright !== 'number') SETTINGS.bright = 50;   // brightness: 50 is as designed; higher lifts the night for dim screens
+document.getElementById('volBright').addEventListener('input', e => { SETTINGS.bright = +e.target.value; applySettings(); });
 const musicLevel = () => SETTINGS.musicMute ? 0 : SETTINGS.music / 100;
 const MUSIC_BEAT = 60 / 76 / 2;                         // an eighth note at 76 beats a minute
 const MUSIC_BASS = [146.83, 123.47, 196.0, 220.0];      // the chords: D, B minor, G, A
@@ -1624,6 +1632,7 @@ function applySettings(){
     document.getElementById('vol' + id).value = SETTINGS[k];
   }
   document.querySelectorAll('#grassOpts button').forEach(b => b.classList.toggle('on', b.dataset.g === SETTINGS.grass));
+  document.getElementById('volBright').value = SETTINGS.bright;
   try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
 document.getElementById('grassOpts').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; SETTINGS.grass = b.dataset.g; applySettings(); if (window.buildGrass) buildGrass(); });
@@ -4062,12 +4071,12 @@ async function saveNow(keepalive){
 function writePresence(force){
   if (!ONLINE.ready || !hero) return;
   const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
-  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd].join('|');
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped)].join('|');
   const now = Date.now();
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, t: now };
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), t: now };   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -4105,15 +4114,17 @@ function setRemote(id, p){
     const bubbleEl = document.createElement('div');
     bubbleEl.className = 'chatBub'; bubbleEl.style.display = 'none';
     document.body.append(label, bubbleEl);
-    r = remote[id] = { sprite, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: p.c ? p.c.k : 0, bubbleTimer: 0, name: '', seen: 0, yaw: 0, act: null, actJson: 'null', actAt: 0, verb: '' };
+    r = remote[id] = { eqJson: '', sprite, label, bubbleEl, lookJson, tx: p.x, tz: p.z, face: 1, walk: 0, tick: 0, k: p.c ? p.c.k : 0, bubbleTimer: 0, name: '', seen: 0, yaw: 0, act: null, actJson: 'null', actAt: 0, verb: '' };
     sprite.position.set(p.x, 0, p.z);
   }
   if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
     r.lookJson = JSON.stringify(p.l || {});
     const fresh = makeChibi({ ...look, ...(p.l || {}) });
     fresh.position.copy(r.sprite.position); fresh.rotation.y = r.sprite.rotation.y;
-    scene.remove(r.sprite); scene.add(fresh); r.sprite = fresh;
+    scene.remove(r.sprite); scene.add(fresh); r.sprite = fresh; r.eqJson = '';
   }
+  const ej = JSON.stringify(p.e || {});
+  if (ej !== r.eqJson) { r.eqJson = ej; dressChibi(r.sprite, p.e || {}); }   // their armour, weapon, shield or torch, and cloak
   r.name = p.n && window.isBadName && isBadName(p.n) ? 'Traveller' : (p.n || 'Traveller');
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
@@ -4291,10 +4302,10 @@ function frame(){
 }
 // ----- a held torch: the flame flickers, and at night it lights the ground round you -----
 function updateTorch(){
-  const c = hero && hero.userData.chibi, T = c && c.torch; if (!T) return;
-  const t = performance.now() / 1000, k = 0.85 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3);
-  T.flame.scale.set(1, k * (0.9 + 0.1 * Math.sin(t * 21)), 1);
-  if (T.light) T.light.intensity = (0.5 + 6 * DAY.night) * k;
+  const t = performance.now() / 1000;
+  const flick = (T, seed) => { const k = 0.85 + 0.15 * Math.sin(t * 13 + seed) * Math.sin(t * 7.3 + seed); T.flame.scale.set(1, k * (0.9 + 0.1 * Math.sin(t * 21 + seed)), 1); if (T.light) T.light.intensity = (0.5 + 6 * DAY.night) * k; };
+  const c = hero && hero.userData.chibi; if (c && c.torch) flick(c.torch, 0);
+  let i = 1; for (const id in remote) { const rc = remote[id].sprite.userData.chibi; if (rc && rc.torch) flick(rc.torch, i++ * 1.7); }
 }
 // ----- crafting from the bag: click an item that can be made into something, and pick what to make -----
 const CRAFTS = { 'Logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 15, needs: { Logs: 1 } }] };
@@ -4381,7 +4392,8 @@ async function startBonfireNight(){
   try { const cur = await (await fetch(`${DB}/adventure/event.json`)).json();
     if (cur && cur.start && !cur.done && Date.now() - cur.start < 75 * 60000) { showToast('The bonfire night is already under way.'); return; } } catch (e) { return; }
   const now = Date.now();
-  const ev = { start: now, raidAt: now + Math.round((10 + Math.random() * 5) * 60000), host: ONLINE.id, fuel: { f: 0.85, at: now + 13000, r: FUEL_RATE }, raid: { st: 'calm' } };
+  const ev = { start: now, raidAt: now + 7 * 60000,   // the goblins come seven minutes in
+    host: ONLINE.id, fuel: { f: 0.85, at: now + 13000, r: FUEL_RATE }, raid: { st: 'calm' } };
   try { const r = await fetch(`${DB}/adventure/event.json`, { method: 'PUT', body: JSON.stringify(ev) }); if (!r.ok) { showToast("The bonfire couldn't be started (the server said no)."); return; } } catch (e) { return; }
   showToast('The bonfire night begins.');
 }
@@ -4458,13 +4470,20 @@ const GUARDS = ['Osric', 'Edda', 'Bertram', 'Godwin'];
 const ALD_POST = () => [BF.x - 2.6, BF.z - BF.clearR + 2.2];
 const KNEEL = () => [BF.x + 2.4, BF.z - 0.4];
 // things villagers say round the fire: a few short exchanges, one every half a minute
-const CONVOS = [
+const CONVOS = [   // played in order, one every 30 seconds from when the fire's going, so none repeat before the raid
+  [['Lyra', "Oh, I love a bonfire. Everyone's faces look so cosy in the firelight."], ['Bram', "Mine looks like a baked potato, Hilde says."], ['Hilde', "A handsome baked potato, dear."]],
   [['Fenwick', "Did I ever tell you lot about the fish as big as a horse?"], ['Bram', "Only every night, Fenwick. Every single night."], ['Lyra', "I'm putting it in a song, actually."], ['Fenwick', "See? Lyra believes me."]],
-  [['Hilde', "Henrietta laid another double-yolker this morning."], ['Bram', "She'll be unbearable now."], ['Hilde', "She was unbearable before. Now she's got a reason."]],
   [['Pip', "Aldric, have you ever fought a dragon?"], ['Aldric', "Not yet, Pip. Ask me again next week."], ['Pip', "Next week! Everyone heard that!"]],
-  [['Lyra', "Any requests? I know three songs. Well, four."], ['Fenwick', "The one about the big fish!"], ['Lyra', "That's not one of the four, Fenwick."]],
-  [['Bram', "Truffle got into Brenna's flour again today."], ['Hilde', "Came out looking like a ghost, poor thing."], ['Pip', "I thought she was a ghost! I screamed!"]],
-  [['Fenwick', "Lovely night for it. Clear sky, warm fire, good company."], ['Hilde', "And only one fish story so far. A miracle."]],
+  [['Hilde', "Henrietta laid another double-yolker this morning."], ['Bram', "She'll be unbearable now."], ['Hilde', "She was unbearable before. Now she's got a reason."]],
+  [['Lyra', "Any requests? I know three songs. Well, four."], ['Fenwick', "The one about the big fish!"], ['Lyra', "That's not one of the four, Fenwick."], ['Pip', "Sing the one about the goose!"]],
+  [['Bram', "Truffle got into Brenna's flour again today."], ['Hilde', "Came out looking like a ghost, poor thing."], ['Pip', "I thought she was a ghost! I screamed so loud!"]],
+  [['Aldric', "It's good to see so many folk out tonight. The village feels busy again."], ['Fenwick', "Busier than my fishing spot, that's for certain."], ['Hilde', "That's because the fish heard you were coming, Fenwick."]],
+  [['Pip', "Why does the fire crackle like that?"], ['Hilde', "That's the sap in the wood popping, love."], ['Pip', "So the logs are telling jokes?"], ['Bram', "Better ones than Fenwick's, anyway."]],
+  [['Fenwick', "When I was a lad, we had bonfires every week at harvest."], ['Lyra', "Every week? What happened?"], ['Fenwick', "Someone set fire to the mayor's hat. Long story."]],
+  [['Hilde', "Has anyone tried Brenna's honey bread? It's wonderful."], ['Bram', "I've had four slices today."], ['Hilde', "Four? I gave you two."], ['Bram', "...Lovely fire, isn't it?"]],
+  [['Lyra', "Look at the stars tonight. You can see right across the sky."], ['Pip', "That one looks like a pig!"], ['Bram', "Don't tell Truffle. She'll get ideas."]],
+  [['Aldric', "Hobb says the woods have been quiet these last few nights. Too quiet."], ['Fenwick', "Hobb thinks everything's too quiet. Or too loud."], ['Aldric', "Even so. Keep your wits about you tonight."]],
+  [['Pip', "Did anyone else hear that? Out past the trees?"], ['Hilde', "It's just the wind, Pip. Come and sit by me."], ['Aldric', "...Maybe. Stay close to the fire, everyone."]],
 ];
 const PANIC = {
   Lyra: ["Help! There are goblins everywhere!", "Somebody stop them, please!", "My lute! Mind my lute!"],
@@ -4887,8 +4906,8 @@ function updateNightNpcs(t, ph, st){
   if (over) for (const name of GUARDS) { const n = EV.npcs[name]; if (n) { if (ending || Date.now() - EV.data.raid.at > 12000) goHome(n, t); else { poseChibi(n.sp, 'idle', now); } } }
   // conversations while everyone's settled
   if (st === 'calm' && ph === 'calm' && t > 22) {
-    const slot = Math.floor((t - 22) / 30), conv = CONVOS[(slot + Math.floor(EV.data.start / 1000)) % CONVOS.length], into = (t - 22) - slot * 30;
-    conv.forEach(([who, text], i) => { const key = slot + ':' + i; if (into > i * 3.2 && into < i * 3.2 + 1 && !EV.said[key]) { EV.said[key] = 1; evSay(npcSp(who), text); } });
+    const slot = Math.floor((t - 22) / 30), conv = CONVOS[Math.min(slot, CONVOS.length - 1)], into = (t - 22) - slot * 30;
+    if (slot < CONVOS.length) conv.forEach(([who, text], i) => { const key = slot + ':' + i; if (into > i * 3.2 && into < i * 3.2 + 1 && !EV.said[key]) { EV.said[key] = 1; evSay(npcSp(who), text); } });
   }
 }
 function kneelFrame(n, t){
