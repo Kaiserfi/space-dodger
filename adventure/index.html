@@ -6141,6 +6141,7 @@ function updatePartyDelve(){
   if (host) DELVE.toldWave = DELVE.hw;
   partyFight(now, dt, host); partyFxApply();
   for (const m of DELVE.mons) if (m.tg !== me && m.state !== 'dying' && m.state !== 'dead' && m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur);   /* their swings and flinches at someone else */
+  faceTargets();
   if (now - (DELVE.cAt || 0) > 2000) { DELVE.cAt = now; pput(partyPath(DELVE.party, '/c/' + me), { d: DELVE.dmg || 0, h: DELVE.heal || 0 }); }
 }
 // the leader: waves, targets, movement, and sharing it all a few times a second
@@ -6199,6 +6200,12 @@ function followPartyDelve(dv, now, dt){
     m.x = m.g.position.x; m.z = m.g.position.z; });
 }
 // the creatures coming for you: walk up, fight, and strike as in the solo delve (your own game rolls their blows against you)
+// a creature always faces whoever it's after: when it's close enough to fight, it turns to them whatever else is going on
+function faceTargets(){
+  for (const m of DELVE.mons) { if (m.state === 'dying' || m.state === 'dead' || !m.tg) continue;
+    const q = m.tg === ONLINE.id ? hero && [hero.position.x, hero.position.z] : remote[m.tg] && [remote[m.tg].sprite.position.x, remote[m.tg].sprite.position.z]; if (!q) continue;
+    if (Math.hypot(q[0] - m.g.position.x, q[1] - m.g.position.z) < reachOf(m) + 1.5) turnChibi(m.g, yawTo(m.g.position.x, m.g.position.z, q[0], q[1])); }
+}
 function partyFight(now, dt, host){
   const mine = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead' && m.tg === ONLINE.id);
   const lead = FIGHT && mine.includes(FIGHT.m) ? FIGHT.m : null, leadA = lead ? Math.atan2(lead.g.position.x - hero.position.x, lead.g.position.z - hero.position.z) : 0;
