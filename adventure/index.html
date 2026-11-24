@@ -846,7 +846,7 @@ const SKY = { day: [0x3d7fc9, 0x8cc4e6, 0xcfe6ea], dusk: [0x2e3c7a, 0xe0906a, 0x
 const nightLights = [];
 let stars = null, moon = null, DAY = { light: 1, night: 0 };
 function updateDayNight(){
-  const h = hourNow(), RISE = 6, SET = 19.5;
+  const h = DELVE ? 0 : hourNow(), RISE = 6, SET = 19.5;   /* always dark in the cellar, lit by its braziers */
   const dayFrac = (h - RISE) / (SET - RISE), up = dayFrac >= 0 && dayFrac <= 1;
   const elev = up ? Math.sin(Math.PI * dayFrac) : -Math.sin(Math.PI * (((h - SET) + 24) % 24) / (24 - (SET - RISE)));
   const light = THREE.MathUtils.smoothstep(elev, -0.08, 0.3), night = 1 - THREE.MathUtils.smoothstep(elev, -0.1, 0.25), dusk = Math.max(0, 1 - Math.abs(elev) / 0.3);
@@ -1042,6 +1042,7 @@ const cellFree = (ix, iz) => !blocked(cellX(ix), cellZ(iz));
 function hardHit(x, z){ return boxesNear(x, z).some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
 // A* over the grid. If the target cannot be reached, the route goes to the reachable cell nearest to it.
 function findPath(fromV, toV){
+  if (DELVE) { let x = toV.x - DELVE_C.x, z = toV.z - DELVE_C.z; const d = Math.hypot(x, z), m = DELVE_C.pit - 1.2; if (d > m) { x *= m / d; z *= m / d; } return [{ x: fromV.x, z: fromV.z }, { x: DELVE_C.x + x, z: DELVE_C.z + z }]; }
   const { NX, NZ } = PATH;
   const sx = Math.round((fromV.x - PATH.X0) / PATH.C), sz = Math.round((fromV.z - PATH.Z0) / PATH.C);
   const gx = Math.min(NX - 1, Math.max(0, Math.round((toV.x - PATH.X0) / PATH.C)));
@@ -4032,6 +4033,7 @@ function killMonster(m){
   endFight();
 }
 function playerDies(){
+  if (DELVE) { endFight(); delveFailed(); return; }
   endFight(); showToast('Oh dear, you are dead! You wake up in the hall.');
   if (EV.seat >= 0) standUp();
   dropOnDeath();
@@ -4046,9 +4048,9 @@ function updateFight(){
   // monsters: wander near home, fall over when beaten, come back later
   for (const m of MONSTERS) {
     const c = m.g.userData.chibi;
-    if (m.raid && m.state !== 'dying' && m.state !== 'dead') { /* raiders are moved by updateRaiders */ }
+    if ((m.raid || m.delve) && m.state !== 'dying' && m.state !== 'dead') { /* raiders are moved by updateRaiders, the cellar's creatures by updateDelve */ }
     else if (m.state === 'dying') { const k = Math.min(1, (now - m.dieT) / 700); monsterPose(m, 'dead', k); if (now - m.dieT > 3000) { m.g.visible = false; m.state = 'dead'; } }
-    else if (m.state === 'dead') { if (!m.raid && now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); monsterPose(m, 'idle'); } }
+    else if (m.state === 'dead') { if (!m.raid && !m.delve && now - m.dieT > m.t.respawn) { m.hp = m.t.hp; m.state = 'standing'; m.g.visible = true; m.g.position.set(m.home[0], 0, m.home[1]); monsterPose(m, 'idle'); } }
     else if (!FIGHT || FIGHT.m !== m) {
       if (m.state === 'standing') {
         const w = m.wander, x = m.g.position.x, z = m.g.position.z;
@@ -4277,12 +4279,174 @@ function buildRuinedFarm(){
   // the old track down from the windmill path, between the pens, to the farmhouse
   roadPath([[81, 11], [81, 34], [83, 52], [85, 64], [H.x + 1, H.z - 4.6]]);
 }
+
+// ----- the Root Cellar delve: a solo instance far below the farm, eight waves of the farm's creatures -----
+const DELVE_C = { x: 0, z: 400, pit: 14 };
+const DELVE_WAVES = [['chicken'], ['rat'], ['cow'], ['farmer'], 'r2', 'r2', 'r2', ['farmer', 'farmer']];
+let DELVE = null, delveBuilt = false;
+const inDelveZone = (x, z) => z > 300;
+function buildDelveArena(){
+  if (delveBuilt) return; delveBuilt = true;
+  const CX = DELVE_C.x, CZ = DELVE_C.z, PIT = DELVE_C.pit;
+  let q = 9; const R = () => (q = (q * 16807) % 2147483647) / 2147483647;
+  const root = new THREE.Group(); root.position.set(CX, 0, CZ); scene.add(root);
+  const add = (geo, m, x, y, z, parent = root) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  const rock = [0x5a544c, 0x4a453e, 0x655e54, 0x3e3a34], wood = mat(0x6a4a2c), darkWood = mat(0x3e2a18), iron = mat(0x3a3a40);
+  // the cavern floor, and the sand of the pit, raked smooth with a darker ring where fights have churned it
+  add(new THREE.CylinderGeometry(30, 30, 0.3, 40), 0x3a3028, 0, -0.15, 0);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512; const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(256, 256, 40, 256, 256, 256); gr.addColorStop(0, '#c8a878'); gr.addColorStop(0.7, '#b89868'); gr.addColorStop(0.9, '#8a7048'); gr.addColorStop(1, '#6a5438');
+  g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 3000; i++) { const c = 140 + R() * 80; g.fillStyle = `rgba(${c},${c * 0.82},${c * 0.6},.45)`; g.fillRect(R() * 512, R() * 512, 1 + R() * 3, 1 + R() * 2); }
+  for (let i = 0; i < 9; i++) { g.strokeStyle = 'rgba(90,40,30,.35)'; g.lineWidth = 2 + R() * 6; g.beginPath(); g.arc(150 + R() * 210, 150 + R() * 210, 6 + R() * 20, 0, 7); g.stroke(); }   // old stains
+  const sandTex = new THREE.CanvasTexture(cv); sandTex.colorSpace = THREE.SRGBColorSpace;
+  add(new THREE.CircleGeometry(PIT, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 }), 0, 0.02, 0);
+  // the cavern walls: a ring of great rough boulders, stacked high, closing over into darkness
+  for (let tier = 0; tier < 3; tier++) for (let i = 0; i < 34; i++) { const a = i / 34 * Math.PI * 2 + tier * 0.09, r = 27 + tier * 1.5 + R() * 1.5, s = 2.6 + R() * 1.6;
+    add(new THREE.DodecahedronGeometry(s, 0), rock[(R() * 4) | 0], Math.cos(a) * r, 1 + tier * 3.2, Math.sin(a) * r).rotation.set(R() * 3, R() * 3, R() * 3); }
+  // stalactites and roots hanging from the dark above
+  for (let i = 0; i < 26; i++) { const a = R() * 7, r = 18 + R() * 9; add(new THREE.ConeGeometry(0.4 + R() * 0.6, 2 + R() * 3, 6), rock[(R() * 4) | 0], Math.cos(a) * r, 9.5, Math.sin(a) * r).rotation.x = Math.PI; }
+  // makeshift stands up the cave sides, where shadowy rats crowd to watch
+  for (const [a0, a1] of [[0.4, 1.3], [1.8, 2.7], [3.6, 4.4], [5.0, 5.9]]) for (let row = 0; row < 3; row++) for (let a = a0; a < a1; a += 0.16) {
+    const r = 18.5 + row * 2.2, y = 0.5 + row * 0.9;
+    add(new THREE.BoxGeometry(1.6, 0.18, 0.7), wood, Math.cos(a) * r, y, Math.sin(a) * r).rotation.y = -a;
+    add(new THREE.BoxGeometry(0.15, y, 0.15), darkWood, Math.cos(a) * r, y / 2, Math.sin(a) * r);
+    if (R() < 0.35) { const rat = new THREE.Group(); rat.position.set(Math.cos(a) * r, y + 0.1, Math.sin(a) * r); rat.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a)) + Math.PI / 2; root.add(rat);
+      add(new THREE.SphereGeometry(0.35, 8, 6), 0x2a2a2e, 0, 0.3, 0, rat).scale.set(1, 0.9, 1.4);
+      for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff3020 })); e.position.set(s * 0.12, 0.45, 0.42); rat.add(e); } }
+  }
+  // the palisade: sharpened stakes all round the pit, with gaps for the landing steps and the two monster gates
+  const gaps = [[-Math.PI / 2, 0.22], [Math.PI / 2, 0.2], [0, 0.2]];   // north (the steps), south and east (the gates)
+  const inGap = a => gaps.some(([c, w]) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) < w);
+  for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2; if (inGap(a)) continue;
+    const h = 2.2 + R() * 0.6, st = add(new THREE.CylinderGeometry(0.16, 0.2, h, 6), wood, Math.cos(a) * PIT, h / 2, Math.sin(a) * PIT);
+    add(new THREE.ConeGeometry(0.17, 0.5, 6), darkWood, Math.cos(a) * PIT, h + 0.25, Math.sin(a) * PIT); st.rotation.z = (R() - 0.5) * 0.08; }
+  for (const y of [0.7, 1.6]) for (let i = 0; i < 60; i++) { const a = (i + 0.5) / 60 * Math.PI * 2; if (inGap(a)) continue;   // two rope-bound rails round the stakes
+    const rl = add(new THREE.BoxGeometry(0.1, 0.12, PIT * 2 * Math.PI / 60), darkWood, Math.cos(a) * (PIT + 0.15), y, Math.sin(a) * (PIT + 0.15)); rl.rotation.y = -a; }
+  // the monster gates: heavy barred doors in stone arches, with dark tunnels behind
+  for (const a of [Math.PI / 2, 0]) { const G = new THREE.Group(); G.position.set(Math.cos(a) * (PIT + 0.4), 0, Math.sin(a) * (PIT + 0.4)); G.rotation.y = -a + Math.PI / 2; root.add(G);
+    for (const s of [-1, 1]) add(new THREE.BoxGeometry(1, 4, 1), texMat(wallStone, 1, 2, 0x8a847a), s * 2.2, 2, 0, G);
+    add(new THREE.BoxGeometry(5.4, 1, 1), texMat(wallStone, 2, 1, 0x8a847a), 0, 4.3, 0, G);
+    add(new THREE.BoxGeometry(3.4, 3.8, 0.1), new THREE.MeshBasicMaterial({ color: 0x050302 }), 0, 1.9, 0.6, G);   // the tunnel's mouth
+    for (let i = 0; i < 6; i++) add(new THREE.BoxGeometry(0.14, 3.6, 0.14), iron, -1.5 + i * 0.6, 1.9, -0.1, G);   // portcullis bars
+    for (const y of [0.8, 2.2, 3.4]) add(new THREE.BoxGeometry(3.4, 0.14, 0.14), iron, 0, y, -0.1, G);
+    for (let i = 0; i < 2; i++) { const sk = add(new THREE.SphereGeometry(0.28, 8, 6), 0xe8e0c8, (i ? 1 : -1) * 2.2, 4.95, -0.3, G); sk.scale.set(1, 0.85, 1.2); }   // cow skulls over the arch
+  }
+  // the landing: a raised wooden platform under the ladder, with steps down into the pit
+  const P = new THREE.Group(); P.position.set(0, 0, -PIT - 3.5); root.add(P);
+  add(new THREE.BoxGeometry(8, 1.2, 5), texMat(woodTex(), 4, 3, 0x8a6a48), 0, 0.6, 0, P);
+  for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(3.2, 0.3, 0.8), wood, 0, 1.05 - i * 0.3, 2.9 + i * 0.75, P);   // steps down onto the sand
+  for (const s of [-1, 1]) for (const z of [-2.2, 2.2]) add(new THREE.BoxGeometry(0.25, 2.6, 0.25), darkWood, s * 3.8, 1.3, z, P);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.12, 0.12, 4.6), darkWood, s * 3.8, 2.3, 0, P);
+  const L = new THREE.Group(); L.position.set(0, 1.2, -2.3); P.add(L);   // the ladder up to the hatch: the way out
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.14, 8, 0.14), darkWood, s * 0.5, 4, 0, L);
+  for (let i = 0; i < 15; i++) add(new THREE.BoxGeometry(1, 0.08, 0.12), darkWood, 0, 0.4 + i * 0.52, 0, L);
+  /* (the light shaft from the mockup is left out: it hid the ladder) */
+  // braziers round the pit, and torches on the palisade: the only light down here
+  const fireM = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+  for (const a of [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75]) { const x = Math.cos(a) * (PIT - 1.6), z = Math.sin(a) * (PIT - 1.6);
+    add(new THREE.CylinderGeometry(0.12, 0.2, 1.5, 6), iron, x, 0.75, z); add(new THREE.CylinderGeometry(0.75, 0.45, 0.5, 10), iron, x, 1.6, z);
+    for (let k = 0; k < 4; k++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.28 + R() * 0.15, 0.8 + R() * 0.5, 6), fireM); f.position.set(CX + x + (R() - 0.5) * 0.5, 2.15, CZ + z + (R() - 0.5) * 0.5); root.add(f); f.position.x -= CX; f.position.z -= CZ; }
+    LIGHT_SPOTS.push([CX + x, 3, CZ + z]); }   /* lit by the shared lamp lights, so no new lights (and no shader rebuild) */
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 + 0.3; if (inGap(a)) continue; const x = Math.cos(a) * (PIT + 0.3), z = Math.sin(a) * (PIT + 0.3);
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.4, 5), fireM); f.position.set(CX + x, 3.25, CZ + z); root.add(f); f.position.x -= CX; f.position.z -= CZ; add(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 5), darkWood, x, 2.85, z); }
+  // farm junk turned into arena dressing: hay-bale barricades, cart wheels on the stakes, pitchforks, a scarecrow trophy, chains
+  for (const [a, r] of [[0.9, 9], [2.3, 8.5], [4.0, 9.5], [5.4, 8]]) { const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    add(new THREE.BoxGeometry(2.2, 1, 1.1), 0xd8b850, x, 0.5, z).rotation.y = a; add(new THREE.BoxGeometry(1.1, 1, 1), 0xc8a840, x + Math.cos(a + 1.6) * 0.3, 1.5, z + Math.sin(a + 1.6) * 0.3).rotation.y = a + 0.3; }
+  for (const a of [1.1, 2.0, 4.6, 5.6]) { const w = add(new THREE.TorusGeometry(0.8, 0.09, 5, 12), wood, Math.cos(a) * (PIT + 0.35), 1.6, Math.sin(a) * (PIT + 0.35)); w.rotation.y = -a + Math.PI / 2;
+    for (let k = 0; k < 4; k++) { const sp = add(new THREE.BoxGeometry(0.06, 1.5, 0.06), wood, Math.cos(a) * (PIT + 0.35), 1.6, Math.sin(a) * (PIT + 0.35)); sp.rotation.set(0, -a + Math.PI / 2, k * Math.PI / 4); } }
+  for (const a of [3.1, 3.4]) { const pf = add(new THREE.CylinderGeometry(0.04, 0.05, 2.4, 5), wood, Math.cos(a) * (PIT + 0.5), 1.4, Math.sin(a) * (PIT + 0.5)); pf.rotation.z = 0.35; }
+  const sc = new THREE.Group(); sc.position.set(Math.cos(3.25) * (PIT + 1.6), 0, Math.sin(3.25) * (PIT + 1.6)); root.add(sc);
+  add(new THREE.BoxGeometry(0.14, 3.2, 0.14), darkWood, 0, 1.6, 0, sc); add(new THREE.BoxGeometry(2.2, 0.12, 0.12), darkWood, 0, 2.5, 0, sc);
+  add(new THREE.BoxGeometry(0.8, 1, 0.4), 0x5a4a3a, 0, 2.2, 0, sc); add(new THREE.SphereGeometry(0.4, 8, 6), 0xd8c898, 0, 3.1, 0, sc); add(new THREE.CylinderGeometry(0.7, 0.7, 0.06, 10), 0xc8a850, 0, 3.4, 0, sc);
+  for (let i = 0; i < 8; i++) { const a = R() * 7, l = add(new THREE.TorusGeometry(0.12, 0.03, 4, 8), iron, Math.cos(a) * (PIT + 0.2), 2.4 - i * 0.18, Math.sin(a) * (PIT + 0.2)); l.rotation.y = i % 2 ? 1.5 : 0; }
+  // the ladder is the way out: click it to climb
+  const lad = new THREE.Mesh(new THREE.BoxGeometry(2.4, 8, 1.2), new THREE.MeshBasicMaterial({ visible: false })); lad.position.set(CX, 4, CZ - PIT - 5.8); scene.add(lad);
+  lad.userData = { action: 'Climb', name: 'Ladder', rec: { kind: 'ladder', state: 'standing', x: CX, z: CZ - PIT + 1.5, onClick: () => delveLadder() } }; trees.push(lad);
+}
+// a small yes / no box
+function delveAsk(html, yes, onYes, no = 'Not yet'){
+  let el = document.getElementById('delveAsk');
+  if (!el) { el = document.createElement('div'); el.id = 'delveAsk'; el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:300px;max-width:calc(100vw - 32px);background:linear-gradient(180deg,rgba(48,36,20,.97),rgba(22,16,9,.97));border:2px solid #a07a3c;border-radius:6px;z-index:12;font:14px Georgia,serif;color:#e8efe6;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.55)'; document.body.appendChild(el); }
+  el.innerHTML = `${html}<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button data-a="n" style="font:inherit;padding:5px 12px;background:#3a2c18;color:#e8efe6;border:1px solid #7a5a2c;border-radius:4px;cursor:pointer">${no}</button><button data-a="y" style="font:inherit;padding:5px 12px;background:#7a5a24;color:#fff4d8;border:1px solid #c9a050;border-radius:4px;cursor:pointer">${yes}</button></div>`;
+  el.hidden = false; el.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; el.hidden = true; if (b.dataset.a === 'y') onYes(); };
+}
+function delveExitSpot(){ return { x: RUIN.cellar.x - 2.6, z: RUIN.cellar.z + 0.5 }; }
+function askDelve(){
+  const lv = levelOf(SKILL_XP.Melee), hp = levelOf(SKILL_XP.Hitpoints), food = bag.filter(i => FOOD[i.name]).length;
+  const warn = lv < 20 || hp < 20 || food < 10 ? `<div style="color:#f0a060;margin-top:8px">Ezra's advice: Melee 20, Hitpoints 20, bronze gear and 10 pieces of food. You have Melee ${lv}, Hitpoints ${hp} and ${food} food.</div>` : '';
+  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px">The Root Cellar</div>Climb down alone and face eight waves of the farm's creatures?<div style="margin-top:6px;color:#c9b27a">If you fall down there, you lose a quarter of your coins (but nothing else). You can climb out by the ladder at any time.</div>${warn}`, 'Climb down', startDelve);
+}
+function startDelve(){
+  buildDelveArena(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
+  walkTarget = null; walkQueue = []; walkThen = null;
+  hero.position.set(DELVE_C.x, 0, DELVE_C.z - DELVE_C.pit + 2); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = 0;
+  DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false };
+  showToast('You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Root Cellar: survive eight waves. The ladder behind you leads back up.');
+  writePresence(true);
+}
+function spawnWave(){
+  const w = DELVE_WAVES[DELVE.wave], kinds = w === 'r2' ? [0, 1].map(() => ['chicken', 'rat', 'cow', 'farmer'][Math.floor(Math.random() * 4)]) : w;
+  const gates = [[DELVE_C.x, DELVE_C.z + DELVE_C.pit - 1.2], [DELVE_C.x + DELVE_C.pit - 1.2, DELVE_C.z]];
+  DELVE.mons = kinds.map((k, i) => { const m = spawnMonster(k, gates[i % 2][0], gates[i % 2][1], 0); m.delve = true; return m; });
+  showToast(`Wave ${DELVE.wave + 1} of 8: ${kinds.map(k => MONSTER_TYPES[k].name.toLowerCase()).join(' and ')}!`);
+}
+function clearDelveMonsters(){
+  for (const m of DELVE ? DELVE.mons : []) { scene.remove(m.g); const i = trees.indexOf(m.g); if (i >= 0) trees.splice(i, 1); m.bar.remove(); const j = MONSTERS.indexOf(m); if (j >= 0) MONSTERS.splice(j, 1); }
+}
+function leaveDelve(msg){
+  if (FIGHT) endFight(); clearDelveMonsters(); DELVE = null;
+  const sp = delveExitSpot(); walkTarget = null; walkQueue = []; walkThen = null;
+  hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z);
+  if (msg) showToast(msg); writePresence(true); saveNow(false);
+}
+function delveLadder(){
+  if (!DELVE) return;
+  if (DELVE.done) { leaveDelve('You climb back up into the daylight, your pack heavier than before.'); return; }
+  delveAsk('Climb out of the cellar now? You keep your coins, but you get no reward for the waves you have beaten.', 'Climb out', () => leaveDelve('You scramble up the ladder and slam the doors behind you.'), 'Keep fighting');
+}
+function delveFailed(){
+  const lost = Math.floor(COINS * 0.25); COINS -= lost; renderBag();
+  leaveDelve(); HP.cur = maxHp(); renderStats();
+  showToast(lost > 0 ? `You black out... and wake up by the cellar doors, ${lost} coins lighter.` : 'You black out... and wake up by the cellar doors.');
+}
+function delveWon(){
+  DELVE.done = true; DELVE.mons = [];
+  const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  addXp('Melee', 400); addXp('Hitpoints', 150);
+  const got = [], left = [];
+  for (const [name, n] of [['Copper ore', r(5, 10)], ['Tin ore', r(5, 10)], ['Feathers', r(25, 50)], ['Wheat seeds', r(5, 10)]]) (addItem(name, n, ICON_FOR[name]) ? got : left).push(`${n} ${name.toLowerCase()}`);
+  showToast(`The cellar falls quiet. You've cleared all eight waves! +400 Melee XP, +150 Hitpoints XP, and ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`);
+  if (left.length) addSystemLine(`Your bag was too full for ${left.join(', ')}.`);
+  addSystemLine('Climb the ladder to leave the cellar.'); saveNow(false);
+}
+function updateDelve(){
+  if (!DELVE || !hero) return;
+  const now = performance.now(), dt = Math.min(0.25, (now - (DELVE.last || now)) / 1000); DELVE.last = now;
+  if (DELVE.done) return;
+  const alive = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead');
+  if (!alive.length) {
+    if (DELVE.wave >= 0 && !DELVE.next) { if (DELVE.wave === DELVE_WAVES.length - 1) { setTimeout(() => DELVE && delveWon(), 1500); DELVE.next = Infinity; return; } DELVE.next = now + 5000; showToast(`Wave ${DELVE.wave + 1} beaten! The next one comes in 5 seconds.`); }
+    if (now > DELVE.next) { const dead = DELVE.mons; clearDelveMonsters(); DELVE.mons = []; DELVE.wave++; DELVE.next = 0; spawnWave(); }
+    return;
+  }
+  // they come for you: the first one to reach you fights, the other waits its turn just behind
+  alive.forEach((m, i) => {
+    if (FIGHT && FIGHT.m === m) return;
+    const busy = FIGHT && FIGHT.m !== m, want = busy ? 3.4 : 2.1;
+    const dx = hero.position.x - m.g.position.x, dz = hero.position.z - m.g.position.z, d = Math.hypot(dx, dz);
+    if (d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st + (busy ? Math.cos(i * 2.4) * 0.01 : 0); m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); }
+    else { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
+      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now() }); } }
+    m.x = m.g.position.x; m.z = m.g.position.z;
+  });
+}
 function cellarClick(){
   if (!cellarOpen()) {
     showToast(`The cellar doors are chained shut. The padlock is scratched with marks: Chickens ${Math.min(10, KILLS.chicken)}/10, Cows ${Math.min(10, KILLS.cow)}/10, Giant rats ${Math.min(10, KILLS.rat)}/10, Angry farmers ${Math.min(10, KILLS.farmer)}/10.`);
     return;
   }
-  walkStart(new THREE.Vector3(RUIN.cellar.x - 2.6, 0, RUIN.cellar.z + 0.5), () => showToast("The chain has fallen away. You lift a door and peer down the ladder... It's pitch black down there. Ezra says he'll have it ready soon."));
+  walkStart(new THREE.Vector3(RUIN.cellar.x - 2.6, 0, RUIN.cellar.z + 0.5), askDelve);
 }
 function updateCellar(){ if (RUIN.chain) { const open = cellarOpen(); RUIN.chain.visible = !open; RUIN.doors[1].rotation.z = open ? -0.9 : 0.22; } }
 // ----- the bonfire clearing in the oak grove, south-west of the hall: a stone fire pit, two rings of log benches and two ways in -----
@@ -4519,7 +4683,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? (DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4723,6 +4887,7 @@ function updateOnline(){
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
     else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
+    { const away = inDelveZone(r.tx, r.tz); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; continue; } }   /* down in their own cellar */
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -4783,7 +4948,7 @@ function frame(){
   updateFightMusic();
   updateBonfire();
   growCrops();
-  updateCellar();
+  updateCellar(); updateDelve();
   updateTrade();
   updateFarmPose();
   updateMilling();
