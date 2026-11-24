@@ -33,7 +33,13 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 - **Shops live in `SHOPS`.** Each has a title, a buy list and a rule for which items it buys. Mara sells tools (axe, pickaxe, hammer, net) and buys everything except farm goods. Tilly's farmers' market sells all seeds and farming tools (hoe, watering can) and buys `FARM_GOODS`. New farming items go to Tilly, not Mara, and hint messages must point to the shop that actually sells the item.
 - NPCs that stand behind a counter need a small `rad` (they wander within it) and an `s` large enough that the talk spot in front of them is clear of the counter.
 - Clicking something the player is already standing beside should act at once, not walk them somewhere first. When walking is needed, go to the nearest free side, never a fixed spot that may be inside a building.
-- **NPCs talk like people, not game menus.** They never quote skill levels or numbers ("Farming 5"); they say it naturally ("You'll want more time in the fields first"). Level numbers belong in the interface (menus, tooltips, toasts), not in dialogue.
+- **NPCs sound like real people, never like a robot or a game manual.** Write every line the way that villager would actually say it out loud:
+  - **No game terms.** No skill names with numbers ("Farming 5"), no "XP", "level up", "item", "inventory", "click", "quest step", "requirement" or stat talk. Say it naturally: "You'll want more time in the fields first", "Get a few harvests under your belt", "You look like you could handle yourself now".
+  - **No instructions read off a list.** Not "Step 1: till the patch. Step 2: plant the seed." Instead: "Turn the soil over with the hoe, then pop your seed in."
+  - **Give them a voice.** Contractions, short sentences, a bit of humour or grumbling, their own opinions, and nods to the other villagers and their lives (Bram's named cabbages, Pip pinching mulberries, Hilde's hens). Match the character: Tilly is chatty and cheerful, Ezra is gruff and weary, Aldric is stern, Brenna is warm and flustered.
+  - **Keep it short.** One or two sentences a line, a few lines a conversation. People don't make speeches when you buy turnips.
+  - **Read it aloud before shipping.** If it sounds like a tooltip, rewrite it.
+  - Exact numbers and requirements belong in the interface (menus, tooltips, toasts, the quest tracker), never in what an NPC says.
 - Keep dialogue and warnings short. The owner prefers wording that matches the phone game (Idle Tap Adventure) where there is an equivalent, for example the delve warning.
 
 ### Items, the bag and saves
