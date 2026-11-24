@@ -5033,12 +5033,12 @@ async function saveNow(keepalive){
 function writePresence(force){
   if (!ONLINE.ready || !hero) return;
   const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
-  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr)].join('|');
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr), HP.cur, maxHp()].join('|');
   const now = Date.now();
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, t: now };   // e: what you're wearing and holding, so others see it
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], t: now };   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -5090,7 +5090,7 @@ function setRemote(id, p){
   r.name = p.n && window.isBadName && isBadName(p.n) ? 'Traveller' : (p.n || 'Traveller');
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
-  r.st = typeof p.st === 'number' ? p.st : -1; r.rd = p.rd || null; r.tr = p.tr || null;
+  r.st = typeof p.st === 'number' ? p.st : -1; r.rd = p.rd || null; r.tr = p.tr || null; r.hp = Array.isArray(p.hp) ? p.hp : null;
   registerPlayerSprite(id, r);   // clickable, for the player menu   // sitting at the bonfire, and out of the goblin raid
   r.face = p.f === -1 ? -1 : 1;
   const aj = JSON.stringify(p.a || null);
@@ -5382,7 +5382,7 @@ function openItemMenu(name, x, y){
   itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true; if (b.dataset.o !== 'x') craftItem(opts[+b.dataset.o]); };
   return true;
 }
-addEventListener('pointerdown', e => { if (!itemMenu.hidden && !itemMenu.contains(e.target) && !e.target.closest('#bagGrid')) itemMenu.hidden = true; });
+addEventListener('pointerdown', e => { if (!itemMenu.hidden && !e.composedPath().includes(itemMenu) && !e.target.closest('#bagGrid')) itemMenu.hidden = true; });   /* by the click's path, so a menu redrawn under the pointer still counts as inside */
 function craftItem(o){
   if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
   for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
@@ -5820,12 +5820,38 @@ const BANDAGE_MS = 3200, BANDAGE_HEAL = 12;
 let bandaging = null;
 function startBandage(it){
   if (bandaging) return;
-  if (HP.cur >= maxHp()) { showToast('You are not hurt.'); return; }
+  openBandageMenu(it);
+}
+const HEAL_RANGE = 14;   // how near another player must be to bandage them
+function openBandageMenu(it){
+  itemMenu.innerHTML = '<div class="imHead">Bandage</div><button data-o="me">Heal</button><button data-o="other">Heal other</button><button data-o="x">Cancel</button>';
+  itemMenu.hidden = false; itemMenu.style.left = Math.max(8, Math.min(innerWidth - 220, lastPtr.x + 6)) + 'px'; itemMenu.style.top = Math.max(8, Math.min(innerHeight - itemMenu.offsetHeight - 8, lastPtr.y - 10)) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return;
+    if (b.dataset.o === 'x') { itemMenu.hidden = true; return; }
+    if (b.dataset.o === 'me') { itemMenu.hidden = true; if (HP.cur >= maxHp()) { showToast('You are not hurt.'); return; } beginBandage(it, null); return; }
+    if (b.dataset.o === 'other') {   // the hurt players nearby, nearest first
+      const near = Object.entries(remote).map(([id, r]) => ({ id, r, d: Math.hypot(r.sprite.position.x - hero.position.x, r.sprite.position.z - hero.position.z) }))
+        .filter(o => o.d < HEAL_RANGE && o.r.hp && o.r.hp[0] < o.r.hp[1] && !inDelveZone(o.r.tx, o.r.tz)).sort((a, b) => a.d - b.d);
+      itemMenu.innerHTML = '<div class="imHead">Heal who?</div>' + (near.length ? near.map(o => `<button data-p="${o.id}">${escapeHtml(o.r.name)} <small style="color:#c9b27a">(${o.r.hp[0]}/${o.r.hp[1]})</small></button>`).join('') : '<div style="padding:6px 8px;color:#c9b27a">Nobody nearby is hurt.</div>') + '<button data-o="x">Cancel</button>';
+      itemMenu.onclick = e2 => { const b2 = e2.target.closest('button'); if (!b2) return; itemMenu.hidden = true; if (b2.dataset.p) healOther(it, b2.dataset.p); };
+      e.stopPropagation();
+    } };
+}
+function healOther(it, id){
+  const r = remote[id]; if (!r) { showToast("They've wandered off."); return; }
+  const go = () => { const r2 = remote[id]; if (!r2) return; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, r2.sprite.position.x, r2.sprite.position.z); beginBandage(it, id); };
+  const x = r.tx ?? r.sprite.position.x, z = r.tz ?? r.sprite.position.z, d = Math.hypot(x - hero.position.x, z - hero.position.z);   /* where they really are, not where their figure is still sliding to */
+  if (d < 4) { go(); return; }
+  walkStart(new THREE.Vector3(x + (hero.position.x - x) / d * 2, 0, z + (hero.position.z - z) / d * 2), go);   /* walk up beside them */
+}
+function beginBandage(it, who){
+  if (bandaging) return;
   walkTarget = null; walkQueue = []; cancelChop(); stopSpinning(); stopMilling();
-  bandaging = { t0: performance.now(), item: it, target: hero, lastPlus: 0 };   /* the target is you for now; in a party delve it can be an ally */
+  const target = who ? remote[who].sprite : hero;
+  bandaging = { t0: performance.now(), item: it, target, who, lastPlus: 0 };   /* who: another player's id, or nobody for yourself */
   if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + BANDAGE_MS + 300);
-  setAct({ k: 'heal', t: Date.now() });
-  document.getElementById('smeltLabel').textContent = 'Applying bandage...'; document.getElementById('smeltBar').style.display = 'block';
+  setAct({ k: 'heal', t: Date.now(), p: who || null });
+  document.getElementById('smeltLabel').textContent = who ? `Bandaging ${remote[who].name}...` : 'Applying bandage...'; document.getElementById('smeltBar').style.display = 'block';
   craftSound();
 }
 function stopBandage(msg){ if (!bandaging) return; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null); if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (msg) showToast(msg); }
@@ -5834,14 +5860,20 @@ function updateBandage(){
   updateHealFx(now);
   if (!bandaging || !hero) return;
   if (walkTarget) { stopBandage('You stop bandaging.'); return; }
+  if (bandaging.who) { const r = remote[bandaging.who]; if (!r || Math.hypot(r.sprite.position.x - hero.position.x, r.sprite.position.z - hero.position.z) > 4.5) { stopBandage(r ? 'They moved out of reach.' : "They've gone."); return; } heroAnim.yaw = yawTo(hero.position.x, hero.position.z, r.sprite.position.x, r.sprite.position.z); }
   const k = (now - bandaging.t0) / BANDAGE_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (!FIGHT) heroAnim.mode = 'work';
   healFx(bandaging.target);
   if (now - bandaging.lastPlus > 380) { bandaging.lastPlus = now; healPlus(bandaging.target); }
   if (k < 1) return;
-  const it = bandaging.item; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null);
+  const it = bandaging.item; updateBandage.who = bandaging.who; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null);
   if (!removeItem('Bandage', it)) { if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); return; }
+  const who = updateBandage.who; updateBandage.who = null;
+  if (who) {   /* someone else: send them the heal; their game adds it */
+    const r = remote[who]; fetch(`${DB}/adventure/heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
+    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (r) hitsplat(r.sprite, BANDAGE_HEAL, 'heal'); silkSound('collect'); addXp('Crafting', 10);
+    showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
   if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
   hitsplat(hero, HP.cur - before, 'heal'); silkSound('collect');
@@ -6171,7 +6203,19 @@ function mobApply(sid, st){
   if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : h.ty === 'block' ? 'thud' : 'miss')); }
   if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; }
 }
+// heals other players send you: added once, then cleared
+function startHealStream(){
+  const es = new EventSource(`${DB}/adventure/heals/${ONLINE.id}.json`);
+  const take = data => { if (!data) return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
+      if (!h || typeof h.a !== 'number' || Date.now() - (h.t || 0) > 30000) continue;   // stale ones are dropped
+      const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + Math.min(BANDAGE_HEAL, Math.max(0, h.a))); renderStats(); writePresence(true);
+      hitsplat(hero, HP.cur - before, 'heal'); healFx(hero); setTimeout(() => { if (!bandaging) healFx(null); }, 1200); for (let i = 0; i < 4; i++) setTimeout(() => healPlus(hero), i * 200);
+      showToast(`${String(h.by || 'Someone').slice(0, 12)} bandaged you. (+${HP.cur - before} health)`); } };
+  es.addEventListener('put', e => { const d = JSON.parse(e.data); if (d.path === '/') take(d.data); else take({ [d.path.split('/').filter(Boolean)[0]]: d.data }); });
+  es.addEventListener('patch', e => take(JSON.parse(e.data).data));
+}
 function startMobStream(){
+  startHealStream();
   // the server's clock, so everyone's monsters walk the same path at the same moment
   const t0 = Date.now();
   fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).then(r => r.json()).then(v => {
