@@ -11,13 +11,14 @@ const HOOK = `window.__t = {
   strong: () => { SKILL_XP.Melee = 25 * 60 * 60; SKILL_XP.Hitpoints = 25 * 60 * 60; HP.cur = maxHp(); },
   smite: () => { for (const m of DELVE.mons) if (m.state !== 'dying' && m.state !== 'dead') { if (m.ghost) partyHit(m, 50); else { m.hp = 0; m.state = 'dying'; m.dieT = performance.now(); } } },
   fx: () => JSON.stringify(fxSeen),
+  attack: () => { const m = DELVE.mons.find(q => q.state === 'standing' || q.state === 'engaged'); if (m && !FIGHT) startFight(m); return !!m; },
   remPose: () => Object.values(remote).map(r => r.name + ':' + (r.act && r.act.k) + ':' + (r.act && r.act.d)),
 };`;
 (async () => {
   const db = new FakeDb(); const b = await chromium.launch(); const pages = [];
   for (const name of ['Anna', 'Ben']) {
     const ctx = await b.newContext({ viewport: { width: 560, height: 360 } }); const p = await ctx.newPage();
-    await db.attach(p); p.on('pageerror', e => console.log(name, 'PAGEERROR', e.message));
+    await db.attach(p, 'id' + name); p.on('pageerror', e => console.log(name, 'PAGEERROR', e.message));
     await p.addInitScript(n => { try { localStorage.setItem('itapSettings', JSON.stringify({ music: 0, sfx: 0, grass: 'off' })); localStorage.setItem('itapName', n); localStorage.setItem('itapId', 'id' + n); } catch (e) {} }, name);
     await p.route(/^http:\/\/localhost:8123\/adventure\/(\?(?!vcheck).*)?$/, async r => { const resp = await r.fetch(); let body = await resp.text();
       body = body.replace('function frame(){', () => 'function frame(){ if (window.__freeze) { setTimeout(() => requestAnimationFrame(frame), 200); return; }').replace('bootOnline();\nframe();', () => 'bootOnline();\nframe();\n' + HOOK);
@@ -38,6 +39,13 @@ const HOOK = `window.__t = {
   console.log('wave0 A', JSON.stringify(await st(A))); console.log('wave0 B', JSON.stringify(await st(B)));
   await until(B, () => window.__t.st().fight || false, 40000); await A.waitForTimeout(3000);
   console.log('A sees', JSON.stringify(await A.evaluate(() => window.__t.remPose())), 'fx from Ben', await A.evaluate(() => window.__t.fx()));
+  if (process.argv[2] === 'fight') {   // no shortcuts: the follower fights it, then the leader fights the next one
+    for (let i = 0; i < 40; i++) { const sb = await st(B); if (sb.wave >= 1) break; await B.evaluate(() => window.__t.attack()); await B.waitForTimeout(2000); if (i % 5 === 4) { console.log('A', JSON.stringify(await st(A))); console.log('B', JSON.stringify(await st(B))); } }
+    console.log('after follower fight A', JSON.stringify(await st(A))); console.log('B', JSON.stringify(await st(B)));
+    for (let i = 0; i < 40; i++) { const sa = await st(A); if (sa.wave >= 2) break; await A.evaluate(() => window.__t.attack()); await A.waitForTimeout(2000); }
+    console.log('after leader fight A', JSON.stringify(await st(A))); console.log('B', JSON.stringify(await st(B)));
+    await b.close(); process.exit(0);
+  }
   // the leader's tab goes to sleep
   await A.evaluate(() => { window.__freeze = true; });
   const took = await until(B, () => window.__t.st().host === 'idBen', 30000); console.log('B took over:', took, JSON.stringify(await st(B)));

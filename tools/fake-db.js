@@ -2,10 +2,14 @@
 // Every page given the same store sees the same data. Nothing ever reaches the live game.
 //   const { FakeDb } = require('./tools/fake-db');
 //   const db = new FakeDb();
-//   await db.attach(page);   // call before page.goto, once per page
+//   await db.attach(page, 'idAnna');   // call before page.goto, once per page; the player signs in as that id
 //   db.get('adventure/event'), db.set('adventure/event/raidAt', Date.now())
 // Live streams are answered with a snapshot and a short retry, so the browser reconnects about three times a second.
 const DB_HOSTS = /firebase(io)?\.(com|app)|googleapis\.com\/.*firebase/i;
+// the game's sign-in (Firebase Auth) is faked too, so a test never makes accounts on the real project
+const AUTH_HOSTS = /identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/;
+const fakeAuth = uid => route => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+  body: JSON.stringify({ idToken: 'tok-' + uid, id_token: 'tok-' + uid, refreshToken: 'rt-' + uid, refresh_token: 'rt-' + uid, localId: uid, user_id: uid, expiresIn: '3600' }) });
 class FakeDb {
   constructor(){ this.root = {}; this.ver = 1; }
   parts(path){ return path.split('/').filter(Boolean); }
@@ -16,7 +20,9 @@ class FakeDb {
     let o = this.root; for (let i = 0; i < ps.length - 1; i++) { if (!o[ps[i]] || typeof o[ps[i]] !== 'object') o[ps[i]] = {}; o = o[ps[i]]; }
     if (val === null || val === undefined) delete o[ps[ps.length - 1]]; else o[ps[ps.length - 1]] = JSON.parse(JSON.stringify(val));
   }
-  async attach(page){
+  // uid: the account this page signs in as (defaults to a random one)
+  async attach(page, uid = 'u' + Math.random().toString(36).slice(2, 10)){
+    await page.context().route(AUTH_HOSTS, fakeAuth(uid));
     const answer = async route => {
       const req = route.request(), url = new URL(req.url()), path = decodeURIComponent(url.pathname.replace(/\.json$/, '')), m = req.method();
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,PUT,PATCH,POST,DELETE', 'access-control-expose-headers': 'ETag' };

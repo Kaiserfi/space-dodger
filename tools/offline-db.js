@@ -4,7 +4,12 @@
 //   const { offlineDb } = require('./tools/offline-db');
 //   const db = await offlineDb(page);   // call before page.goto
 //   ... db.count() is how many database requests were answered locally
+// the game's sign-in (Firebase Auth) is faked too, so a test never makes accounts on the real project
+const AUTH_HOSTS = /identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/;
+const fakeAuth = uid => route => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+  body: JSON.stringify({ idToken: 'tok-' + uid, id_token: 'tok-' + uid, refreshToken: 'rt-' + uid, refresh_token: 'rt-' + uid, localId: uid, user_id: uid, expiresIn: '3600' }) });
 async function offlineDb(page){
+  await page.context().route(AUTH_HOSTS, fakeAuth('offlineTester'));
   let caught = 0;
   const DB_HOSTS = /firebase(io)?\.(com|app)|googleapis\.com\/.*firebase/i;
   const answer = async route => {
