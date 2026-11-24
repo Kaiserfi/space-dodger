@@ -4432,7 +4432,8 @@ function updateFight(){
   heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.x, m.z);
   if (m.sid !== undefined && now - (FIGHT.hb || 0) > 4000) { FIGHT.hb = now; mobPatch(m.sid, { t: SNOW(), hp: m.hp }); }   /* still fighting it */
   if (now > FIGHT.nextP) { FIGHT.nextP = now + 2400; playerSwing(m); }
-  if (FIGHT && now > FIGHT.nextM) { FIGHT.nextM = now + m.t.speed; monsterSwing(m); }
+  const busyElsewhere = m.delve && DELVE && DELVE.party && m.tg && m.tg !== ONLINE.id;   /* in a party, a creature fights one of you at a time: hitting it from the side is safe */
+  if (FIGHT && now > FIGHT.nextM) { FIGHT.nextM = now + m.t.speed; if (!busyElsewhere) monsterSwing(m); }
   if (!FIGHT) return;
   const anim = (a, c) => { if (a && now - a.t0 < a.dur) fightPose(c, a.kind, (now - a.t0) / a.dur); else fightPose(c, 'ready', 0); };
   anim(FIGHT.pAnim, hero.userData.chibi);
