@@ -4314,11 +4314,11 @@ function killMonster(m){
   if (m.type in KILLS) { KILLS[m.type]++; if (cellarOpen() && KILLS[m.type] === 10) setTimeout(() => addSystemLine('Somewhere to the south, a chain rattles loose.'), 1500); }
   m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
   const [c0, c1] = m.t.coins || [3, 10], coins = c0 + Math.floor(Math.random() * (c1 - c0 + 1));
+  const dx = m.x, dz = m.z;   /* as in RuneScape, the drop lands where it fell: yours alone for a minute, then anyone's, gone after two */
   setTimeout(() => {
-    const got = [];
-    if (coins > 0 && addItem('Coins', coins, COIN_ICON)) got.push(`${coins} coins`);
-    for (const [name, lo, hi] of m.t.drops || []) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); const before = countOf(name); addItem(name, n, ICON_FOR[name]); const fit = countOf(name) - before; if (fit) got.push(fit > 1 ? `${fit} ${name.toLowerCase()}` : name.toLowerCase()); if (fit < n) { dropToGround(name, n - fit, m.x, m.z, true); showToast('Your bag is full, so some of the drop falls to the ground.'); } }
-    showToast(got.length ? `The ${m.t.name.toLowerCase()} is defeated! It dropped ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : `The ${m.t.name.toLowerCase()} is defeated!`);
+    if (coins > 0) dropToGround('Coins', coins, dx, dz, true, true);
+    for (const [name, lo, hi] of m.t.drops || []) dropToGround(name, lo + Math.floor(Math.random() * (hi - lo + 1)), dx, dz, true, true);
+    showToast(`The ${m.t.name.toLowerCase()} is defeated!`);
   }, 900);
   endFight();
 }
@@ -5492,8 +5492,17 @@ function updateTorch(){
 const CRAFTS = { 'Logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 15, needs: { Logs: 1 } }], 'Oak logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 20, needs: { 'Oak logs': 1 } }] };
 const itemMenu = document.createElement('div'); itemMenu.id = 'itemMenu'; itemMenu.hidden = true; document.body.appendChild(itemMenu);
 
-// ===== items on the ground: dropped from the bag, or a drop or reward that didn't fit. Only you see yours; they last three minutes =====
-const GROUND = [], GROUND_MS = 180000;
+// ===== items on the ground, as in RuneScape: a monster's drop, something dropped from the bag, or a reward that didn't fit.
+// Only you see yours for the first minute, then everyone up top does. Monster drops go after two minutes, everything else after three.
+// Shared through adventure/live/ground/<key>; down the cellar they stay yours alone.
+const GROUND = [], GROUND_MS = 180000, GROUND_MOB_MS = 120000, GROUND_PRIV = 60000;
+let groundK = 0;
+const groundUrl = key => `${DB}/adventure/live/ground/${key}.json`;
+function groundShare(gi){
+  if (!ONLINE.id || inDelveZone(gi.x, gi.z)) return;
+  fetch(groundUrl(gi.key), { method: 'PUT', body: JSON.stringify({ n: gi.name, q: gi.qty, x: +gi.x.toFixed(2), z: +gi.z.toFixed(2), by: gi.by, pub: gi.pub, until: gi.until }) })
+    .then(res => { if (res.ok) gi.shared = true; }).catch(() => {});
+}
 function groundModel(name){
   const g = new THREE.Group(), P = (geo, col, x, y, z, outline = true) => chibiPart(g, geo, col, x, y, z, outline);
   const meat = (col, seared) => {   /* a plain steak: just the meat, seared or raw, no fat or bone */
@@ -5519,14 +5528,21 @@ function groundModel(name){
   else if (name === 'Bandage') { P(new THREE.TorusGeometry(0.16, 0.08, 6, 12).rotateX(Math.PI / 2), 0xf4eee0, 0, 0.08, 0); }
   else if (/seeds/.test(name)) sack(name.startsWith('Aloe') ? 0xa8c8a0 : name.startsWith('Mulberry') ? 0xc8a8c0 : 0xc8a870, 0x6a5030);
   else if (name === 'Flour') sack(0xece4d0, 0x8a7a5a);
+  else if (name === 'Coins') { for (const [x, z, y] of [[0, 0, 0], [0.16, 0.1, 0], [-0.14, 0.12, 0], [0.02, 0.04, 0.06]]) P(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 12), 0xf0c040, x, 0.03 + y, z); }
   else sack(0x9a7448, 0x4a3018);   // anything else: wrapped in a cloth bundle
   return g;
 }
 let groundGlow = null;
-function dropToGround(name, qty, x, z, quiet){
-  if (!qty || name === 'Coins') return;
-  const near = GROUND.find(gi => gi.name === name && Math.hypot(gi.x - x, gi.z - z) < 0.8);
-  if (near) { near.qty += qty; near.until = Date.now() + GROUND_MS; return; }   // onto the same pile
+function dropToGround(name, qty, x, z, quiet, mob){
+  if (!qty) return;
+  const near = GROUND.find(gi => gi.name === name && gi.by === ONLINE.id && SNOW() < gi.pub && Math.hypot(gi.x - x, gi.z - z) < 0.8);
+  if (near) { near.qty += qty; near.until = Math.max(near.until, SNOW() + (mob ? GROUND_MOB_MS : GROUND_MS)); groundShare(near); return; }   // onto your own pile
+  const now = SNOW();
+  return groundMake({ key: 'g' + String(ONLINE.id || 'x').slice(-6) + now.toString(36) + (groundK++).toString(36), name, qty, x, z, by: ONLINE.id, pub: now + GROUND_PRIV, until: now + (mob ? GROUND_MOB_MS : GROUND_MS) }, quiet, true);
+}
+// builds a pile, yours (share it) or someone else's from the live feed
+function groundMake(o, quiet, share){
+  let { name, qty, x, z } = o;
   if (!groundGlow) { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d'), gr = c.createRadialGradient(32, 32, 4, 32, 32, 32);
     gr.addColorStop(0, 'rgba(255,230,150,.55)'); gr.addColorStop(0.6, 'rgba(255,210,120,.22)'); gr.addColorStop(1, 'rgba(255,210,120,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
     groundGlow = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }); }
@@ -5535,29 +5551,54 @@ function dropToGround(name, qty, x, z, quiet){
   const ring = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9).rotateX(-Math.PI / 2), groundGlow); ring.position.y = 0.05; g.add(ring);
   const m = groundModel(name); m.scale.setScalar(1.6); m.rotation.y = Math.random() * 6.28; g.add(m);
   const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.9, 8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.45; g.add(hit);   // easy to click
-  const gi = { name, qty, x, z, g, m, until: Date.now() + GROUND_MS, born: performance.now() };
+  const gi = { name, qty, x, z, g, m, key: o.key, by: o.by, pub: o.pub, until: o.until, shared: !share, born: performance.now(), shown: true };
   g.userData = { action: 'Take', name, rec: { kind: 'ground', state: 'standing', x, z, onClick: () => pickUp(gi) } }; trees.push(g);
-  GROUND.push(gi);
+  GROUND.push(gi); if (share) groundShare(gi);
+  if (!groundSeen(gi)) groundShow(gi, false);
   if (!quiet) sfx((c, t, out) => nz(c, out, t, 0.12, 'lowpass', 500, 250, 0.8, 0.4, 0.004, 0.1));   // a soft thump on the grass
+}
+// someone else's pile shows only once it's public, and only up top
+const groundSeen = gi => gi.by === ONLINE.id || (SNOW() >= gi.pub && !DELVE);
+function groundShow(gi, on){ if (gi.shown === on) return; gi.shown = on; gi.g.visible = on; const i = trees.indexOf(gi.g); if (on && i < 0) trees.push(gi.g); if (!on && i >= 0) trees.splice(i, 1); if (on) gi.born = performance.now(); }
+// the live feed: piles appear, change and go
+function groundApply(key, d){
+  const gi = GROUND.find(q => q.key === key);
+  if (!d) { if (gi) removeGround(gi); return; }
+  if (!d.n || !(d.q > 0) || !(d.until > SNOW())) return;
+  if (gi) { if (gi.by !== ONLINE.id || gi.shared) { gi.qty = d.q; gi.pub = d.pub || 0; gi.until = d.until; } return; }
+  groundMake({ key, name: String(d.n), qty: d.q, x: +d.x || 0, z: +d.z || 0, by: d.by, pub: d.pub || 0, until: d.until }, true, false);
 }
 function removeGround(gi){ scene.remove(gi.g); const i = trees.indexOf(gi.g); if (i >= 0) trees.splice(i, 1); const j = GROUND.indexOf(gi); if (j >= 0) GROUND.splice(j, 1); }
 function pickUp(gi){
   if (!GROUND.includes(gi)) return;
+  const gotIt = got => { sfx((c, t, out) => nz(c, out, t, 0.1, 'bandpass', 1800, 2600, 1.2, 0.3, 0.005, 0.08));
+    showToast(gi.name === 'Coins' ? `You pick up ${got} coins.` : got > 1 ? `You pick up ${got} ${gi.name.toLowerCase()}.` : `You pick up the ${gi.name.toLowerCase()}.`); };
+  const room = () => gi.name === 'Coins' ? gi.qty : SINGLE.has(gi.name) ? Math.max(0, Math.min(gi.qty, BAG_SIZE - bag.length)) : bag.some(i => i.name === gi.name) || bag.length < BAG_SIZE ? gi.qty : 0;   /* how much would fit */
   const take = () => {
-    if (!GROUND.includes(gi)) return;
-    const before = countOf(gi.name); addItem(gi.name, gi.qty, ICON_FOR[gi.name] || ''); const got = countOf(gi.name) - before;
-    if (!got) { showToast('Your bag is full.'); return; }
-    gi.qty -= got; if (gi.qty <= 0) removeGround(gi);
-    sfx((c, t, out) => nz(c, out, t, 0.1, 'bandpass', 1800, 2600, 1.2, 0.3, 0.005, 0.08));
-    showToast(got > 1 ? `You pick up ${got} ${gi.name.toLowerCase()}.` : `You pick up the ${gi.name.toLowerCase()}.`);
+    if (!GROUND.includes(gi) || gi.taking) return;
+    const fit = room(); if (!fit) { showToast('Your bag is full.'); return; }
+    if (!gi.shared) {   // only ever yours: no one else can have taken it
+      addItem(gi.name, fit, ICON_FOR[gi.name] || ''); gi.qty -= fit; if (gi.qty <= 0) removeGround(gi); gotIt(fit); return; }
+    // anyone might grab it: take it in the database first, and only if it's still as we saw it
+    gi.taking = true; const url = groundUrl(gi.key), done = () => { gi.taking = false; };
+    fetch(url, { headers: { 'X-Firebase-ETag': 'true' } }).then(async res => {
+      const tag = res.headers.get('ETag'), d = await res.json();
+      if (!d || !(d.q > 0)) { removeGround(gi); showToast('Too late, someone else picked that up.'); return done(); }
+      const n = Math.min(fit, d.q), left = d.q - n;
+      const w = await fetch(url, left > 0 ? { method: 'PUT', headers: { 'if-match': tag }, body: JSON.stringify({ ...d, q: left }) } : { method: 'DELETE', headers: { 'if-match': tag } });
+      if (w.status === 412) { done(); return take(); }   // it changed under us: look again
+      if (!w.ok) { showToast("You couldn't pick that up. Try again in a moment."); return done(); }
+      addItem(gi.name, n, ICON_FOR[gi.name] || ''); gi.qty = left; if (left <= 0) removeGround(gi); gotIt(n); done();
+    }).catch(() => { showToast("You couldn't pick that up. Try again in a moment."); done(); });
   };
   if (Math.hypot(hero.position.x - gi.x, hero.position.z - gi.z) < 1.8) { walkTarget = null; walkQueue = []; take(); return; }
   walkStart(new THREE.Vector3(gi.x, 0, gi.z), take);
 }
 function updateGround(){
-  const now = Date.now(), t = performance.now() / 1000;
+  const now = SNOW(), t = performance.now() / 1000;
   for (let i = GROUND.length - 1; i >= 0; i--) { const gi = GROUND[i];
-    if (now > gi.until) { removeGround(gi); continue; }
+    if (now > gi.until) { if (gi.shared && (gi.by === ONLINE.id || now > gi.until + 5000)) fetch(groundUrl(gi.key), { method: 'DELETE' }).catch(() => {}); removeGround(gi); continue; }
+    groundShow(gi, groundSeen(gi)); if (!gi.shown) continue;
     const k = Math.min(1, (performance.now() - gi.born) / 250); gi.m.position.y = 0.06 + Math.abs(Math.sin(t * 2 + i)) * 0.06 + (1 - k) * 0.8;   // drops in, then a gentle bob
     gi.m.rotation.y += 0.004; }
 }
@@ -6725,6 +6766,12 @@ function startEventStreams(){
     if (!parts.length) { for (const k in GRAVES) if (!d.data || !d.data[k]) dropGrave(k); for (const k in (d.data || {})) setGrave(k, d.data[k]); return; }
     const id = parts[0]; if (parts.length === 1) { if (d.data === null) dropGrave(id); else setGrave(id, d.data); } else fetch(`${DB}/adventure/live/graves/${id}.json`).then(r => r.json()).then(g => g ? setGrave(id, g) : dropGrave(id)).catch(() => {}); };
   gs.addEventListener('put', e => ga(JSON.parse(e.data)));
+  const gf = liveFeed('ground'), gapply = d => { const parts = d.path.split('/').filter(Boolean);
+    if (!parts.length) { for (const gi of GROUND.slice()) if (gi.shared && gi.key && !(d.data && d.data[gi.key])) removeGround(gi); for (const k in (d.data || {})) groundApply(k, d.data[k]); return; }
+    if (parts.length === 1) groundApply(parts[0], d.data);
+    else fetch(groundUrl(parts[0])).then(r => r.json()).then(v => groundApply(parts[0], v)).catch(() => {}); };
+  gf.addEventListener('put', e => gapply(JSON.parse(e.data)));
+  gf.addEventListener('patch', e => { const d = JSON.parse(e.data); for (const k in d.data) gapply({ path: d.path + '/' + k, data: d.data[k] }); });
   gs.addEventListener('patch', e => { const d = JSON.parse(e.data); for (const k in d.data) ga({ path: d.path + '/' + k, data: d.data[k] }); });
 }
 
