@@ -3104,7 +3104,7 @@ const TOWNSFOLK = [
       ["Aldric says one day I'll be as good as him. He also says that to Pip."],
       ["If you see anything suspicious, shout. Loudly. I'm still getting used to the helmet."] ],
     barks: ["Halt! Oh, sorry, I thought you were someone else. Carry on.", "It gets ever so warm standing this close to the forge.", "The quarry's just down that path, if you're after ore."] },
-  { name: 'Ezra', title: 'the old farmer', x: 79.5, z: 69, rad: 0.6, hat: 'straw',
+  { name: 'Ezra', title: 'the old farmer', x: 75.5, z: 70, rad: 0.6, hat: 'straw',
     look: { gender: 'male', skin: 0xd8a878, hair: 'short', hairCol: 0xc8c8c8, shirt: 0x6a5a40, pants: 0x4a4a52 },
     talks: [
       ["Another one come to gawk at the ruins, eh?", "I'm Ezra. This was my farm, once. Best wheat in the whole valley.", "Then the cellar woke up."],
@@ -3986,7 +3986,7 @@ function fightPose(c, kind, k){
   if (kind === 'swing') {
     const a = k < 0.45 ? lerp(-0.4, -2.9, ease(k / 0.45)) : k < 0.6 ? lerp(-2.9, -0.6, (k - 0.45) / 0.15) : lerp(-0.6, -0.4, (k - 0.6) / 0.4);
     AR.rotation.set(a, 0, 0.05);
-    if (c.weapon) { const up = Math.max(0, Math.min(1, (-a - 0.6) / 2.0)); c.weapon.rotation.x = lerp(-1.15, 0.8, up); c.weapon.rotation.z = 0.8 * up; }   /* as the arm rises the blade lifts in line with it and tips out to the side, clear of the big head */
+    if (c.weapon) c.weapon.rotation.x = -0.75;   /* the original swing */
     c.body.rotation.x = k < 0.45 ? -0.12 * ease(k / 0.45) : (k < 0.75 ? 0.2 : 0.2 * (1 - (k - 0.75) / 0.25)); c.legs[0].rotation.x = -0.35;
   } else if (kind === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); AL.rotation.set(-1.45 * b, 0.5 * b, -0.2 + 0.3 * b); c.body.rotation.x = 0.06 * b; c.legs[1].rotation.x = 0.3 * b; }
   else if (kind === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); c.body.rotation.x = -0.3 * b; c.head.rotation.z = 0.2 * b; AL.rotation.set(0.4 * b, 0, -0.2 - 0.4 * b); AR.rotation.set(0.4 * b, 0, 0.2 + 0.4 * b); }
@@ -4231,7 +4231,8 @@ function populateVillage(){
   decoratePaths();
 }
 // ----- the ruined farm: dead land south of the pens, where the rats and the angry farmers roam, and the burnt farmhouse with its root cellar -----
-const RUIN = { x0: 60, x1: 110, z0: 35, z1: 82, house: { x: 86, z: 74 }, cellar: { x: 93.5, z: 71 } };
+const RUIN = { x0: 60, x1: 110, z0: 35, z1: 82, house: { x: 86, z: 74 }, cellar: { x: 86, z: 83.2 } };   /* the cellar sits just south of the farmhouse */
+const RUIN_S = 1.6;   /* the farmhouse ruin is built at this scale */
 const inRuin = (x, z) => x > RUIN.x0 && x < RUIN.x1 && z > RUIN.z0 && z < RUIN.z1;
 const KILLS = { chicken: 0, cow: 0, rat: 0, farmer: 0 };   // how many of each farm creature you've beaten, for the cellar's padlock
 const cellarOpen = () => ['chicken', 'cow', 'rat', 'farmer'].every(k => KILLS[k] >= 10);
@@ -4265,17 +4266,23 @@ function buildRuinedFarm(){
   const sc = new THREE.Group(); sc.position.set(70, 0.2, 48); sc.rotation.set(0, 0.4, Math.PI / 2 - 0.1); town.add(sc);
   add(new THREE.BoxGeometry(0.12, 2.4, 0.12), 0x5a4a38, 0, 1.2, 0, sc); add(new THREE.BoxGeometry(1.8, 0.1, 0.1), 0x5a4a38, 0, 1.8, 0, sc); add(new THREE.BoxGeometry(0.7, 0.8, 0.35), 0x5a5a62, 0, 1.6, 0, sc); add(new THREE.IcosahedronGeometry(0.28, 0), 0xb0a080, 0, 2.35, 0, sc);
   // the burnt farmhouse: a scorched floor, the stubs of stone walls, a standing chimney and charred beams
-  const H = RUIN.house, house = new THREE.Group(); house.position.set(H.x, 0, H.z); town.add(house);
+  const H = RUIN.house, S = RUIN_S, house = new THREE.Group(); house.position.set(H.x, 0, H.z); house.scale.setScalar(S); town.add(house);
   add(new THREE.BoxGeometry(10, 0.12, 8), 0x2e2620, 0, 0.06, 0, house);
   for (const [x, z, w, d, h] of [[-5, 0, 0.5, 8, 1.2], [5, 0, 0.5, 8, 0.6], [-2.5, -4, 5, 0.5, 1.6], [3.2, -4, 3.6, 0.5, 0.8], [-3.8, 4, 2.4, 0.5, 0.9], [3.6, 4, 2.8, 0.5, 0.5]]) add(new THREE.BoxGeometry(w, h, d), stoneM, x, h / 2, z, house);
   add(new THREE.BoxGeometry(1.5, 7, 1.5), stoneM, -3.8, 3.5, -3.2, house); add(new THREE.BoxGeometry(1.8, 0.5, 1.8), mat(0x6a645a), -3.8, 7.1, -3.2, house);   // the chimney, all that stands
   for (const [x, z, a, b] of [[-1, -1, 0.9, 0.3], [1.5, 1, -0.7, 1.1], [0, 2.4, 0.4, -0.5], [2.8, -1.8, -1.1, 0.2]]) { const bm = add(new THREE.BoxGeometry(0.35, 0.35, 5), charred, x, 1.2, z, house); bm.rotation.set(a, b, 0.2); }
-  for (let i = 0; i < 18; i++) add(new THREE.DodecahedronGeometry(0.2 + R() * 0.25, 0), R() < 0.5 ? 0x2a221c : 0x5a544c, (R() - 0.5) * 9, 0.15, (R() - 0.5) * 7, house).castShadow = false;   // ash and rubble
-  for (const [x, z, hx, hz] of [[H.x - 5, H.z, 0.4, 4], [H.x + 5, H.z, 0.4, 4], [H.x - 2.5, H.z - 4, 2.6, 0.4], [H.x + 3.2, H.z - 4, 1.9, 0.4], [H.x - 3.8, H.z - 3.2, 0.9, 0.9]]) solidBoxes.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz });
+  for (let i = 0; i < 18; i++) { const rb = add(new THREE.DodecahedronGeometry(0.2 + R() * 0.25, 0), R() < 0.5 ? 0x2a221c : 0x5a544c, (R() - 0.5) * 9, 0.06, (R() - 0.5) * 7, house); rb.castShadow = false; rb.scale.y = 0.35; }   // ash and rubble, trodden flat enough to walk over
+  /* the walls, the chimney and the fallen beams are all solid, so you walk round them rather than through them */
+  for (const [x, z, hx, hz] of [[-5, 0, 0.3, 4], [5, 0, 0.3, 4], [-2.5, -4, 2.5, 0.3], [3.2, -4, 1.8, 0.3], [-3.8, 4, 1.2, 0.3], [3.6, 4, 1.4, 0.3], [-3.8, -3.2, 0.75, 0.75],
+    [-1, -1, 0.7, 1.6], [1.5, 1, 1.4, 1.1], [0, 2.4, 0.9, 1.4], [2.8, -1.8, 0.6, 1.7]]) solidBoxes.push({ x0: H.x + (x - hx) * S, x1: H.x + (x + hx) * S, z0: H.z + (z - hz) * S, z1: H.z + (z + hz) * S });
   // the root cellar: two weathered doors set slanting into the ground, chained and padlocked until you've proved yourself
-  const C = RUIN.cellar, cel = new THREE.Group(); cel.position.set(C.x, 0, C.z); cel.rotation.y = -0.2; town.add(cel);
+  const C = RUIN.cellar, cel = new THREE.Group(); cel.position.set(C.x, 0, C.z); town.add(cel);
   add(new THREE.BoxGeometry(3.4, 0.5, 2.8), stoneM, 0, 0.25, 0, cel);   // the stone frame round the hatch
-  const doors = [-1, 1].map(s => { const d = add(new THREE.BoxGeometry(1.45, 0.12, 2.4), texMat(woodTex(), 1, 2, 0x7a6248), s * 0.76, 0.62, 0, cel); d.rotation.z = -s * 0.22; return d; });
+  const pit = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.02, 2.3), new THREE.MeshBasicMaterial({ color: 0x000000 })); pit.position.y = 0.515; cel.add(pit);   // the black drop beneath the doors
+  for (let i = 0; i < 4; i++) { const rung = add(new THREE.BoxGeometry(0.9, 0.06, 0.08), 0x3a2a1a, 0, 0.52, -0.9 + i * 0.12, cel); rung.castShadow = false; rung.visible = false; pit['r' + i] = rung; }   // the top of the ladder going down
+  const doors = [-1, 1].map(s => { const hinge = new THREE.Group(); hinge.position.set(s * 1.45, 0.58, 0); cel.add(hinge);   // hinged at the outer edges
+    add(new THREE.BoxGeometry(1.42, 0.12, 2.4), texMat(woodTex(), 1, 2, 0x7a6248), -s * 0.72, 0, 0, hinge); return hinge; });
+  RUIN.pit = pit;
   const chain = new THREE.Group(); cel.add(chain);
   for (let i = 0; i < 9; i++) { const l = add(new THREE.TorusGeometry(0.09, 0.025, 4, 8), 0x6a6a70, -0.8 + i * 0.2, 0.86, 0.1 * Math.sin(i), chain); l.rotation.y = i % 2 ? Math.PI / 2 : 0; l.castShadow = false; }
   const lock = add(new THREE.BoxGeometry(0.32, 0.36, 0.14), 0x8a7a4a, 0, 0.72, 0.3, chain); add(new THREE.TorusGeometry(0.11, 0.03, 4, 8, Math.PI), 0x6a6a70, 0, 0.92, 0.3, chain);
@@ -4283,9 +4290,9 @@ function buildRuinedFarm(){
   add(new THREE.BoxGeometry(0.1, 1.6, 0.1), 0x3a2a1a, 1.9, 0.8, 1.2, cel); add(new THREE.BoxGeometry(0.26, 0.32, 0.26), lantern, 1.9, 1.7, 1.2, cel); LIGHT_SPOTS.push([C.x + 1.9, 1.7, C.z + 1.2]);
   solidAt(C.x, C.z, 1.6, 1.4);
   RUIN.chain = chain; RUIN.doors = doors;
-  cel.userData = { action: 'Open', name: 'Root cellar', rec: { kind: 'cellar', state: 'standing', x: C.x, z: C.z, onClick: () => cellarClick() } }; trees.push(cel);
+  cel.userData = { action: 'Open', name: 'Cellar', rec: { kind: 'cellar', state: 'standing', x: C.x, z: C.z, onClick: () => cellarClick() } }; trees.push(cel);
   // the old track down from the windmill path, between the pens, to the farmhouse
-  roadPath([[81, 11], [81, 34], [83, 52], [85, 64], [H.x + 1, H.z - 4.6]]);
+  roadPath([[81, 11], [81, 34], [83, 52], [85, 62], [H.x + 1, H.z - 4.6 * S]]);
 }
 
 // ----- the Root Cellar delve: a solo instance far below the farm, eight waves of the farm's creatures -----
@@ -4379,18 +4386,16 @@ function delveAsk(html, yes, onYes, no = 'Not yet'){
   el.innerHTML = `${html}<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button data-a="n" style="font:inherit;padding:5px 12px;background:#3a2c18;color:#e8efe6;border:1px solid #7a5a2c;border-radius:4px;cursor:pointer">${no}</button><button data-a="y" style="font:inherit;padding:5px 12px;background:#7a5a24;color:#fff4d8;border:1px solid #c9a050;border-radius:4px;cursor:pointer">${yes}</button></div>`;
   el.hidden = false; el.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; el.hidden = true; if (b.dataset.a === 'y') onYes(); };
 }
-function delveExitSpot(){ return { x: RUIN.cellar.x - 2.6, z: RUIN.cellar.z + 0.5 }; }
+function delveExitSpot(){ return { x: RUIN.cellar.x, z: RUIN.cellar.z + 2.7 }; }
 function askDelve(){
-  const lv = levelOf(SKILL_XP.Melee), hp = levelOf(SKILL_XP.Hitpoints), food = bag.filter(i => FOOD[i.name]).length;
-  const warn = lv < 20 || hp < 20 || food < 10 ? `<div style="color:#f0a060;margin-top:8px">Ezra's advice: Melee 20, Hitpoints 20, bronze gear and 10 pieces of food. You have Melee ${lv}, Hitpoints ${hp} and ${food} food.</div>` : '';
-  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px">The Root Cellar</div>Climb down alone and face eight waves of the farm's creatures?<div style="margin-top:6px;color:#c9b27a">If you fall down there, you lose a quarter of your coins (but nothing else). You can climb out by the ladder at any time.</div>${warn}`, 'Climb down', startDelve);
+  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Defeat 8 grueling waves using only what's in your bag!<br><br>If defeated, you lose 25% of your coins.<br><br>Do you accept?</div>`, 'Accept', startDelve, 'Cancel');
 }
 function startDelve(){
   buildDelveArena(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(DELVE_C.x, 0, DELVE_C.z - DELVE_C.pit + 2); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = 0;
   DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false };
-  showToast('You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Root Cellar: survive eight waves. The ladder behind you leads back up.');
+  showToast('You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Cellar: survive eight waves. The ladder behind you leads back up.');
   writePresence(true);
 }
 function spawnWave(){
@@ -4505,7 +4510,7 @@ function grantDelveRewards(){
   }
   if (DELVE && DELVE.chest) { const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); DELVE.chest.g.userData.action = null; }
   questJingle(); renderStats(); saveNow(false);
-  showRewardScroll({ banner: 'Delve complete', title: 'The Root Cellar', sub: 'All eight waves beaten, alone in the dark.',
+  showRewardScroll({ banner: 'Delve complete', title: 'The Cellar', sub: 'All eight waves beaten, alone in the dark.',
     rewards: rows.join(''), xp: '<div class="qr">Melee<b>+400</b></div><div class="qr">Hitpoints<b>+150</b></div>',
     quote: '&ldquo;Cleared the whole cellar? On your own? Well I never. Keep whatever you found down there, you earned it.&rdquo; &mdash; Ezra' });
   if (left.length) addSystemLine('Your bag was too full for some of it, so it stayed in the chest.');
@@ -4568,9 +4573,14 @@ function cellarClick(){
     showToast(`The cellar doors are chained shut. The padlock is scratched with marks: Chickens ${Math.min(10, KILLS.chicken)}/10, Cows ${Math.min(10, KILLS.cow)}/10, Giant rats ${Math.min(10, KILLS.rat)}/10, Angry farmers ${Math.min(10, KILLS.farmer)}/10.`);
     return;
   }
-  walkStart(new THREE.Vector3(RUIN.cellar.x - 2.6, 0, RUIN.cellar.z + 0.5), askDelve);
+  const C = RUIN.cellar;
+  if (Math.hypot(hero.position.x - C.x, hero.position.z - C.z) < 3.6) { walkTarget = null; walkQueue = []; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, C.x, C.z); askDelve(); return; }
+  const spots = [[0, 2.7], [2.9, 0], [-2.9, 0], [2.4, 2.2], [-2.4, 2.2]].map(([dx, dz]) => ({ x: C.x + dx, z: C.z + dz })).filter(q => !blocked(q.x, q.z))
+    .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
+  const q = spots[0] || { x: C.x, z: C.z + 2.7 };
+  walkStart(new THREE.Vector3(q.x, 0, q.z), askDelve);
 }
-function updateCellar(){ if (RUIN.chain) { const open = cellarOpen(); RUIN.chain.visible = !open; RUIN.doors[1].rotation.z = open ? -0.9 : 0.22; } }
+function updateCellar(){ if (RUIN.chain) { const open = cellarOpen(); RUIN.chain.visible = !open; RUIN.doors.forEach((d, i) => { d.rotation.z = open ? (i ? -1.95 : 1.95) : 0; }); for (let i = 0; i < 4; i++) RUIN.pit['r' + i].visible = open; } }   /* thrown right open, showing the dark below */
 // ----- the bonfire clearing in the oak grove, south-west of the hall: a stone fire pit, two rings of log benches and two ways in -----
 const BF = { x: 1, z: 33, inR: 4.4, outR: 8, clearR: 10.5, north: -Math.PI / 2, green: Math.atan2(10 - 33, -40 - 1), seats: [], benches: [] };
 function bonfireRoads(){
