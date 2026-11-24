@@ -41,6 +41,7 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
   - **Keep it short.** One or two sentences a line, a few lines a conversation. People don't make speeches when you buy turnips.
   - **Read it aloud before shipping.** If it sounds like a tooltip, rewrite it.
   - Exact numbers and requirements belong in the interface (menus, tooltips, toasts, the quest tracker), never in what an NPC says.
+- **Check everything on a phone-sized screen** (about 412 wide). Text boxes must wrap (no `white-space:nowrap` on messages) and stay inside the screen with a 16px margin.
 - Keep dialogue and warnings short. The owner prefers wording that matches the phone game (Idle Tap Adventure) where there is an equivalent, for example the delve warning.
 
 ### Items, the bag and saves
