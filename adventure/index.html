@@ -1316,15 +1316,15 @@ function clickNode(rec){
   if (rec.state !== 'standing') return;
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
-  if (rec.kind === 'anvil' && !hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
+  if (rec.kind === 'anvil' && !hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (rec.kind === 'monster') { startFight(rec); return; }
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
-  if (rec.kind === 'fish' && !hasItem('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
+  if (rec.kind === 'fish' && !hasTool('Small fishing net')) { showToast('You need a fishing net to catch anything here.'); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast('You have nothing to cook.'); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
   else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
-  else if (rec.kind === 'rock') { if (!hasItem(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
-  else if (!hasItem(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
+  else if (rec.kind === 'rock') { if (!hasTool(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
+  else if (!hasTool(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
   if (rec.kind === 'door') {
     // approach from whichever side the adventurer is on
     const d2 = q => Math.hypot(q.x - hero.position.x, q.z - hero.position.z);
@@ -1450,7 +1450,7 @@ function renderSmith(){
   }).join('');
 }
 function makeGear(r){
-  if (!hasItem('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
+  if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
   if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { showToast('Your bag is full.'); return; }
@@ -1533,6 +1533,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
+  if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
@@ -1600,7 +1601,16 @@ function renderGear(){
     return `<div class="gearRow"><span>${SLOT_NAMES[slot]}</span>${worn
       ? `<b data-unequip="${slot}" title="Take off" style="cursor:pointer;text-align:right">${worn} &times;<br><small style="color:#9ac87a">${statText(worn)}</small></b>`
       : '<span style="color:#7a6a4a">empty</span>'}</div>`;
-  }).join('') + `<div class="gearRow" style="border:0;margin-top:4px"><span>Total</span><b>+${gearBonus('atk')} Attack, +${gearBonus('def')} Defence</b></div>`;
+  }).join('') + `<div class="gearRow" style="border:0;margin-top:4px"><span>Total</span><b>+${gearBonus('atk')} Attack, +${gearBonus('def')} Defence</b></div>`
+  + `<div class="bagHead" style="margin-top:8px">Toolbelt</div>` + Object.keys(TOOLBELT_SLOTS).map(sl => {
+    const t = toolbelt[sl];
+    return `<div class="gearRow"><span>${TOOLBELT_SLOTS[sl]}</span>${t ? `<b data-unbelt="${sl}" title="Put in bag" style="cursor:pointer;text-align:right">${t}${sl === 'can' ? ` <small style="color:#7ab8f0">(${FARM_CAN.n}/${CAN_MAX})</small>` : ''} &times;</b>` : '<span style="color:#7a6a4a">empty</span>'}</div>`;
+  }).join('') + `<div style="color:#9a8a6a;font-size:12px;padding:4px 2px">Click a tool in your bag to hang it here.</div>`;
+}
+function unbelt(sl){
+  const name = toolbelt[sl]; if (!name) return;
+  if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
+  toolbelt[sl] = null; addItem(name, 1, ICON_FOR[name] || ''); renderBag(); renderGear(); saveNow(false);
 }
 function unequip(slot){
   const name = equipped[slot]; if (!name) return;
@@ -1611,6 +1621,7 @@ function unequip(slot){
 }
 document.getElementById('gearList').addEventListener('click', e => {
   const b = e.target.closest('[data-unequip]'); if (b) unequip(b.dataset.unequip);
+  const u = e.target.closest('[data-unbelt]'); if (u) unbelt(u.dataset.unbelt);
 });
 document.getElementById('tabGear').addEventListener('click', () => { togglePanel('gearPanel', 'tabGear'); renderGear(); });
 
@@ -1755,16 +1766,16 @@ function questTalk(name){
       "Here — this is for you. A villager's cloak, with our oak and river on the back. You're one of us now.", run(completeHeartyWelcome)];
   }
   if (name === 'Mara' && s === 2) return [me("Brenna sent me. Said you might have an axe?"),
-    () => hasItem(AXE_NAME) ? "You've already got one! Then you're ahead of most." : "Brenna sent you? Then this one's on the house. Don't tell anyone — I've a reputation.",
+    () => hasTool(AXE_NAME) ? "You've already got one! Then you're ahead of most." : "Brenna sent you? Then this one's on the house. Don't tell anyone — I've a reputation.",
     run(() => { giveTool(AXE_NAME, AXE_ICON); }), me("Thanks, Mara!"), "Five logs, was it? The young trees round the green chop easy. Off you go.",
     run(() => { QUEST.hw = 3; questStep('Chop 5 logs and bring them to Brenna.'); })];
   if (name === 'Fenwick' && s === 4) return [me("Brenna needs shrimp. She said you might have a net?"),
-    () => hasItem('Small fishing net') ? "Got a net already? Good. Mine's got a hole in it anyway." : "Brenna wants shrimp, does she? Here — take my old net.",
+    () => hasTool('Small fishing net') ? "Got a net already? Good. Mine's got a hole in it anyway." : "Brenna wants shrimp, does she? Here — take my old net.",
     run(() => { giveTool('Small fishing net', NET_ICON); }), "Caught a fish as long as a horse with that net, once.", me("Really?"), "Ysolde says it was a boot. It wasn't a boot.",
     "Shrimp come up by the bank. Dip the net, wait, lift. Then cook 'em — unless you like 'em wriggling.",
     run(() => { QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.'); })];
   if (name === 'Gertrude' && s === 6) return [me("I need a bronze bar for Brenna's oven door."),
-    () => hasItem(PICK_NAME) ? "Got your own pickaxe? Good. Saves me a lecture." : "For Brenna's oven? Fine. Take this pickaxe. Bring it back sharp, or don't bring it back.",
+    () => hasTool(PICK_NAME) ? "Got your own pickaxe? Good. Saves me a lecture." : "For Brenna's oven? Fine. Take this pickaxe. Bring it back sharp, or don't bring it back.",
     run(() => { giveTool(PICK_NAME, PICK_ICON); }), me("How do I make a bar?"), "Copper over there, tin over here. One of each at the smithy furnace makes a bronze bar.",
     run(() => { QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.'); })];
   if (name === 'Dunmore' && s === 7) {
@@ -2964,6 +2975,11 @@ function addItem(name, qty = 1, icon = '') {
 // each item keeps its own slot, so you can arrange your bag how you like
 function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.slot === i)) return i; return -1; }
 function hasItem(name){ return bag.some(i => i.name === name); }
+/* the toolbelt: one of each skilling tool, kept out of the bag; skilling works from the bag or the belt */
+const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', hoe: 'Hoe', can: 'Watering can' };
+const toolbelt = { axe: null, pick: null, hammer: null, net: null, hoe: null, can: null };
+function beltSlotFor(name){ return /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : null; }
+function hasTool(name){ return hasItem(name) || Object.values(toolbelt).includes(name); }
 function renderBag() {
   let html = '';
   for (let i = 0; i < BAG_SIZE; i++) {
@@ -4490,7 +4506,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) } : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4517,6 +4533,7 @@ function applySave(d){
   }
   if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0 }); });   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
+  for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? d.tb[k] : null;
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
@@ -4800,7 +4817,7 @@ addEventListener('pointerdown', e => { if (!itemMenu.hidden && !itemMenu.contain
 function craftItem(o){
   if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
   for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
-  if (o.water && (!hasItem('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at the farm trough.'); return; }
+  if (o.water && (!hasTool('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at the farm trough.'); return; }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   for (const n in o.needs) for (let i = 0; i < o.needs[n]; i++) removeItem(n);
   if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }
@@ -4974,12 +4991,12 @@ function patchClick(pt, auto){
   const p = FARM_PLOTS[pt.i];
   farmChain = pt;
   if (auto) {   // carrying on by itself: only the jobs you have what you need for, and stop quietly otherwise
-    const can = p.s === 'tilled' ? hasItem('Wheat seeds') : p.s === 'planted' && p.g < 3 && !p.w ? hasItem('Watering can') && FARM_CAN.n > 0 : false;
+    const can = p.s === 'tilled' ? hasItem('Wheat seeds') : p.s === 'planted' && p.g < 3 && !p.w ? hasTool('Watering can') && FARM_CAN.n > 0 : false;
     if (!can) { farmChain = null; return; }
   }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   if (p.s === 'grass') {
-    if (!hasItem('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
+    if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Mara sells them.'); return; }
     farmAct(pt, 1800, 'till', () => { p.s = 'tilled'; p.w = false; addXp('Farming', 5); farmSound('till'); showToast('You turn over the soil.  +5 Farming XP'); });
   } else if (p.s === 'tilled') {
     if (!hasItem('Wheat seeds')) { showToast('You need some wheat seeds to plant here. Mara sells them.'); return; }
@@ -4988,18 +5005,18 @@ function patchClick(pt, auto){
     if (bag.length >= BAG_SIZE && !hasItem('Wheat')) { showToast('Your bag is full.'); return; }
     farmAct(pt, 2000, 'harvest', () => { const n = 3 + Math.floor(Math.random() * 3); addItem('Wheat', n, WHEAT_ICON); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', 15 * n); farmSound('harvest'); showToast(`You harvest ${n} wheat.  +${15 * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
-    if (!hasItem('Watering can')) { showToast('These need watering. You need a watering can. Mara sells them.'); return; }
+    if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Mara sells them.'); return; }
     if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
-    farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); addXp('Farming', 3); farmSound('water'); showToast(`You water the wheat. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
+    farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the wheat. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
     const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
     showToast(['The seeds are watered. They should sprout soon', 'The sprouts are watered and growing', 'The wheat is watered and coming along nicely'][p.g] + ` (about ${left} seconds).`);
   }
 }
 function troughClick(x, z){
-  if (!hasItem('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
+  if (!hasTool('Watering can')) { showToast('A trough of clean water. You could fill a watering can here.'); return; }
   if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
-  walkStart(new THREE.Vector3(x, 0, z + 1.6), () => { FARM_CAN.n = CAN_MAX; renderBag(); farmSound('fill'); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); saveNow(false); });
+  walkStart(new THREE.Vector3(x, 0, z + 1.6), () => { FARM_CAN.n = CAN_MAX; renderBag(); renderGear(); farmSound('fill'); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); saveNow(false); });
 }
 // milling: like cooking, a bar fills for each sack of wheat while you tip it into the hopper, and the sails turn faster
 const MILL_MS = 1800;
