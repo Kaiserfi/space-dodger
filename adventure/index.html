@@ -2171,7 +2171,17 @@ const basic = (c, op = 1) => flatMat[c + '|' + op] || (flatMat[c + '|' + op] = n
 function makeTool(kind){
   const t = new THREE.Group();
   chibiPart(t, geo('handle', () => new THREE.CylinderGeometry(0.045, 0.055, 1.35, 6)), 0x7a4d22, 0, -0.5, 0);
-  if (kind === 'pick') {
+  if (kind === 'hoe') {   // a flat iron blade at right angles to the handle, its edge facing -z so it bites into the soil on the down stroke
+    chibiPart(t, geo('hoeNeck', () => new THREE.BoxGeometry(0.07, 0.07, 0.2)), 0x5a5a62, 0, -1.15, -0.08);
+    chibiPart(t, geo('hoeBlade', () => new THREE.BoxGeometry(0.34, 0.26, 0.04)), 0x8a9099, 0, -1.28, -0.18).rotation.x = 0.35;
+  } else if (kind === 'can') {   // a watering can, upright in the hand: a green tin body, a long spout forward, a handle over the top
+    t.children[0].visible = false;   // no wooden handle on this one
+    chibiPart(t, geo('canBody', () => new THREE.CylinderGeometry(0.2, 0.22, 0.36, 12)), 0x6a8a5a, 0, -0.1, 0.12);
+    const sp = chibiPart(t, geo('canSpout', () => new THREE.CylinderGeometry(0.03, 0.05, 0.5, 6)), 0x6a8a5a, 0, -0.02, 0.48); sp.rotation.x = 1.0;
+    chibiPart(t, geo('canRose', () => new THREE.CylinderGeometry(0.07, 0.04, 0.06, 8)), 0x5a7a4a, 0, 0.1, 0.7).rotation.x = 1.0;
+    chibiPart(t, geo('canGrip', () => new THREE.TorusGeometry(0.14, 0.025, 5, 10, Math.PI)), 0x4a6a3a, 0, 0.08, 0.12, false).rotation.y = Math.PI / 2;
+    t.userData.spout = new THREE.Object3D(); t.userData.spout.position.set(0, 0.1, 0.74); t.add(t.userData.spout);
+  } else if (kind === 'pick') {
     chibiPart(t, geo('pickHead', () => new THREE.BoxGeometry(0.12, 0.12, 0.7)), 0xcd7f32, 0, -1.12, 0);
     for (const s of [-1, 1]) { const tip = chibiPart(t, geo('pickTip', () => new THREE.ConeGeometry(0.065, 0.3, 6)), 0xcd7f32, 0, -1.16, s * 0.48); tip.rotation.x = s * (Math.PI / 2 + 0.3); }
   } else {
@@ -2245,7 +2255,7 @@ function makeChibi(o){
   }
   const knot = hs === 'topknot' ? chibiPart(head, gRound(0.2, 14), hc, 0, 0.7, -0.15) : null;
   // tools and worn gear
-  const tools = { axe: makeTool('axe'), pick: makeTool('pick') };
+  const tools = { axe: makeTool('axe'), pick: makeTool('pick'), hoe: makeTool('hoe'), can: makeTool('can') };
   for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
   const gear = new THREE.Group(); body.add(gear);
   g.scale.setScalar(CHIBI_SCALE);
@@ -2379,7 +2389,7 @@ const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 const lerp = (a, b, k) => a + (b - a) * k;
 // one swing of an axe or pickaxe, p from 0 to 1: wind up over the shoulder (to 0.4), strike (by 0.55, when the blow sounds), recover
 function swingArm(p, tool){
-  const rest = -0.55, up = -3.25, hit = tool === 'pick' ? -0.75 : -1.35;
+  const rest = -0.55, up = tool === 'hoe' ? -2.7 : -3.25, hit = tool === 'pick' ? -0.75 : tool === 'hoe' ? -0.55 : -1.35;   // the hoe chops low into the soil in front of the feet
   if (p < 0.4) return lerp(rest, up, ease(p / 0.4));
   if (p < 0.55) { const k = (p - 0.4) / 0.15; return lerp(up, hit, k * k); }
   return lerp(hit, rest, ease((p - 0.55) / 0.45));
@@ -2390,11 +2400,29 @@ function poseChibi(g, mode, t, tool = 'axe'){
   const now = performance.now() / 1000;
   c.tools.axe.visible = mode === 'swing' && tool === 'axe';
   c.tools.pick.visible = mode === 'swing' && tool === 'pick';
+  c.tools.hoe.visible = mode === 'swing' && tool === 'hoe';
+  c.tools.can.visible = mode === 'water';
   c.gear.visible = mode !== 'swing';
   for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = mode !== 'swing'; });
   const [L, R] = c.legs, [AL, AR] = c.arms;
   c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
+  if (mode === 'water') {   // the can held out and tipped over the crops, swaying gently along the row
+    const sw = Math.sin(now * 2.2) * 0.25;
+    AR.rotation.set(-1.15, sw * 0.4, 0.25); AL.rotation.set(-0.5, 0, -0.3);
+    c.tools.can.rotation.set(1.15 + 0.55, 0, 0);   // back to upright against the raised arm, then tipped forward to pour
+    c.body.rotation.x = 0.12; c.head.rotation.x = 0.3; c.head.rotation.y = sw * 0.3;
+    L.rotation.x = -0.15; R.rotation.x = 0.1;
+    return;
+  }
+  if (mode === 'plant') {   // crouched low, one hand pressing seeds into the soil, a little dip each time
+    const dip = Math.abs(Math.sin(now * 4)) * 0.25;
+    c.body.position.y = -0.32; c.body.rotation.x = 0.35 + dip * 0.4;
+    L.rotation.x = -1.2; R.rotation.x = 0.5;
+    AR.rotation.set(-0.9 - dip, 0, 0.15); AL.rotation.set(-0.6, 0, -0.35);
+    c.head.rotation.x = 0.25;
+    return;
+  }
   if (mode === 'walk') {
     const s = Math.sin(t * 9);
     L.rotation.x = s * 0.6; R.rotation.x = -s * 0.6;
@@ -2580,7 +2608,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 function updateWalk(){
-  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
+  if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing && !farmBusy) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
   if (dist < WALK_SPEED) {
     hero.position.set(walkTarget.x, 0, walkTarget.z);
@@ -4312,7 +4340,8 @@ function updateOnline(){
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
-    } else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
+    } else if (act && act.k === 'farm' && !moving) farmPose(r.sprite, act.f, t - r.actAt);
+    else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
     else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm' || act.k === 'mill') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
@@ -4375,6 +4404,7 @@ function frame(){
   updateBonfire();
   growCrops();
   updateFarmPose();
+  updateDrops();
   updateTorch();
   checkDialogDistance();
   updateDialog();
@@ -4512,12 +4542,38 @@ let farmBusy = null;
 function farmAct(pt, ms, label, done){
   if (farmBusy) return;
   walkStart(new THREE.Vector3(pt.x - 2.6, 0, pt.z), () => {
-    farmBusy = { t0: performance.now(), ms, done }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
-    setAct({ k: 'farm', t: Date.now() });
+    farmBusy = { t0: performance.now(), ms, done, kind: label }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, pt.x, pt.z);
+    setAct({ k: 'farm', f: label, t: Date.now() });
     setTimeout(() => { farmBusy = null; if (ONLINE.act && ONLINE.act.k === 'farm') setAct(null); done(); saveNow(false); }, ms);
   });
 }
-function updateFarmPose(){ if (farmBusy) heroAnim.mode = 'work'; }
+function farmPose(g, kind, since){   // the pose for each farming job, for you and for others watching
+  if (kind === 'till') poseChibi(g, 'swing', (since / 900) % 1, 'hoe');
+  else if (kind === 'water') poseChibi(g, 'water', 0);
+  else poseChibi(g, 'plant', 0);   // planting and harvesting: down low at the crops
+}
+function updateFarmPose(){
+  if (!farmBusy || !hero) return;
+  const since = performance.now() - farmBusy.t0;
+  if (farmBusy.kind === 'till') setHeroSwing((since / 900) % 1, 'hoe', heroAnim.yaw);
+  else heroAnim.mode = farmBusy.kind === 'water' ? 'water' : 'plant';
+}
+// water pouring from the spout of any can being tipped, yours or another player's
+const DROPS = { n: 60, pos: null, vel: [], life: [], i: 0, pts: null }, dropV = new THREE.Vector3();
+function updateDrops(){
+  if (!DROPS.pts) { DROPS.pos = new Float32Array(DROPS.n * 3).fill(-50); for (let i = 0; i < DROPS.n; i++) { DROPS.vel.push(new THREE.Vector3()); DROPS.life.push(0); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(DROPS.pos, 3));
+    DROPS.pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9ad0ff, size: 0.07, transparent: true, opacity: 0.85 })); DROPS.pts.frustumCulled = false; scene.add(DROPS.pts); }
+  const pourers = [hero, ...Object.values(remote).map(r => r.sprite)].filter(g => g && g.userData.chibi && g.userData.chibi.tools.can.visible);
+  for (const g of pourers) for (let k = 0; k < 2; k++) {
+    g.userData.chibi.tools.can.userData.spout.getWorldPosition(dropV);
+    const i = DROPS.i = (DROPS.i + 1) % DROPS.n; DROPS.pos.set([dropV.x, dropV.y, dropV.z], i * 3);
+    const f = new THREE.Vector3(Math.sin(g.rotation.y), 0, Math.cos(g.rotation.y)); DROPS.vel[i].set(f.x * 0.03 + (Math.random() - 0.5) * 0.01, -0.01, f.z * 0.03 + (Math.random() - 0.5) * 0.01); DROPS.life[i] = 1;
+  }
+  for (let i = 0; i < DROPS.n; i++) { if (DROPS.life[i] <= 0) continue; DROPS.vel[i].y -= 0.006; DROPS.pos[i * 3] += DROPS.vel[i].x; DROPS.pos[i * 3 + 1] += DROPS.vel[i].y; DROPS.pos[i * 3 + 2] += DROPS.vel[i].z;
+    if (DROPS.pos[i * 3 + 1] < 0.2) { DROPS.life[i] = 0; DROPS.pos[i * 3 + 1] = -50; } }
+  DROPS.pts.geometry.attributes.position.needsUpdate = true;
+}
 function patchClick(pt){
   const p = FARM_PLOTS[pt.i];
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
