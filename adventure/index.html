@@ -50,6 +50,11 @@
   .slot { aspect-ratio:1; background:#1d160c; border:1px solid #5b4324; border-radius:4px; display:flex; align-items:center; justify-content:center; position:relative; }
   .slot.full { background:#3a2a16; cursor:grab; touch-action:none; }
   .slot.dropOn { border-color:#f0c35a; }
+  #itemMenu { position:fixed; z-index:30; min-width:150px; padding:4px; background:linear-gradient(180deg, rgba(48,36,20,.97), rgba(22,16,9,.97)); border:2px solid #a07a3c; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.5); font:13px Georgia,serif; }
+  #itemMenu[hidden] { display:none; }
+  #itemMenu .imHead { color:#f0c35a; padding:3px 6px 5px; border-bottom:1px solid #5b4324; margin-bottom:3px; }
+  #itemMenu button { display:block; width:100%; text-align:left; font:inherit; color:#e8efe6; background:none; border:0; border-radius:4px; padding:6px 8px; cursor:pointer; }
+  #itemMenu button:hover { background:rgba(240,195,90,.15); color:#f0c35a; }
   .slot.lifted { opacity:.35; }
   #dragGhost { position:fixed; z-index:9999; pointer-events:none; width:40px; height:40px; margin:-20px 0 0 -20px; display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
   .slot .swatch { width:14px; height:14px; border-radius:3px; }
@@ -1480,6 +1485,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   if (bagDragged) return;
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
+  if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
   if (it && FOOD[it.name]) { removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
@@ -1489,7 +1495,7 @@ const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price
 function openShop(){ document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Logs': 4, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Logs': 4, 'Torch': 6, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2299,7 +2305,18 @@ function dressChibi(g, eq){
     chibiPart(w, geo('swTip' + len, () => new THREE.ConeGeometry(len > 1 ? 0.113 : 0.092, 0.2, 4)), blade, 0, -0.27 - len, 0).rotation.set(Math.PI, Math.PI / 4, 0);
     chibiPart(w, geo('swFuller' + len, () => new THREE.BoxGeometry(0.03, len * 0.85, 0.05)), BL, 0, -0.17 - len / 2, 0, false);
   }
-  if (eq.shield) {   // a big round shield on the left arm, with a rim, a boss and rivets
+  c.torch = null;
+  if (eq.shield === 'Torch') {   // a torch in the left hand, held forward and up: a wooden stick, a wrapped head, and a flame
+    const tg = new THREE.Group(); tg.userData.isGear = true; tg.position.set(-0.04, -0.45, 0.06); tg.rotation.set(0.6, 0, 0.45); c.arms[0].add(tg);   // forward, up, and leaning out away from the head
+    chibiPart(tg, geo('torchStick', () => new THREE.CylinderGeometry(0.045, 0.06, 0.95, 7)), 0x7a4d22, 0, 0.3, 0);
+    chibiPart(tg, geo('torchWrap', () => new THREE.CylinderGeometry(0.1, 0.08, 0.2, 8)), 0x4a3220, 0, 0.78, 0);
+    const flame = new THREE.Group(); flame.position.y = 0.9; tg.add(flame);
+    const fo = new THREE.Mesh(geo('torchFlameO', () => new THREE.ConeGeometry(0.13, 0.42, 7).translate(0, 0.21, 0)), new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0.9, depthWrite: false })); flame.add(fo);
+    const fi = new THREE.Mesh(geo('torchFlameI', () => new THREE.ConeGeometry(0.07, 0.28, 6).translate(0, 0.14, 0)), new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, depthWrite: false })); flame.add(fi);
+    let light = null;
+    if (g === hero) { light = new THREE.PointLight(0xffa050, 0, 14, 1.6); light.position.y = 0.3; flame.add(light); }   // only your own torch lights the ground, to keep phones fast
+    c.torch = { flame, light };
+  } else if (eq.shield) {   // a big round shield on the left arm, with a rim, a boss and rivets
     use(eq.shield);
     const sh = new THREE.Group(); sh.userData.isGear = true; sh.position.set(-0.16, -0.32, 0.05); sh.rotation.set(0, -0.35, Math.PI / 2); c.arms[0].add(sh);
     chibiPart(sh, geo('shDisc', () => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24)), BR, 0, 0, 0);
@@ -2728,7 +2745,11 @@ const LEGS_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderi
   <path d="M4 2 L12 2 L12.5 14 L9 14 L8 6 L7 14 L3.5 14 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="4" y="2" width="8" height="1.4" fill="#6a3c18"/><circle cx="5.5" cy="9" r="0.9" fill="#e0a458"/><circle cx="10.5" cy="9" r="0.9" fill="#e0a458"/></svg>`;
 const BOOTS_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M2 4 L6 4 L6 10 L8 11 L8 13 L2 13 Z M9 4 L13 4 L13 10 L15 11 L15 13 L9 13 Z" fill="#b8742e" stroke="#5a3a1a" stroke-width="0.8"/><rect x="2" y="5.5" width="4" height="1" fill="#6a3c18"/><rect x="9" y="5.5" width="4" height="1" fill="#6a3c18"/></svg>`;
+const TORCH_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <rect x="7" y="6" width="2" height="9" fill="#7a4d22"/><rect x="6" y="5" width="4" height="2" fill="#4a3220"/>
+  <path d="M8 0.5 Q11 3 10 5 L6 5 Q5 3 8 0.5 Z" fill="#ff9a2a"/><path d="M8 2 Q9.5 3.5 9 5 L7 5 Q6.5 3.5 8 2 Z" fill="#ffe07a"/></svg>`;
 const ITEMS = {
+  'Torch': { slot: 'shield', icon: TORCH_ICON, light: true },
   "Villager's cloak": { slot: 'back', def: 1, icon: CLOAK_ICON },
   'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
   'Bronze helmet': { slot: 'head', def: 2, icon: HELM_ICON },
@@ -3944,7 +3965,7 @@ const ICON_FOR = { 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': P
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
-  "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON };
+  "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON };
 function nodeKey(x, z){ return 'n' + Math.round(x * 10) + '_' + Math.round(z * 10); }
 const setStatus = t => { document.getElementById('onlineStatus').textContent = t; };
 function showJoin(msg, withName){
@@ -4249,6 +4270,7 @@ function frame(){
   updateHall();
   updateFight();
   updateBonfire();
+  updateTorch();
   checkDialogDistance();
   updateDialog();
   fireMat.emissiveIntensity = 1.1 + 0.3 * Math.sin(performance.now() / 120);   // the fire flickers
@@ -4266,6 +4288,36 @@ function frame(){
   updateMotes(now);
   composer.render();
   requestAnimationFrame(frame);
+}
+// ----- a held torch: the flame flickers, and at night it lights the ground round you -----
+function updateTorch(){
+  const c = hero && hero.userData.chibi, T = c && c.torch; if (!T) return;
+  const t = performance.now() / 1000, k = 0.85 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3);
+  T.flame.scale.set(1, k * (0.9 + 0.1 * Math.sin(t * 21)), 1);
+  if (T.light) T.light.intensity = (0.5 + 6 * DAY.night) * k;
+}
+// ----- crafting from the bag: click an item that can be made into something, and pick what to make -----
+const CRAFTS = { 'Logs': [{ label: 'Make a torch', make: 'Torch', skill: 'Firemaking', level: 1, xp: 15, needs: { Logs: 1 } }] };
+const itemMenu = document.createElement('div'); itemMenu.id = 'itemMenu'; itemMenu.hidden = true; document.body.appendChild(itemMenu);
+function openItemMenu(name, x, y){
+  const opts = CRAFTS[name]; if (!opts) return false;
+  itemMenu.innerHTML = `<div class="imHead">${name}</div>` + opts.map((o, i) => `<button data-o="${i}">${o.label}</button>`).join('') + '<button data-o="x">Cancel</button>';
+  itemMenu.hidden = false;
+  itemMenu.style.left = Math.min(innerWidth - 170, x) + 'px'; itemMenu.style.top = Math.min(innerHeight - itemMenu.offsetHeight - 8, y) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true; if (b.dataset.o !== 'x') craftItem(opts[+b.dataset.o]); };
+  return true;
+}
+addEventListener('pointerdown', e => { if (!itemMenu.hidden && !itemMenu.contains(e.target) && !e.target.closest('#bagGrid')) itemMenu.hidden = true; });
+function craftItem(o){
+  if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
+  for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  for (const n in o.needs) for (let i = 0; i < o.needs[n]; i++) removeItem(n);
+  if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }
+  addXp(o.skill, o.xp);
+  sfx((c, t, out) => { nz(c, out, t, 0.35, 'bandpass', 1800, 900, 1, 0.35, 0.02, 0.3); nz(c, out, t + 0.25, 0.5, 'bandpass', 300, 1200, 0.8, 0.3, 0.15, 0.35); });   // a scrape of bark, then the rag catching
+  showToast(`You bind some rags to the end of the log and light it. You make a torch.  +${o.xp} ${o.skill} XP`);
+  saveNow(false);
 }
 // ===== The bonfire night: a one-off village event, started with a secret phrase in chat =====
 // Aldric walks out and lights the fire, villagers come over and chat, players sit and keep it fed with logs.
