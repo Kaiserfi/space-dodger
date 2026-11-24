@@ -4884,7 +4884,7 @@ function updateBonfire(){
     evWasActive = false; updateRaiders(); return;
   }
   const d = EV.data, t = evT(), ph = evPhase(), st = (d.raid && d.raid.st) || 'calm';
-  if (EV.curStart !== d.start) { EV.curStart = d.start; evWasActive = false; }   // a new fire (say, the night proper starting over a casual one)
+  if (EV.curStart !== d.start) { EV.curStart = d.start; evWasActive = false; EV.chat = null; EV.chatsDone = []; EV.nextChat = undefined; }   // a new fire (say, the night proper starting over a casual one)
   if (d.casual) {
     if (!evWasActive) { evWasActive = true; if (Date.now() - d.start < 30000) addSystemLine(`${d.by || 'Someone'} has lit the bonfire in the oak grove.`); }
     if (fuelNow() <= 0 && Date.now() - d.start > 20000 && !d.done) { d.done = true; evPatch({ done: true }); }   // burnt out: whoever notices first says so
@@ -4982,7 +4982,41 @@ const VISIT = {
   Hilde: [here => here.Bram ? "So this is where you got to, Bram! I've been looking everywhere." : "Lovely fire. Bram's snoring, so I came out here for some peace.", "Don't let it go out, dears. It's ever so cosy."],
   Pip: ["A fire! Can I sit with you? Mum said I can stay for a bit.", "Look, the sparks are going all the way up to the stars!"],
 };
+// little chats between whoever's sat at a lit fire: at least one for every pair, so nobody talks to someone who isn't there
+const FIRESIDE = [
+  [['Lyra', "Fenwick, tell me a story for my next song. A true one, mind."], ['Fenwick', "They're all true, Lyra. Especially the one about the horse-sized fish."], ['Lyra', "Not that one, then."]],
+  [['Lyra', "Bram, do your cows like music?"], ['Bram', "Buttercup does. Clover walks off whenever I sing."], ['Lyra', "Clover sounds like a fair critic."]],
+  [['Hilde', "Lyra, that song you sang at market the other day. It's been stuck in my head all week."], ['Lyra', "Oh, I'm so sorry. Or, actually, you're welcome."]],
+  [['Pip', "Lyra, can you teach me to sing?"], ['Lyra', "Of course! First rule: sing like nobody's listening."], ['Pip', "But everyone's always listening to me!"]],
+  [['Fenwick', "Bram, you ever been fishing?"], ['Bram', "Once. Caught my own hat."], ['Fenwick', "That's further than most get, to be fair."]],
+  [['Hilde', "Fenwick, you look half frozen. Shuffle closer to the fire."], ['Fenwick', "Bless you, Hilde. These old bones aren't what they were."]],
+  [['Pip', "Fenwick, is it true you caught a fish as big as a horse?"], ['Fenwick', "Bigger, Pip. And it looked right at me."], ['Pip', "Woah. What did it say?"], ['Fenwick', "...Fish don't talk, Pip."]],
+  [['Bram', "Lovely evening for it, love."], ['Hilde', "It is. Even the hens have gone quiet."], ['Bram', "That's a first."]],
+  [['Hilde', "Did you shut the paddock gate before you came out?"], ['Bram', "...I'm almost certain I did."], ['Hilde', "Bram."]],
+  [['Pip', "Bram, can Truffle come to the next bonfire?"], ['Bram', "Only if she promises not to eat the logs."], ['Pip', "I'll ask her!"]],
+  [['Hilde', "Pip, not so close to the fire, love."], ['Pip', "I'm just looking at the sparks!"], ['Hilde', "Look at them from back here, then."]],
+  [['Lyra', "Isn't it peaceful out here at night?"], ['Hilde', "It is. You can hear the river from here if you listen."]],
+  [['Bram', "Fenwick, if you catch anything big tomorrow, I'll swap you a cabbage for it."], ['Fenwick', "A cabbage? For a fish as big as a horse?"], ['Bram', "Two cabbages, then."]],
+  [['Pip', "Bram, why do cows go moo?"], ['Bram', "Because they can't say baa, Pip. That's the sheep's word."]],
+];
+function firesideChat(t){
+  const seated = Object.keys(EV.npcs).filter(k => { const n = EV.npcs[k]; return n.casual && n.satT && !n.bye; });
+  if (seated.length < 2) { EV.chat = null; return; }
+  if (EV.chat) {   // a chat under way: each line three and a half seconds apart
+    const c = EV.chat, i = Math.floor((t - c.at) / 3.5);
+    if (i >= c.lines.length) { EV.chat = null; EV.nextChat = t + 30 + Math.random() * 20; return; }
+    if (i > c.said && c.lines[i]) { c.said = i; const sp = EV.npcs[c.lines[i][0]] && EV.npcs[c.lines[i][0]].sp; if (sp) evSay(sp, c.lines[i][1]); }
+    return;
+  }
+  if (t < (EV.nextChat || 0)) return;
+  const fits = FIRESIDE.filter(c => c.every(([who]) => seated.includes(who)) && !(EV.chatsDone || []).includes(c));
+  if (!fits.length) { EV.nextChat = t + 30; return; }
+  const c = fits[Math.floor(Math.random() * fits.length)]; (EV.chatsDone = EV.chatsDone || []).push(c);
+  EV.chat = { lines: c, at: t, said: 0 }; evSay(EV.npcs[c[0][0]].sp, c[0][1]);
+}
 function casualVisitors(t){
+  if (EV.nextChat === undefined) EV.nextChat = t + 15;
+  firesideChat(t);
   const now = performance.now() / 1000, burning = fuelNow() > 0.05, want = {};
   if (burning) for (let k = 0; k < 2; k++) {   // two overlapping visits: one every three minutes from a minute in, the second half a cycle later
     const tt = t - 60 - k * 90; if (tt < 0) continue;
