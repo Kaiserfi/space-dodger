@@ -5880,7 +5880,7 @@ function updateBandage(){
   if (!removeItem('Bandage', it)) { if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); return; }
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
-    const r = remote[who]; fetch(`${DB}/adventure/heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
+    const r = remote[who]; fetch(`${DB}/adventure/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
     if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (r) hitsplat(r.sprite, BANDAGE_HEAL, 'heal'); silkSound('collect'); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
@@ -6213,15 +6213,16 @@ function mobApply(sid, st){
   if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; }
 }
 // heals other players send you: added once, then cleared
+let checkHeals = () => {};
 function startHealStream(){
-  const es = new EventSource(`${DB}/adventure/heals/${ONLINE.id}.json`);
-  const take = data => { if (!data) return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
+  /* no stream of its own: browsers allow only about six open connections to the database, and every extra stream starves saves and presence.
+     Heals ride on the monsters' stream (adventure/mobs/_heals/<id>); when it says something changed there, fetch ours once. */
+  checkHeals = () => fetch(`${DB}/adventure/mobs/_heals/${ONLINE.id}.json`).then(r => r.json()).then(take).catch(() => {});
+  const take = data => { if (!data || typeof data !== 'object') return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/mobs/_heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
       if (!h || typeof h.a !== 'number' || Date.now() - (h.t || 0) > 30000) continue;   // stale ones are dropped
       const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + Math.min(BANDAGE_HEAL, Math.max(0, h.a))); renderStats(); writePresence(true);
       hitsplat(hero, HP.cur - before, 'heal'); healFx(hero); setTimeout(() => { if (!bandaging) healFx(null); }, 1200); for (let i = 0; i < 4; i++) setTimeout(() => healPlus(hero), i * 200);
       showToast(`${String(h.by || 'Someone').slice(0, 12)} bandaged you. (+${HP.cur - before} health)`); } };
-  es.addEventListener('put', e => { const d = JSON.parse(e.data); if (d.path === '/') take(d.data); else take({ [d.path.split('/').filter(Boolean)[0]]: d.data }); });
-  es.addEventListener('patch', e => take(JSON.parse(e.data).data));
 }
 function startMobStream(){
   startHealStream();
@@ -6232,13 +6233,15 @@ function startMobStream(){
     fetch(`${DB}/adventure/mobs/_clock/${ONLINE.id}.json`, { method: 'DELETE' }).catch(() => {}); }).catch(() => {});
   const es = new EventSource(DB + '/adventure/mobs.json');
   const apply = d => { const parts = d.path.split('/').filter(Boolean);
-    if (!parts.length) { for (const k in (d.data || {})) if (/^\d+$/.test(k)) mobApply(+k, d.data[k]); return; }
+    if (!parts.length) { for (const k in (d.data || {})) if (/^\d+$/.test(k)) mobApply(+k, d.data[k]); if (d.data && d.data._heals && d.data._heals[ONLINE.id]) checkHeals(); return; }
+    if (parts[0] === '_heals') { if (!parts[1] || parts[1] === ONLINE.id) checkHeals(); return; }   // a heal for someone: ours, maybe
     if (!/^\d+$/.test(parts[0])) return; const sid = +parts[0];
     if (parts.length === 1) { mobApply(sid, d.data); return; }
     const st = JSON.parse(JSON.stringify(MOBST[sid] || {})); let o = st; for (let i = 1; i < parts.length - 1; i++) o = o[parts[i]] || (o[parts[i]] = {});
     if (d.data === null) delete o[parts[parts.length - 1]]; else o[parts[parts.length - 1]] = d.data; mobApply(sid, st); };
   es.addEventListener('put', e => apply(JSON.parse(e.data)));
   es.addEventListener('patch', e => { const d = JSON.parse(e.data); const parts = d.path.split('/').filter(Boolean);
+    if (parts[0] === '_heals') { checkHeals(); return; }
     if (parts.length === 1 && /^\d+$/.test(parts[0])) { const sid = +parts[0], st = Object.assign({}, MOBST[sid] || {}); for (const k in d.data) { if (d.data[k] === null) delete st[k]; else st[k] = d.data[k]; } mobApply(sid, st); }
     else for (const k in d.data) apply({ path: d.path + '/' + k, data: d.data[k] }); });
 }

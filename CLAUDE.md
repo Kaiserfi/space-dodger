@@ -78,7 +78,11 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 ### Healing other players
 
 - Clicking a bandage opens **Heal / Heal other**. Heal other lists hurt players within 14 units (their health comes from presence, `hp: [cur, max]`). Picking one heals on the spot if they're within 4 units, otherwise you walk up first; aim at their real position (`r.tx/r.tz`), not their sliding figure.
-- The heal is sent as a note to `adventure/heals/<their id>` (at most 12); their game applies it once, shows the heal and deletes the note.
+- The heal is sent as a note to `adventure/mobs/_heals/<their id>` (capped at 12 by the receiver); it rides on the monsters' stream, and their game fetches, applies and deletes it.
+
+### Never open another database stream
+
+- Browsers allow only about **six** open connections to the database. The game holds five permanent `EventSource` streams (players, nodes, event, graves, mobs). A sixth starves every normal request: saves, presence and logout hang and other players vanish. New live data must ride on an existing stream (as heals do under `mobs`), never a new `EventSource`.
 
 ### Sound and music
 

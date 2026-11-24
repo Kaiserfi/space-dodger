@@ -68,15 +68,6 @@
         "$id": {
           ".write": true
         }
-      },
-      "heals": {
-        ".read": true,
-        "$id": {
-          "$k": {
-            ".write": true,
-            ".validate": "newData.hasChildren(['a', 't']) && newData.child('a').isNumber() && newData.child('a').val() >= 0 && newData.child('a').val() <= 12"
-          }
-        }
       }
     }
   }
