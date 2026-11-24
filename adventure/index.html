@@ -5216,7 +5216,8 @@ function updateOnline(){
     if (moving) r.tick++;
     // what they are doing: the swing for chopping and mining, and a label for every action
     const act = r.act && t - r.actAt < ACT_TIME[r.act.k] ? r.act : null;
-    if (r.healingMe && !(act && act.k === 'heal' && act.p === ONLINE.id)) { r.healingMe = false; if (!bandaging) healFx(null); }   /* their bandaging on you has stopped */
+    if (r.healingMe && !(act && act.k === 'heal' && act.p === ONLINE.id)) { r.healingMe = false; if (!bandaging) healFx(null); }
+    if (r.healSnd && !(act && act.k === 'heal')) { r.healSnd.stop(); r.healSnd = null; }   /* they stopped bandaging */   /* their bandaging on you has stopped */
     const verb = act ? ACT_LABEL[act.k] : '';
     if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
     if (moving) r.yaw = Math.atan2(nx - x, nz - z);   // face the way they walk
@@ -5230,6 +5231,7 @@ function updateOnline(){
     } else if (act && act.k === 'heal') {   /* someone bandaging: pluses rise over whoever they're healing, you included */
       const who = act.p ? (act.p === ONLINE.id ? hero : remote[act.p] && remote[act.p].sprite) : r.sprite;
       if (who && t - (r.lastPlus || 0) > 380) { r.lastPlus = t; healPlus(who); }
+      if (r.healSndAt !== r.actAt) { r.healSndAt = r.actAt; if (r.healSnd) r.healSnd.stop(); r.healSnd = null; soundAt(nx, nz, () => { r.healSnd = bandageSound(); }); }
       if (act.p === ONLINE.id && who) { healFx(hero); r.healingMe = true; }
       poseChibi(r.sprite, 'work', r.tick / 60);
     } else if (act && act.k === 'eat') poseChibi(r.sprite, 'eat', Math.min(1, (t - r.actAt) / EAT_MS));
@@ -5922,9 +5924,36 @@ function beginBandage(it, who){
   if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + BANDAGE_MS + 300);
   setAct({ k: 'heal', t: Date.now(), p: who || null });
   document.getElementById('smeltLabel').textContent = who ? `Bandaging ${remote[who].name}...` : 'Applying bandage...'; document.getElementById('smeltBar').style.display = 'block';
-  craftSound();
+  bandaging.snd = bandageSound();
 }
-function stopBandage(msg){ if (!bandaging) return; bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null); if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (msg) showToast(msg); }
+
+// the bandaging sound: three cloth wraps pulled snug and a tie-off, over a soft steady chord with a few sparkles.
+// Stretched to the bandage's length, returned so it can be cut off if the bandaging stops; the chime is played when it finishes.
+function bandageSound(){
+  const ctx = audio(); if (!ctx) return null;
+  const out = ctx.createGain(); out.gain.value = 0.55; out.connect(sfxOut(ctx));
+  const T = BANDAGE_MS / 1000, k = T / 3.2, t0 = ctx.currentTime + 0.02, nodes = [];
+  const keep = n => (nodes.push(n), n);
+  const noise = d => noiseBuffer(ctx, d);
+  const swish = (t, dur, f0, f1, vol, pan) => { const s = keep(ctx.createBufferSource()); s.buffer = noise(dur); const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur); const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const pn = ctx.createStereoPanner(); pn.pan.setValueAtTime(-pan, t); pn.pan.linearRampToValueAtTime(pan, t + dur); s.connect(bp); bp.connect(g); g.connect(pn); pn.connect(out); s.start(t); s.stop(t + dur); };
+  const snug = (t, vol) => { const s = keep(ctx.createBufferSource()); s.buffer = noise(0.07); const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07); s.connect(lp); lp.connect(g); g.connect(out); s.start(t); s.stop(t + 0.08); };
+  for (const [a, v] of [[0.15, 0.26], [0.95, 0.24], [1.75, 0.22]]) { swish(t0 + a * k, 0.55, 500, 1500, v, 0.4); snug(t0 + a * k + 0.52, 0.22); }
+  swish(t0 + 2.45 * k, 0.18, 1200, 700, 0.18, 0.2); snug(t0 + 2.6 * k, 0.35); snug(t0 + 2.68 * k, 0.25);   // the tie-off
+  const pad = ctx.createGain(); pad.gain.setValueAtTime(0.0001, t0); pad.gain.linearRampToValueAtTime(0.08, t0 + 1.2 * k); pad.gain.setValueAtTime(0.08, t0 + T - 0.4); pad.gain.exponentialRampToValueAtTime(0.0001, t0 + T + 0.4);
+  const warm = ctx.createBiquadFilter(); warm.type = 'lowpass'; warm.frequency.setValueAtTime(700, t0); warm.frequency.linearRampToValueAtTime(1300, t0 + T - 0.4); pad.connect(warm); warm.connect(out);
+  for (const [f, det] of [[261.6, -4], [329.6, 3], [392, -2]]) for (const d of [det, -det]) { const o = keep(ctx.createOscillator()); o.type = 'triangle'; o.frequency.value = f; o.detune.value = d;
+    const lfo = keep(ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 3.5; lg.gain.value = 2; lfo.connect(lg); lg.connect(o.detune); lfo.start(t0); lfo.stop(t0 + T + 0.5); o.connect(pad); o.start(t0); o.stop(t0 + T + 0.5); }
+  const notes = [784, 880, 987.8, 1174.7, 1318.5];
+  for (let i = 0; i < 10; i++) { const at = t0 + (0.6 + i * 0.24) * k + Math.random() * 0.05, o = keep(ctx.createOscillator()), g = ctx.createGain(), pn = ctx.createStereoPanner(); o.type = 'sine'; o.frequency.value = notes[(i * 3 + (i >> 2)) % notes.length];
+    g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(0.025 + 0.01 * i / 10, at + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.45); pn.pan.value = Math.random() * 1.4 - 0.7; o.connect(g); g.connect(pn); pn.connect(out); o.start(at); o.stop(at + 0.5); }
+  return { stop(){ try { out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(0, ctx.currentTime, 0.04); setTimeout(() => out.disconnect(), 300); } catch (e) {} } };
+}
+// the bright little chime as the wound closes
+function bandageChime(){ sfx((ctx, t, out) => { out.gain.value = 0.55; for (const [f, at, v] of [[523.3, 0, 0.09], [784, 0.07, 0.07], [1046.5, 0.14, 0.05]]) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t + at); g.gain.linearRampToValueAtTime(v, t + at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.55); o.connect(g); g.connect(out); o.start(t + at); o.stop(t + at + 0.6); } }); }
+function stopBandage(msg){ if (!bandaging) return; if (bandaging.snd) bandaging.snd.stop(); bandaging = null; document.getElementById('smeltBar').style.display = 'none'; healFx(null); if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); if (msg) showToast(msg); }
 function updateBandage(){
   const now = performance.now();
   updateHealFx(now);
@@ -5942,11 +5971,11 @@ function updateBandage(){
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
     const r = remote[who]; fetch(`${DB}/adventure/live/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
-    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal');   /* what they'll really gain, the same number they see */ silkSound('collect'); addXp('Crafting', 10);
+    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal');   /* what they'll really gain, the same number they see */ bandageChime(); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
   if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
-  hitsplat(hero, HP.cur - before, 'heal'); silkSound('collect');
+  hitsplat(hero, HP.cur - before, 'heal'); bandageChime();
   showToast(`The aloe soothes the wound and the silk holds it closed. (+${HP.cur - before} health)`);
 }
 // the healing sparkles: one small cloud of green points, reused, swirling up round the one being healed
@@ -6303,7 +6332,7 @@ function startHealStream(){
   const take = data => { if (!data || typeof data !== 'object') return; for (const k in data) { const h = data[k]; fetch(`${DB}/adventure/live/mobs/_heals/${ONLINE.id}/${k}.json`, { method: 'DELETE' }).catch(() => {});
       if (!h || typeof h.a !== 'number' || Date.now() - (h.t || 0) > 30000) continue;   // stale ones are dropped
       const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + Math.min(BANDAGE_HEAL, Math.max(0, h.a))); renderStats(); writePresence(true);
-      hitsplat(hero, HP.cur - before, 'heal'); healFx(hero); setTimeout(() => { if (!bandaging) healFx(null); }, 1200); for (let i = 0; i < 4; i++) setTimeout(() => healPlus(hero), i * 200);
+      hitsplat(hero, HP.cur - before, 'heal'); bandageChime(); healFx(hero); setTimeout(() => { if (!bandaging) healFx(null); }, 1200); for (let i = 0; i < 4; i++) setTimeout(() => healPlus(hero), i * 200);
       showToast(`${String(h.by || 'Someone').slice(0, 12)} bandaged you. (+${HP.cur - before} health)`); } };
 }
 function startMobStream(){
