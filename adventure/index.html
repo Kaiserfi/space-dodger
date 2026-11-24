@@ -3882,7 +3882,7 @@ function updateGuard(w, talker, dt){
   w.rec.asleep = asleep;
   if (w.lying) sp.position.z -= GUARD_LIE.dz;   // measure from where they really are, not from the lying-down offset
   let dx = tx - sp.position.x, dz = tz - sp.position.z, d = Math.hypot(dx, dz), moving = false;
-  if (!(talker && !asleep) && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const sp2 = st.mode === 'walk' ? GUARD_SPEED * 1.15 : d > 2 ? 3 : GUARD_SPEED, step = Math.min(d, sp2 * dt); sp.position.x += dx / d * step; sp.position.z += dz / d * step; moving = d > 0.25; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }   /* walking their route, or catching up after a chat */
+  if (!(talker && !asleep) && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const sp2 = st.mode === 'walk' ? GUARD_SPEED * 1.15 : d > 2 ? 3 : GUARD_SPEED, step = Math.min(d, sp2 * dt); sp.position.x += dx / d * step; sp.position.z += dz / d * step; moving = step > 0.2 * dt; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }   /* walking their route, or catching up after a chat */
   // what they wear: off duty the helmet, sword and shield go on the rack; after dark on duty, a torch instead of the shield
   const kit = asleep || sitting ? 'off' : guardDark(h) ? 'torch' : 'duty';
   if (w.kit !== kit) { w.kit = kit; w.dark = kit === 'torch'; const gear = w.rec.gear; if (gear) dressChibi(sp, kit === 'off' ? { ...gear, head: null, weapon: null, shield: null } : kit === 'torch' ? { ...gear, shield: 'Torch' } : gear); }
