@@ -5116,7 +5116,7 @@ function removeRemote(id){
   const r = remote[id]; if (!r) return;
   joinSeen[id] = Date.now();
   scene.remove(r.sprite); unregisterSprite(r.sprite);
-  r.label.remove(); r.bubbleEl.remove();
+  r.label.remove(); r.bubbleEl.remove(); if (r.hpBar) r.hpBar.remove();
   delete remote[id];
 }
 let nodeMap = null;
@@ -5201,11 +5201,16 @@ function updateOnline(){
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
     else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'spin' || act.k === 'heal' || act.k === 'hutch' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
-    { const away = inDelveZone(r.tx, r.tz); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; continue; } }   /* down in their own cellar */
+    { const away = inDelveZone(r.tx, r.tz); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; if (r.hpBar) r.hpBar.style.display = 'none'; continue; } }   /* down in their own cellar */
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
     r.label.style.left = sx + 'px'; r.label.style.top = sy + 'px'; r.label.style.display = 'block';
+    // their health bar, like yours: while they're fighting or hurt
+    const hurt = r.hp && r.hp[1] > 0 && (r.hp[0] < r.hp[1] || (act && act.k === 'fight'));
+    if (hurt && !r.hpBar) { r.hpBar = document.createElement('div'); r.hpBar.className = 'hpBar'; r.hpBar.innerHTML = '<i></i>'; document.body.appendChild(r.hpBar); }
+    if (r.hpBar) { r.hpBar.style.display = hurt ? 'block' : 'none';
+      if (hurt) { r.hpBar.firstChild.style.width = Math.max(0, Math.min(100, r.hp[0] / r.hp[1] * 100)) + '%'; const hv = new THREE.Vector3(nx, 4.0, nz).project(camera); r.hpBar.style.left = (hv.x + 1) / 2 * innerWidth + 'px'; r.hpBar.style.top = (-hv.y + 1) / 2 * innerHeight + 'px'; } }
     const bv = new THREE.Vector3(nx, 4.9, nz).project(camera);   // snapped above the name tag
     r.bubbleEl.style.left = ((bv.x + 1) / 2 * innerWidth) + 'px'; r.bubbleEl.style.top = ((-bv.y + 1) / 2 * innerHeight) + 'px';
   }
