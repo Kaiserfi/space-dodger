@@ -4978,8 +4978,8 @@ function updateNightNpcs(t, ph, st){
 const VISIT = {
   Lyra: ["Ooh, a fire! Mind if I warm my hands for a bit?", "Nothing beats a fire on a cold night. I might write a song about this one."],
   Fenwick: ["Is this seat taken? My old bones could use the warmth.", "Reminds me of the nights we fished till dawn. Lovely."],
-  Bram: ["Saw the glow from the farm. Thought I'd come and see who's about.", "The cows are tucked in. Time for a proper sit down."],
-  Hilde: ["Lovely fire. Bram's snoring, so I came out here for some peace.", "Don't let it go out, dears. It's ever so cosy."],
+  Bram: [here => here.Hilde ? "There you are, love. Thought I'd find you here." : "Saw the glow from the farm. Thought I'd come and see who's about.", "The cows are tucked in. Time for a proper sit down."],
+  Hilde: [here => here.Bram ? "So this is where you got to, Bram! I've been looking everywhere." : "Lovely fire. Bram's snoring, so I came out here for some peace.", "Don't let it go out, dears. It's ever so cosy."],
   Pip: ["A fire! Can I sit with you? Mum said I can stay for a bit.", "Look, the sparks are going all the way up to the stars!"],
 };
 function casualVisitors(t){
@@ -4995,7 +4995,9 @@ function casualVisitors(t){
     const { g, into } = want[name], seat = BF.seats[g.seat];
     if (!EV.npcs[name] && into > 140) continue;   // too late in their visit to bother coming now
     const n = borrowNpc(name); if (!n) continue; n.casual = 1;
-    if (!n.path || n.path.tag !== 'seat') { npcRoute(n, [seat.ax, seat.az], t, g.run ? 7 : 4.5); n.path.tag = 'seat'; n.bye = 0; n.said2 = 0; n.satT = 0; evSay(n.sp, VISIT[name][0]); }
+    if (!n.path || n.path.tag !== 'seat') { npcRoute(n, [seat.ax, seat.az], t, g.run ? 7 : 4.5); n.path.tag = 'seat'; n.bye = 0; n.said2 = 0; n.satT = 0;
+      const here = {}; for (const k in EV.npcs) if (k !== name && EV.npcs[k].path && EV.npcs[k].path.tag === 'seat') here[k] = 1;   // who's already there, or on the way
+      const hi = VISIT[name][0]; evSay(n.sp, typeof hi === 'function' ? hi(here) : hi); }
     if (!followRoute(n, t)) continue;
     if (!n.satT) { n.satT = now; evSound('sit', seat.x, seat.z); }
     sitPoseAt(n.sp, seat, now, name.length, g.child); n.sp.position.y = 0.3 * smooth(clamp01((now - n.satT) / 0.45));
