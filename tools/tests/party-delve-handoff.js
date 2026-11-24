@@ -10,6 +10,7 @@ const HOOK = `window.__t = {
   lead: () => startPartyDelve(partyNearCellar()),
   strong: () => { SKILL_XP.Melee = 25 * 60 * 60; SKILL_XP.Hitpoints = 25 * 60 * 60; HP.cur = maxHp(); },
   smite: () => { for (const m of DELVE.mons) if (m.state !== 'dying' && m.state !== 'dead') { if (m.ghost) partyHit(m, 50); else { m.hp = 0; m.state = 'dying'; m.dieT = performance.now(); } } },
+  fx: () => JSON.stringify(fxSeen),
   remPose: () => Object.values(remote).map(r => r.name + ':' + (r.act && r.act.k) + ':' + (r.act && r.act.d)),
 };`;
 (async () => {
@@ -36,7 +37,7 @@ const HOOK = `window.__t = {
   await until(A, () => window.__t.st().wave === 0, 60000); await A.waitForTimeout(3000);
   console.log('wave0 A', JSON.stringify(await st(A))); console.log('wave0 B', JSON.stringify(await st(B)));
   await until(B, () => window.__t.st().fight || false, 40000); await A.waitForTimeout(3000);
-  console.log('A sees', JSON.stringify(await A.evaluate(() => window.__t.remPose())));
+  console.log('A sees', JSON.stringify(await A.evaluate(() => window.__t.remPose())), 'fx from Ben', await A.evaluate(() => window.__t.fx()));
   // the leader's tab goes to sleep
   await A.evaluate(() => { window.__freeze = true; });
   const took = await until(B, () => window.__t.st().host === 'idBen', 30000); console.log('B took over:', took, JSON.stringify(await st(B)));
