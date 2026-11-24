@@ -2906,18 +2906,6 @@ function touchEnd(e){
 }
 renderer.domElement.addEventListener('pointerup', touchEnd);
 renderer.domElement.addEventListener('pointercancel', touchEnd);
-// where you clicked, as in RuneScape: a yellow cross on the ground for a walk, a red one on something you use, talk to or fight
-const clickMarkEl = document.createElement('div'); clickMarkEl.id = 'clickMark'; document.body.appendChild(clickMarkEl);
-{ const st = document.createElement('style'); st.textContent = '#clickMark{position:fixed;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;z-index:5;display:none}'
-    + '#clickMark:before,#clickMark:after{content:"";position:absolute;left:7px;top:-1px;width:4px;height:20px;border-radius:2px;background:var(--cm);box-shadow:0 0 0 1px rgba(0,0,0,.55)}'
-    + '#clickMark:before{transform:rotate(45deg)}#clickMark:after{transform:rotate(-45deg)}'
-    + '#clickMark.go{display:block;animation:clickMark .55s ease-out forwards}@keyframes clickMark{0%{transform:scale(1.25);opacity:1}70%{opacity:1}100%{transform:scale(.55);opacity:0}}';
-  document.head.appendChild(st); }
-function clickMark(x, y, act){
-  clickMarkEl.style.setProperty('--cm', act ? '#e8322a' : '#f3d23a');
-  clickMarkEl.style.left = x + 'px'; clickMarkEl.style.top = y + 'px';
-  clickMarkEl.classList.remove('go'); void clickMarkEl.offsetWidth; clickMarkEl.classList.add('go');   // restart the animation on every click
-}
 renderer.domElement.addEventListener('pointerup', e => {
   lastTap.x = e.clientX; lastTap.y = e.clientY;   // where a menu should pop up
   // a short click (not a drag) sets where to walk
@@ -2926,13 +2914,12 @@ renderer.domElement.addEventListener('pointerup', e => {
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const hit = new THREE.Vector3();
-  if (ray.intersectObject(doorMesh, false).length) { clickMark(e.clientX, e.clientY, true); if (doorOpen) closeDoor(); else useDoor(); return; }
+  if (ray.intersectObject(doorMesh, false).length) { if (doorOpen) closeDoor(); else useDoor(); return; }
   const treeHit = ray.intersectObjects(trees, true)[0];
   if (treeHit) {
     let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
-    if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
+    if (g) { clickNode(g.userData.rec); return; }
   }
-  clickMark(e.clientX, e.clientY, false);
   cancelChop();
   if (FIGHT) { endFight('You run away.'); }
   if (ray.ray.intersectPlane(groundPlane, hit)) {
@@ -4732,15 +4719,17 @@ function delveLadder(){
 }
 // a monster you aren't fighting still gets its blows in
 function sideSwing(m){
-  m.anim = { kind: 'swing', t0: performance.now(), dur: 900 }; combatSound((m.t.snd || 'goblin') + 'Attack');
+  m.anim = { kind: 'swing', t0: performance.now(), dur: 900 }; combatSound((m.t.snd || 'goblin') + 'Attack'); mobHit(m, 'ms', 0, '');
   setTimeout(() => {
     if (!DELVE || m.state === 'dying' || m.state === 'dead' || HP.cur <= 0) return;
+    const hp0 = HP.cur;
     const me = playerRolls(), it = monsterRolls(m.t);
     if (Math.random() < hitChance(it.att, me.def)) {
       const dmg = Math.floor(Math.random() * (it.maxHit + 1));
       if (dmg > 0) { HP.cur = Math.max(0, HP.cur - dmg); hitsplat(hero, dmg, 'hit'); combatSound('hit'); combatSound(look.gender === 'female' ? 'hurtF' : 'hurtM'); if (FIGHT) FIGHT.pAnim = { kind: 'hurt', t0: performance.now(), dur: 450 }; renderStats(); }
       else { hitsplat(hero, 0, 'block', 'Blocked'); combatSound(equipped.shield && equipped.shield !== 'Torch' || equipped.body || equipped.head ? 'clang' : 'thud'); }
     } else { hitsplat(hero, 0, 'miss', 'Miss'); combatSound('miss'); }
+    mobHit(m, 'm', hp0 - HP.cur, HP.cur < hp0 ? 'hit' : 'miss');
     if (HP.cur <= 0) playerDies();
   }, 480);
 }
@@ -5966,6 +5955,28 @@ function startPartyDelve(ids){
   startDelve({ party: PARTY.id, on });
   showToast('You climb down. Your party has a few seconds to follow you...');
 }
+// every swing, blow, block and miss down the cellar goes to the party too, so everyone sees the whole fight
+let fxK = 0, fxQ = [];
+const fxSeen = {};
+function partyFx(m, w, d, ty){
+  fxQ.push({ k: ++fxK, on: DELVE.on, sp: m.sp, w, d: d || 0, ty: ty || '' }); if (fxQ.length > 6) fxQ.shift();
+  pput(partyPath(DELVE.party, '/fx/' + ONLINE.id), { k: fxK, e: fxQ });
+}
+function partyFxApply(){
+  const fx = PARTY.d && PARTY.d.fx; if (!fx || !DELVE || !DELVE.party) return;
+  const now = performance.now();
+  for (const by in fx) { if (by === ONLINE.id || !fx[by]) continue;
+    const list = Array.isArray(fx[by].e) ? fx[by].e : Object.values(fx[by].e || {}), key = by + '@' + DELVE.on;
+    if (fxSeen[key] === undefined) fxSeen[key] = 0;   /* blows from an earlier delve carry another 'on' and are skipped */
+    for (const h of list) { if (!h || h.on !== DELVE.on || h.k <= fxSeen[key]) continue; fxSeen[key] = h.k;
+      const m = DELVE.mons.find(q => q.sp === h.sp), r = remote[by]; if (!m || !m.g) continue;
+      const lbl = h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : '';
+      if (h.w === 'ps' && r) { r.fAnim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound('swing')); }
+      if (h.w === 'ms') { m.anim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Attack')); }
+      if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, lbl); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : h.ty === 'block' ? 'thud' : 'miss')); }
+      if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, lbl); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : 'miss')); }
+    } }
+}
 function partyHit(m, dmg){ m.hp = Math.max(0, m.hp - dmg); m.pendAt = performance.now(); fetch(partyPath(DELVE.party, '/hits'), { method: 'POST', body: JSON.stringify({ sp: m.sp, d: dmg, by: ONLINE.id }) }).catch(() => {}); }
 function partyAlive(dv){ const me = ONLINE.id; return Object.keys(dv.who || {}).filter(id => !(dv.dead && dv.dead[id]) && !(dv.left && dv.left[id]) && (id === me || (remote[id] && inDelveZone(remote[id].tx, remote[id].tz)))); }
 function updatePartyDelve(){
@@ -5985,7 +5996,8 @@ function updatePartyDelve(){
   if (dv.done) { if (!DELVE.done) finishPartyDelve(dv); updateDelveChest(); return; }
   if (DELVE.done) { updateDelveChest(); return; }
   if (host) hostPartyDelve(dv, now, dt, alive); else followPartyDelve(dv, now, dt);
-  partyFight(now, dt, host);
+  partyFight(now, dt, host); partyFxApply();
+  for (const m of DELVE.mons) if (m.tg !== me && m.state !== 'dying' && m.state !== 'dead' && m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur);   /* their swings and flinches at someone else */
   if (now - (DELVE.cAt || 0) > 2000) { DELVE.cAt = now; pput(partyPath(DELVE.party, '/c/' + me), { d: DELVE.dmg || 0, h: DELVE.heal || 0 }); }
 }
 // the leader: waves, targets, movement, and sharing it all a few times a second
@@ -6615,7 +6627,7 @@ function mobLocked(m){ if (m.sid === undefined) return false; const st = MOBST[m
 function mobClaim(m){ if (m.sid === undefined) return; mobPatch(m.sid, { f: ONLINE.id, t: SNOW(), hp: m.hp, x: +m.x.toFixed(2), z: +m.z.toFixed(2), dead: null }); }
 function mobRelease(m){ if (m.sid === undefined) return; const st = MOBST[m.sid]; if (st && st.f === ONLINE.id) mobPatch(m.sid, { f: null, t: SNOW(), hp: m.hp }); }
 let mobHitK = 0;
-function mobHit(m, w, d, ty){ if (m.sid === undefined) return; mobPatch(m.sid, { t: SNOW(), hp: m.hp, h: { k: ++mobHitK + '-' + ONLINE.id, w, d, ty, by: ONLINE.id } }); }
+function mobHit(m, w, d, ty){ if (m.sid === undefined) { if (m.delve && DELVE && DELVE.party) partyFx(m, w, d, ty); return; } mobPatch(m.sid, { t: SNOW(), hp: m.hp, h: { k: ++mobHitK + '-' + ONLINE.id, w, d, ty, by: ONLINE.id } }); }
 function mobDead(m){ if (m.sid === undefined) return; mobPatch(m.sid, { f: null, hp: null, h: null, dead: SNOW() + m.t.respawn }); }
 // a seeded random number: the same on every game for the same monster, leg and try
 function mobRand(a, b, c){ let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
