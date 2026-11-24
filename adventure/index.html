@@ -1569,8 +1569,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
 });
 
 // ----- Mara's shop: tools for coins -----
-const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 },
-  { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }];
+const SHOP = [{ name: 'Bronze axe', price: 20 }, { name: 'Bronze pickaxe', price: 20 }, { name: 'Hammer', price: 10 }, { name: 'Small fishing net', price: 5 }];   /* farming gear and seeds are at Tilly's market */
 /* Tilly's farmers' market: seeds and farm tools to buy, and she buys what the farm grows and makes */
 const MARKET_BUY = [{ name: 'Wheat seeds', price: 3, qty: 5 }, { name: 'Aloe seeds', price: 4, qty: 5 }, { name: 'Mulberry seeds', price: 6, qty: 5 }, { name: 'Hoe', price: 8 }, { name: 'Watering can', price: 12 }];   // seeds come five to a packet
 const FARM_GOODS = new Set(['Wheat', 'Flour', 'Bread dough', 'Bread', 'Aloe leaf', 'Mulberry leaves', 'Silk cocoon', 'Silk thread', 'Bandage', 'Feathers', 'Raw chicken', 'Raw beef', 'Cooked chicken', 'Cooked beef']);
@@ -1913,8 +1912,11 @@ function openDialog(npc){
       lines = set; MET[npc.name] = n + 1; try { localStorage.setItem('itapMet', JSON.stringify(MET)); } catch (e) {}
     }
     script = [{ me: GREETINGS[Math.floor(Math.random() * GREETINGS.length)] }, ...lines];
-    if (npc.asks) script.push({ opts: [...npc.asks.map(a => [a.q, [{ me: a.q }, ...a.a.map(l => typeof l === 'function' ? l() : l)]]), ['Never mind.', []]] });
-    if (npc.choice) script.push(npc.choice.question, { opts: [['Sure, show me.', [{ run: () => { endDialog(); openShop(npc); } }]], ['Not right now, thanks.', ["Suit yourself. You know where I am."]]] });
+    /* one menu: trading first for shopkeepers, then anything you can ask about */
+    const opts = [];
+    if (npc.choice) opts.push(["Let's trade.", [{ me: "Let's trade." }, { run: () => { endDialog(); openShop(npc); } }]]);
+    if (npc.asks) opts.push(...npc.asks.map(a => [a.q, [{ me: a.q }, ...a.a.map(l => typeof l === 'function' ? l() : l)]]));
+    if (opts.length) script.push({ opts: [...opts, ['Never mind.', []]] });
   }
   dlg = npc; dlgQ = script.slice(); dlgTalkT = performance.now();
   setAct({ k: 'talk', n: npc.name, t: Date.now() });   // others see who you are talking to, so the NPC can face whoever spoke last
@@ -5420,7 +5422,7 @@ function patchClick(pt, auto){
   }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   if (p.s === 'grass') {
-    if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Tilly sells them at the farmers\' market, and Mara has them too.'); return; }
+    if (!hasTool('Hoe')) { showToast('You need a hoe to till this patch. Tilly sells them at the farmers\' market.'); return; }
     farmAct(pt, 1800, 'till', () => { p.s = 'tilled'; p.w = false; addXp('Farming', 5); farmSound('till'); showToast('You turn over the soil.  +5 Farming XP'); });
   } else if (p.s === 'tilled') {
     openSeedMenu(pt);
@@ -5429,7 +5431,7 @@ function patchClick(pt, auto){
     if (bag.length >= BAG_SIZE && !hasItem(cr.item)) { showToast('Your bag is full.'); return; }
     farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
-    if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the market, and so does Mara.'); return; }
+    if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the farmers\' market.'); return; }
     if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
     farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the ${(CROPS[p.c] || CROPS.Wheat).say}. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
