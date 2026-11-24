@@ -4854,12 +4854,18 @@ function chestSound(){
 }
 function openDelveChest(){
   const C = DELVE && DELVE.chest; if (!C || C.opened) return;
-  walkStart(new THREE.Vector3(C.g.position.x, 0, C.g.position.z - 2.6), () => {
+  // open it from whichever side you're nearest, at once if you're already beside it
+  const cx = C.g.position.x, cz = C.g.position.z;
+  const open = () => {
     if (C.opened) return; C.opened = true; C.openAt = performance.now();
     heroAnim.yaw = yawTo(hero.position.x, hero.position.z, C.g.position.x, C.g.position.z);
     chestSound();
     setTimeout(() => grantDelveRewards(), 1600);   // once the lid is up
-  });
+  };
+  if (Math.abs(hero.position.x - cx) < 2.4 && Math.abs(hero.position.z - cz) < 2.2) { walkTarget = null; walkQueue = []; open(); return; }
+  const spot = [[0, -2.0], [0, 2.0], [-2.2, 0], [2.2, 0]].map(([dx, dz]) => ({ x: cx + dx, z: cz + dz })).filter(q => !blocked(q.x, q.z))
+    .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z))[0] || { x: cx, z: cz - 2.0 };
+  walkStart(new THREE.Vector3(spot.x, 0, spot.z), open);
 }
 function grantDelveRewards(){
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
