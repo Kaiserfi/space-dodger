@@ -132,6 +132,15 @@
   .splat small { position:absolute; top:100%; font:bold 12px Georgia,serif; white-space:nowrap; color:#e8f0ff; }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
   #questTrack b { color:#f0c35a; font-weight:normal; }
+  #waveHud { position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:8; padding:6px 14px 7px; text-align:center; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.94), rgba(22,16,9,.94)); border:1px solid #a07a3c; border-radius:6px; box-shadow:0 3px 10px rgba(0,0,0,.45); pointer-events:none; max-width:calc(100vw - 32px); box-sizing:border-box; }
+  #waveHud[hidden] { display:none; }
+  #waveHud .wTitle { color:#f0c35a; font-size:15px; letter-spacing:.5px; }
+  #waveHud .wPips { display:flex; gap:5px; justify-content:center; margin:5px 0 3px; }
+  #waveHud .wPips i { width:14px; height:14px; border-radius:50%; border:1.5px solid #a07a3c; background:#1a120a; box-sizing:border-box; }
+  #waveHud .wPips i.done { background:radial-gradient(#f0c35a, #a07a2c); }
+  #waveHud .wPips i.now { background:radial-gradient(#ff7a4a, #a02a10); box-shadow:0 0 6px #ff7a4a; }
+  #waveHud .wSub { font-size:12px; color:#c9b27a; }
+  body:has(#waveHud:not([hidden])) #questTrack { display:none; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
   #qMark { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:6; font:bold 30px Georgia,serif; color:#ffd24a; text-shadow:0 0 3px #000, 2px 2px 0 #5a3a10, -1px -1px 0 #5a3a10; display:none; }
   .qRow { margin:4px 0; color:#c9b27a; } .qOn { color:#f0c35a; } .qDone { color:#7ac85a; } .qLock { color:#7a6a4a; font-size:12px; margin-top:10px; }
@@ -244,6 +253,7 @@
 </div>
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
 <div id="questTrack" hidden></div>
+<div id="waveHud" hidden></div>
 <div class="hpBar" id="heroHp" style="display:none"><i></i></div>
 <div id="questDone" hidden>
   <div class="qScroll">
@@ -4703,7 +4713,23 @@ function updateDelveChest(){
   if (C.opened) { const o = Math.min(1, (now - C.openAt) / 1300); const e = o < 0.25 ? o * 0.3 : 0.075 + (1 - Math.pow(1 - (o - 0.25) / 0.75, 2)) * 0.925;   // a stiff first lift, then it swings up
     C.lid.rotation.x = -1.9 * e; C.glow.visible = o > 0.2; }
 }
+// the wave counter at the top of the screen, for the whole delve
+let waveHudKey = '';
+function updateWaveHud(){
+  const el = document.getElementById('waveHud'), now = performance.now();
+  if (!DELVE) { if (!el.hidden) { el.hidden = true; waveHudKey = ''; } return; }
+  const N = DELVE_WAVES.length, alive = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead').length;
+  const beaten = DELVE.done ? N : Math.max(0, DELVE.wave + (DELVE.wave >= 0 && !alive ? 1 : 0)), cur = DELVE.done ? -1 : (alive ? DELVE.wave : -1);
+  const title = DELVE.done ? 'Cellar cleared!' : DELVE.wave < 0 ? 'Get ready...' : `Wave ${Math.min(N, DELVE.wave + 1)} of ${N}`;
+  const wait = DELVE.next && isFinite(DELVE.next) ? Math.max(0, Math.ceil((DELVE.next - now) / 1000)) : 0;
+  const next = DELVE_WAVES[DELVE.wave + 1], say = w => w === 'r2' ? 'two creatures' : w.length > 1 ? 'two angry farmers' : 'a ' + MONSTER_TYPES[w[0]].name.toLowerCase();
+  const sub = DELVE.done ? (DELVE.chest && !DELVE.chest.opened ? 'Open the chest to claim your reward' : 'Climb the ladder to leave') : alive ? `${alive} left` : wait ? `Next: ${next ? say(next) : '...'} in ${wait}` : '';
+  const key = title + '|' + beaten + '|' + cur + '|' + sub; if (key === waveHudKey) return; waveHudKey = key;
+  el.innerHTML = `<div class="wTitle">${title}</div><div class="wPips">${Array.from({ length: N }, (_, i) => `<i class="${i < beaten ? 'done' : i === cur ? 'now' : ''}"></i>`).join('')}</div>${sub ? `<div class="wSub">${sub}</div>` : ''}`;
+  el.hidden = false;
+}
 function updateDelve(){
+  updateWaveHud();
   if (!DELVE || !hero) return;
   const now = performance.now(), dt = Math.min(0.25, (now - (DELVE.last || now)) / 1000); DELVE.last = now;
   if (DELVE.done) { updateDelveChest(); return; }
