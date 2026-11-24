@@ -69,6 +69,11 @@
           "$id": {
             ".write": true
           }
+        },
+        "parties": {
+          "$p": {
+            ".write": true
+          }
         }
       }
     }

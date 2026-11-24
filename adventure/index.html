@@ -141,6 +141,15 @@
   #waveHud .wPips i.now { background:radial-gradient(#ff7a4a, #a02a10); box-shadow:0 0 6px #ff7a4a; }
   #waveHud .wSub { font-size:12px; color:#c9b27a; }
   body:has(#waveHud:not([hidden])) #questTrack { display:none; }
+  #partyFrames { position:fixed; left:12px; top:50%; transform:translateY(-50%); z-index:8; width:150px; padding:5px 6px 6px; font:12px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.9), rgba(22,16,9,.9)); border:1px solid #a07a3c; border-radius:6px; box-shadow:0 3px 10px rgba(0,0,0,.45); }
+  #partyFrames[hidden] { display:none; }
+  #partyFrames .pfHead { color:#f0c35a; font-size:12px; margin-bottom:3px; }
+  #partyFrames .pfRow { padding:3px 4px; border-radius:4px; cursor:pointer; } #partyFrames .pfRow:hover { background:rgba(240,195,90,.12); }
+  #partyFrames .pfRow.pfGone { opacity:.45; }
+  #partyFrames .pfTop { display:flex; justify-content:space-between; gap:4px; } #partyFrames .pfTop span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #partyFrames .pfTop small { color:#c9b27a; }
+  #partyFrames .pfBar { height:7px; margin-top:2px; background:#5a1a12; border:1px solid #2a1208; border-radius:3px; overflow:hidden; } #partyFrames .pfBar i { display:block; height:100%; background:linear-gradient(#5ad85a, #2a9a2a); }
+  #partyFrames .pfHp { font-size:10px; color:#c9b27a; text-align:right; }
+  #partyFrames .pfLeave { margin-top:4px; width:100%; font:11px Georgia,serif; color:#e8efe6; background:#1d150b; border:1px solid #5b4324; border-radius:4px; padding:3px; cursor:pointer; }
   #questTrack[hidden], #questDone[hidden] { display:none; }
   #qMark { position:fixed; left:0; top:0; transform:translate(-50%,-100%); pointer-events:none; z-index:6; font:bold 30px Georgia,serif; color:#ffd24a; text-shadow:0 0 3px #000, 2px 2px 0 #5a3a10, -1px -1px 0 #5a3a10; display:none; }
   .qRow { margin:4px 0; color:#c9b27a; } .qOn { color:#f0c35a; } .qDone { color:#7ac85a; } .qLock { color:#7a6a4a; font-size:12px; margin-top:10px; }
@@ -254,6 +263,7 @@
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
 <div id="questTrack" hidden></div>
 <div id="waveHud" hidden></div>
+<div id="partyFrames" hidden></div>
 <div class="hpBar" id="heroHp" style="display:none"><i></i></div>
 <div id="questDone" hidden>
   <div class="qScroll">
@@ -4177,11 +4187,11 @@ function playerSwing(m){
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(me.att, it.def)) {
       const dmg = Math.floor(Math.random() * (me.maxHit + 1));
-      if (dmg > 0) { if (m.raid) raidHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
+      if (dmg > 0) { if (m.delve && DELVE) DELVE.dmg = (DELVE.dmg || 0) + dmg; if (m.raid) raidHit(m, dmg); else if (m.ghost) partyHit(m, dmg); else m.hp = Math.max(0, m.hp - dmg); hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', dmg * 4); }   /* the same for both: Melee stands for Attack, Strength and Defence together, and Hitpoints keeps pace with it as it does with each of those in RuneScape */
       else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'block'); }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'miss'); }
-    if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else killMonster(m); }
+    if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else if (m.ghost) endFight(); /* the leader's game says when it falls */ else killMonster(m); }
   }, 480);
 }
 function monsterSwing(m){
@@ -4199,6 +4209,7 @@ function monsterSwing(m){
   }, 480);
 }
 function killMonster(m){
+  if (m.delve && DELVE && DELVE.party) { m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die'); endFight(); return; }   /* party delves: rewards come from the chest */
   mobDead(m);
   if (m.type in KILLS) { KILLS[m.type]++; if (cellarOpen() && KILLS[m.type] === 10) setTimeout(() => addSystemLine('Somewhere to the south, a chain rattles loose.'), 1500); }
   m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die');
@@ -4250,9 +4261,9 @@ function updateFight(){
       if (c) c.arms[1].children.forEach(k => { if (k.userData.isClub) k.visible = true; });
     }
     // the health bar shows while it is hurt or fighting
-    const show = m.state !== 'dead' && (m.hp < m.t.hp || (FIGHT && FIGHT.m === m) || m.foreign);
+    const show = m.state !== 'dead' && (m.hp < (m.maxHp || m.t.hp) || (FIGHT && FIGHT.m === m) || m.foreign);
     m.bar.style.display = show ? 'block' : 'none';
-    if (show) { m.bar.firstChild.style.width = (m.hp / m.t.hp * 100) + '%'; m.g.getWorldPosition(spV); spV.y += 3.1; spV.project(camera); m.bar.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; m.bar.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; }
+    if (show) { m.bar.firstChild.style.width = (m.hp / (m.maxHp || m.t.hp) * 100) + '%'; m.g.getWorldPosition(spV); spV.y += 3.1; spV.project(camera); m.bar.style.left = (spV.x + 1) / 2 * innerWidth + 'px'; m.bar.style.top = (-spV.y + 1) / 2 * innerHeight + 'px'; }
   }
   // your own health bar, while fighting or hurt
   const hb = document.getElementById('heroHp'), showH = hero && (FIGHT || HP.cur < maxHp());
@@ -4563,14 +4574,22 @@ function delveAsk(html, yes, onYes, no = 'Not yet'){
 }
 function delveExitSpot(){ return { x: RUIN.cellar.x, z: RUIN.cellar.z + 2.7 }; }
 function askDelve(){
+  const pd = PARTY.d && PARTY.d.dv;
+  if (pd && SNOW() - pd.on < 40 * 60000 && !pd.done && Object.keys(pd.who || {}).some(id => id !== ONLINE.id && !(pd.left && pd.left[id]) && !(pd.dead && pd.dead[id]) && remote[id] && inDelveZone(remote[id].tx, remote[id].tz))) { showToast("Your party is already down there. Wait for them to come back up."); return; }
+  const near = partyNearCellar();
+  if (near.length) {
+    delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Lead your party down: ${near.map(id => escapeHtml(remote[id].name)).join(', ')} will be asked to join you.<br><br>The creatures grow tougher with every one of you. Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', () => startPartyDelve(near), 'Cancel');
+    return;
+  }
   delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Defeat 8 grueling waves using only what's in your bag!<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', startDelve, 'Cancel');
 }
-function startDelve(){
+function startDelve(opts = {}){
   buildDelveArena(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(DELVE_C.x, 0, DELVE_C.z - DELVE_C.pit + 2); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = 0;
-  DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false, startXp: { m: SKILL_XP.Melee, h: SKILL_XP.Hitpoints } };   /* combat XP from the waves is only kept if you win */
-  showToast('You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Cellar: survive eight waves. The ladder behind you leads back up.');
+  DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false, startXp: { m: SKILL_XP.Melee, h: SKILL_XP.Hitpoints }, party: opts.party || null, on: opts.on || 0, dmg: 0, heal: 0 };
+  if (DELVE.party) hero.position.x += (Math.random() - 0.5) * 3;   /* not all on the same spot */   /* combat XP from the waves is only kept if you win */
+  showToast(DELVE.party ? 'You climb down into the dark with your party. Something stirs behind the gates...' : 'You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Cellar: survive eight waves. The ladder behind you leads back up.');
   writePresence(true);
 }
 function spawnWave(){
@@ -4583,6 +4602,7 @@ function clearDelveMonsters(){
   for (const m of DELVE ? DELVE.mons : []) { scene.remove(m.g); const i = trees.indexOf(m.g); if (i >= 0) trees.splice(i, 1); m.bar.remove(); const j = MONSTERS.indexOf(m); if (j >= 0) MONSTERS.splice(j, 1); }
 }
 function leaveDelve(msg){
+  if (DELVE && DELVE.party) partyMark('left');
   if (FIGHT) endFight(); clearDelveMonsters(); if (DELVE && DELVE.chest) { scene.remove(DELVE.chest.g); const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); } DELVE = null;
   const sp = delveExitSpot(); walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z);
@@ -4609,6 +4629,7 @@ function sideSwing(m){
   }, 480);
 }
 function delveFailed(fled){
+  if (DELVE && DELVE.party) partyMark(fled ? 'left' : 'dead');
   const lost = Math.floor(COINS * 0.25); COINS -= lost;
   const sx = DELVE.startXp, lm = Math.max(0, SKILL_XP.Melee - sx.m), lh = Math.max(0, SKILL_XP.Hitpoints - sx.h);
   SKILL_XP.Melee = Math.min(SKILL_XP.Melee, sx.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, sx.h);
@@ -4731,6 +4752,7 @@ function updateWaveHud(){
 function updateDelve(){
   updateWaveHud();
   if (!DELVE || !hero) return;
+  if (DELVE.party) { updatePartyDelve(); return; }
   const now = performance.now(), dt = Math.min(0.25, (now - (DELVE.last || now)) / 1000); DELVE.last = now;
   if (DELVE.done) { updateDelveChest(); return; }
   const alive = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead');
@@ -5000,6 +5022,7 @@ async function enterVillage(name){
 // log out: save everything, including where you are, and leave the village
 async function logOut(){
   if (!ONLINE.ready) { location.href = '../'; return; }
+  leaveParty(true);
   ONLINE.saveJson = '';
   await saveNow(false);            // the save goes through while we are still in the village
   ONLINE.ready = false;
@@ -5073,12 +5096,12 @@ async function saveNow(keepalive){
 function writePresence(force){
   if (!ONLINE.ready || !hero) return;
   const x = +hero.position.x.toFixed(2), z = +hero.position.z.toFixed(2);
-  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr), HP.cur, maxHp()].join('|');
+  const sig = [x, z, heroFacing, walkTarget ? 1 : 0, ONLINE.chatK, JSON.stringify(look), JSON.stringify(ONLINE.act), EV.seat, ONLINE.rd, JSON.stringify(equipped), JSON.stringify(TRADE.tr), HP.cur, maxHp(), combatLevel(), PARTY.id].join('|');
   const now = Date.now();
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], t: now };   // e: what you're wearing and holding, so others see it
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), pt: PARTY.id || null, t: now };   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -5130,6 +5153,7 @@ function setRemote(id, p){
   r.name = p.n && window.isBadName && isBadName(p.n) ? 'Traveller' : (p.n || 'Traveller');
   r.label.textContent = r.name;
   r.tx = p.x; r.tz = p.z;
+  r.cb = typeof p.cb === 'number' ? p.cb : null; r.pt = p.pt || null;
   r.st = typeof p.st === 'number' ? p.st : -1; r.rd = p.rd || null; r.tr = p.tr || null; r.hp = Array.isArray(p.hp) ? p.hp : null;
   registerPlayerSprite(id, r);   // clickable, for the player menu   // sitting at the bonfire, and out of the goblin raid
   r.face = p.f === -1 ? -1 : 1;
@@ -5240,7 +5264,7 @@ function updateOnline(){
     else if (act && act.k === 'talk' && !moving) { const nb = BARKERS.find(b => b.rec.name === act.n); if (nb) r.yaw = yawTo(nx, nz, nb.rec.x, nb.rec.z); poseChibi(r.sprite, 'idle', 0); }
     else poseChibi(r.sprite, act && (act.k === 'smelt' || act.k === 'spin' || act.k === 'heal' || act.k === 'hutch' || act.k === 'cook' || act.k === 'smith' || act.k === 'fish' || act.k === 'farm') ? 'work' : (moving ? 'walk' : 'idle'), r.tick / 60);
     turnChibi(r.sprite, r.yaw);
-    { const away = inDelveZone(r.tx, r.tz); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; if (r.hpBar) r.hpBar.style.display = 'none'; continue; } }   /* down in their own cellar */
+    { const away = !sameWorld(r); r.sprite.visible = !away; if (away) { r.label.style.display = 'none'; r.bubbleEl.style.display = 'none'; if (r.hpBar) r.hpBar.style.display = 'none'; continue; } }   /* down in their own cellar */
     if (r.st >= 0 && seatRemote(r)) continue;   // sat on a bench at the bonfire
     const v = new THREE.Vector3(nx, 4.4, nz).project(camera);
     const sx = (v.x + 1) / 2 * innerWidth, sy = (-v.y + 1) / 2 * innerHeight;
@@ -5329,7 +5353,7 @@ function frame(){
   updateCellar(); updateDelve();
   updateTrade();
   updateFarmPose();
-  updateMilling(); updateSpinning(); updateBandage(); updateGround();
+  updateMilling(); updateSpinning(); updateBandage(); updateGround(); renderPartyFrames();
   updateDrops();
   updateTorch();
   checkDialogDistance();
@@ -5718,6 +5742,202 @@ function openSeedMenu(pt){
 }
 
 
+
+// ===== parties: up to four players who can go down the cellar together. All of it lives at adventure/live/parties, on the one live feed =====
+const PARTY_MAX = 4;
+let PARTY = { id: null, d: null }, PT = {};
+const partyPath = (pid, sub = '') => `${DB}/adventure/live/parties/${pid}${sub}.json`;
+const pput = (url, body, method = 'PUT') => fetch(url, { method, body: JSON.stringify(body) }).catch(() => {});
+function treeSet(root, parts, v){ if (!parts.length) return v === undefined ? null : v; root = root && typeof root === 'object' ? root : {}; const [k, ...rest] = parts; const nv = treeSet(root[k], rest, v); if (nv === null) delete root[k]; else root[k] = nv; return root; }
+// whether another player is in the same world as you: both up top, or both in the same party's cellar
+function sameWorld(r){ const down = inDelveZone(r.tx, r.tz); return down ? !!(DELVE && DELVE.party && r.pt === DELVE.party) : !DELVE; }
+function startPartyFeed(){
+  const f = liveFeed('parties');
+  f.addEventListener('put', e => { const d = JSON.parse(e.data); PT = treeSet(PT, d.path.split('/').filter(Boolean), d.data) || {}; onParties(); });
+  f.addEventListener('patch', e => { const d = JSON.parse(e.data), parts = d.path.split('/').filter(Boolean); for (const k in d.data) PT = treeSet(PT, [...parts, k], d.data[k]) || {}; onParties(); });
+}
+let invSeen = 0, dvAskSeen = 0;
+function onParties(){
+  const me = ONLINE.id; if (!me) return;
+  // which party am I in?
+  let pid = null; for (const k in PT) if (k !== '_inv' && PT[k] && PT[k].m && PT[k].m[me]) pid = k;
+  if (pid !== PARTY.id) { PARTY.id = pid; writePresence(true); }
+  PARTY.d = pid ? PT[pid] : null;
+  // an invitation for me
+  const inv = PT._inv && PT._inv[me];
+  if (inv && inv.t !== invSeen && SNOW() - inv.t < 60000 && PT[inv.pid] && inv.pid !== PARTY.id) {
+    invSeen = inv.t;
+    delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px">Party invitation</div>${escapeHtml(String(inv.by || 'Someone').slice(0, 12))} invites you to join their party.`, 'Join', () => joinParty(inv), 'Decline');
+    fetch(`${DB}/adventure/live/parties/_inv/${me}.json`, { method: 'DELETE' }).catch(() => {});
+  }
+  // my party is going down the cellar, and I've been asked along
+  const dv = PARTY.d && PARTY.d.dv;
+  if (dv && dv.ask && dv.ask[me] && !DELVE && dv.on !== dvAskSeen && SNOW() - dv.on < 25000 && !(dv.who && dv.who[me])) {
+    dvAskSeen = dv.on; const lead = remote[dv.host] ? remote[dv.host].name : 'Your party leader';
+    delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">${escapeHtml(lead)} is leading your party down into the cellar.<br><br>Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Will you go with them?</div>`, 'Accept', () => {
+      const d2 = PARTY.d && PARTY.d.dv; if (!d2 || d2.on !== dv.on || d2.done) { showToast("Too late, they've gone ahead."); return; }
+      pput(partyPath(PARTY.id, '/dv/who/' + me), 1); startDelve({ party: PARTY.id, on: dv.on }); }, 'Stay behind');
+  }
+  // the leader counts the blows everyone else lands
+  if (DELVE && DELVE.party && dv && dv.host === me && PARTY.d.hits) for (const k in PARTY.d.hits) { const h = PARTY.d.hits[k]; delete PARTY.d.hits[k];
+    fetch(partyPath(PARTY.id, '/hits/' + k), { method: 'DELETE' }).catch(() => {});
+    const m = DELVE.mons.find(q => q.sp === h.sp); if (m && m.state !== 'dying' && m.state !== 'dead') { m.hp = Math.max(0, m.hp - Math.max(0, Math.min(50, h.d || 0))); if (m.hp <= 0) { m.state = 'dying'; m.dieT = performance.now(); combatSound((m.t.snd || 'goblin') + 'Die'); } } }
+  partyFramesDirty = true;
+}
+function inviteToParty(id){
+  const r = remote[id]; if (!r) return;
+  let pid = PARTY.id;
+  if (!pid) { pid = 'p' + ONLINE.id.slice(0, 6) + Date.now().toString(36); pput(partyPath(pid), { lead: ONLINE.id, m: { [ONLINE.id]: { n: ONLINE.name } } }); PARTY.id = pid; writePresence(true); }
+  else if (Object.keys(PARTY.d && PARTY.d.m || {}).length >= PARTY_MAX) { showToast('Your party is full.'); return; }
+  pput(`${DB}/adventure/live/parties/_inv/${id}.json`, { pid, by: ONLINE.name, t: SNOW() });
+  showToast(`You invite ${r.name} to your party.`);
+}
+function joinParty(inv){
+  const d = PT[inv.pid]; if (!d) { showToast('That party has broken up.'); return; }
+  if (Object.keys(d.m || {}).length >= PARTY_MAX) { showToast('That party is full.'); return; }
+  if (PARTY.id && PARTY.id !== inv.pid) leaveParty(true);
+  pput(partyPath(inv.pid, '/m/' + ONLINE.id), { n: ONLINE.name }); PARTY.id = inv.pid; writePresence(true);
+  showToast(`You join ${String(inv.by || 'their').slice(0, 12)}'s party.`);
+}
+function leaveParty(quiet){
+  const pid = PARTY.id; if (!pid) return; const d = PT[pid];
+  const others = Object.keys(d && d.m || {}).filter(k => k !== ONLINE.id);
+  if (!others.length) fetch(partyPath(pid), { method: 'DELETE' }).catch(() => {});
+  else { fetch(partyPath(pid, '/m/' + ONLINE.id), { method: 'DELETE' }).catch(() => {}); if (d && d.lead === ONLINE.id) pput(partyPath(pid, '/lead'), others.sort()[0]); }
+  PARTY = { id: null, d: null }; writePresence(true); partyFramesDirty = true;
+  if (!quiet) showToast('You leave the party.');
+}
+function partyMark(what){ if (DELVE && DELVE.party) pput(partyPath(DELVE.party, `/dv/${what}/${ONLINE.id}`), 1); }
+// party members (online) waiting by the cellar doors
+function partyNearCellar(){
+  if (!PARTY.d) return [];
+  return Object.keys(PARTY.d.m || {}).filter(id => id !== ONLINE.id && remote[id] && Math.hypot(remote[id].tx - RUIN.cellar.x, remote[id].tz - RUIN.cellar.z) < 18);
+}
+// ----- party frames: each member's name, combat level and health, down the left of the screen -----
+let partyFramesDirty = true, partyFramesAt = 0;
+function renderPartyFrames(){
+  const now = performance.now(); if (!partyFramesDirty && now - partyFramesAt < 400) return; partyFramesDirty = false; partyFramesAt = now;
+  const el = document.getElementById('partyFrames');
+  if (!PARTY.d) { el.hidden = true; return; }
+  const ids = Object.keys(PARTY.d.m || {}).sort((a, b) => (a === ONLINE.id ? -1 : b === ONLINE.id ? 1 : 0));
+  const dv = PARTY.d.dv, row = id => {
+    const mine = id === ONLINE.id, r = remote[id], name = mine ? ONLINE.name : (r ? r.name : (PARTY.d.m[id].n || '?'));
+    const hp = mine ? [HP.cur, maxHp()] : r && r.hp, cb = mine ? combatLevel() : r && r.cb, gone = !mine && !r;
+    const fell = DELVE && DELVE.party && dv && dv.dead && dv.dead[id];
+    const pct = hp ? Math.max(0, Math.min(100, hp[0] / hp[1] * 100)) : 0;
+    return `<div class="pfRow${gone || fell ? ' pfGone' : ''}" data-p="${mine ? '' : id}"><div class="pfTop"><span>${PARTY.d.lead === id ? '&#9819; ' : ''}${escapeHtml(name)}</span><small>${cb ? 'Lv ' + cb : ''}</small></div>
+      <div class="pfBar"><i style="width:${pct.toFixed(0)}%"></i></div><div class="pfHp">${fell ? 'Fallen' : gone ? 'Away' : hp ? hp[0] + ' / ' + hp[1] : ''}</div></div>`; };
+  el.innerHTML = `<div class="pfHead">Party</div>${ids.map(row).join('')}<button class="pfLeave">Leave party</button>`;
+  el.hidden = false;
+}
+document.addEventListener('click', e => {
+  const el = document.getElementById('partyFrames'); if (!el || !el.contains(e.target)) return;
+  if (e.target.closest('.pfLeave')) { leaveParty(false); return; }
+  const rowEl = e.target.closest('.pfRow[data-p]'); const id = rowEl && rowEl.dataset.p; if (!id) return;
+  const b = bag.find(i => i.name === 'Bandage'); if (!b) { showToast('You need a bandage to patch them up.'); return; }
+  if (!remote[id] || !sameWorld(remote[id])) { showToast("They're not here."); return; }
+  healOther(b, id);
+});
+// ===== the party delve: the leader's game runs the waves and the creatures and shares them; everyone fights them =====
+function startPartyDelve(ids){
+  const on = SNOW();
+  pput(partyPath(PARTY.id, '/dv'), { on, host: ONLINE.id, ask: Object.fromEntries(ids.map(i => [i, 1])), who: { [ONLINE.id]: 1 }, wave: -1, next: on + 12000, mons: [] });
+  startDelve({ party: PARTY.id, on });
+  showToast('You climb down. Your party has a few seconds to follow you...');
+}
+function partyHit(m, dmg){ m.hp = Math.max(0, m.hp - dmg); m.pendAt = performance.now(); fetch(partyPath(DELVE.party, '/hits'), { method: 'POST', body: JSON.stringify({ sp: m.sp, d: dmg, by: ONLINE.id }) }).catch(() => {}); }
+function partyAlive(dv){ const me = ONLINE.id; return Object.keys(dv.who || {}).filter(id => !(dv.dead && dv.dead[id]) && !(dv.left && dv.left[id]) && (id === me || (remote[id] && inDelveZone(remote[id].tx, remote[id].tz)))); }
+function updatePartyDelve(){
+  const now = performance.now(), dt = Math.min(0.25, (now - (DELVE.last || now)) / 1000); DELVE.last = now;
+  const dv = PARTY.d && PARTY.d.dv;
+  if (!dv || dv.on !== DELVE.on) { if (!DELVE.done && !DELVE.orphanAt) DELVE.orphanAt = now; if (DELVE.orphanAt && now - DELVE.orphanAt > 6000) { DELVE.done = true; clearDelveMonsters(); DELVE.mons = []; showToast('Your party has broken up. The cellar falls quiet; climb the ladder to leave.'); } return; }
+  DELVE.orphanAt = 0;
+  const me = ONLINE.id, alive = partyAlive(dv);
+  // the leader fell or left: the next one down takes over the creatures
+  if (!alive.includes(dv.host) && alive.slice().sort()[0] === me && DELVE.claimed !== dv.host) { DELVE.claimed = dv.host; pput(partyPath(DELVE.party, '/dv/host'), me); dv.host = me; for (const m of DELVE.mons) m.ghost = false; }
+  const host = dv.host === me;
+  DELVE.wave = dv.wave; DELVE.next = dv.next && dv.next > SNOW() ? now + (dv.next - SNOW()) : 0;
+  if (dv.done) { if (!DELVE.done) finishPartyDelve(dv); updateDelveChest(); return; }
+  if (DELVE.done) { updateDelveChest(); return; }
+  if (host) hostPartyDelve(dv, now, dt, alive); else followPartyDelve(dv, now, dt);
+  partyFight(now, dt, host);
+  if (now - (DELVE.cAt || 0) > 2000) { DELVE.cAt = now; pput(partyPath(DELVE.party, '/c/' + me), { d: DELVE.dmg || 0, h: DELVE.heal || 0 }); }
+}
+// the leader: waves, targets, movement, and sharing it all a few times a second
+function hostPartyDelve(dv, now, dt, alive){
+  const N = DELVE_WAVES.length, live = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead'), write = {};
+  if (!live.length) {
+    const finished = DELVE.mons.every(m => m.state === 'dead' || (m.state === 'dying' && now - m.dieT > 1400));
+    if (dv.wave >= 0 && !(dv.next > SNOW()) && finished && DELVE.waitFor !== dv.wave) {
+      DELVE.waitFor = dv.wave;
+      if (dv.wave >= N - 1) {   // the last wave falls: who pulled their weight?
+        const c = PARTY.d.c || {}, score = id => ((c[id] && c[id].d) || 0) + ((c[id] && c[id].h) || 0) + (id === ONLINE.id ? 0 : 0);
+        c[ONLINE.id] = { d: DELVE.dmg || 0, h: DELVE.heal || 0 };
+        const total = alive.reduce((t, id) => t + score(id), 0), fair = alive.length ? total / alive.length : 0;
+        const ok = Object.fromEntries(alive.filter(id => score(id) > 0 && score(id) >= fair * 0.5).map(id => [id, 1]));
+        pput(partyPath(DELVE.party, '/dv'), { done: 1, ok }, 'PATCH'); return;
+      }
+      write.next = SNOW() + 5000; showToast(`Wave ${dv.wave + 1} beaten! The next one comes in 5 seconds.`);
+    }
+    if (dv.next && SNOW() > dv.next && finished) {   // the next wave
+      clearDelveMonsters(); DELVE.mons = [];
+      const wave = dv.wave + 1, w = DELVE_WAVES[wave], kinds = w === 'r2' ? [0, 1].map(() => ['chicken', 'rat', 'cow'][Math.floor(Math.random() * 3)]) : w;
+      const gates = [[DELVE_C.x, DELVE_C.z + DELVE_C.pit - 1.2], [DELVE_C.x + DELVE_C.pit - 1.2, DELVE_C.z]], mult = 1 + 0.6 * (Math.max(1, alive.length) - 1);
+      DELVE.mons = kinds.map((k, i) => { const m = spawnMonster(k, gates[i % 2][0], gates[i % 2][1], 0); m.delve = true; m.sp = wave + '-' + i; m.maxHp = m.hp = Math.round(m.t.hp * mult); return m; });
+      write.wave = wave; write.next = 0; showToast(`Wave ${wave + 1} of ${N}: ${kinds.map(k => MONSTER_TYPES[k].name.toLowerCase()).join(' and ')}!`);
+    }
+  }
+  // each creature picks someone still standing and goes for them
+  for (const m of DELVE.mons) { if (m.state === 'dying' || m.state === 'dead') continue;
+    if (!m.tg || !alive.includes(m.tg)) { let best = null, bd = 1e9; for (const id of alive) { const q = playerPos(id); if (!q) continue; const d = Math.hypot(q[0] - m.x, q[1] - m.z) + (DELVE.mons.filter(o => o.tg === id).length * 3); if (d < bd) { bd = d; best = id; } } m.tg = best; }
+    if (m.tg && m.tg !== ONLINE.id) { const q = playerPos(m.tg); if (q) { const dx = q[0] - m.g.position.x, dz = q[1] - m.g.position.z, d = Math.hypot(dx, dz), want = reachOf(m);
+      if (d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'walk'); }
+      else { m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, q[0], q[1]); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready'); }
+      m.x = m.g.position.x; m.z = m.g.position.z; } } }
+  if (now - (DELVE.shareAt || 0) > 220 || write.wave !== undefined) { DELVE.shareAt = now;
+    write.mons = DELVE.mons.map(m => ({ k: m.type, sp: m.sp, x: +m.g.position.x.toFixed(2), z: +m.g.position.z.toFixed(2), hp: m.hp, mx: m.maxHp || m.t.hp, tg: m.tg || '', st: m.state === 'dying' || m.state === 'dead' ? 'd' : 'a' }));
+    pput(partyPath(DELVE.party, '/dv'), write, 'PATCH'); }
+}
+// everyone else: the creatures are where the leader says, with the health the leader says
+function followPartyDelve(dv, now, dt){
+  const list = Array.isArray(dv.mons) ? dv.mons : Object.values(dv.mons || {});
+  if (DELVE.mons.length !== list.length || DELVE.mons.some((m, i) => !list[i] || m.sp !== list[i].sp)) {
+    clearDelveMonsters();
+    DELVE.mons = list.map(s => { const m = spawnMonster(s.k, s.x, s.z, 0); m.delve = true; m.ghost = true; m.sp = s.sp; m.maxHp = s.mx; m.hp = s.hp; return m; });
+  }
+  DELVE.mons.forEach((m, i) => { const s = list[i]; m.tg = s.tg; m.maxHp = s.mx;
+    if (!(m.pendAt && now - m.pendAt < 1500)) m.hp = s.hp; else m.hp = Math.min(m.hp, s.hp);   // my own blow shows at once; the leader's count wins after
+    if (s.st === 'd' && m.state !== 'dying' && m.state !== 'dead') { m.state = 'dying'; m.dieT = now; combatSound((m.t.snd || 'goblin') + 'Die'); if (FIGHT && FIGHT.m === m) endFight(); }
+    if (m.state === 'dying' || m.state === 'dead') return;
+    if (!(FIGHT && FIGHT.m === m && m.tg === ONLINE.id)) { const dx = s.x - m.g.position.x, dz = s.z - m.g.position.z, d = Math.hypot(dx, dz);
+      if (d > 0.05) { const st = Math.min(d, Math.max(3.2 * dt, d * 0.25)); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; if (d > 0.3) { turnChibi(m.g, Math.atan2(dx, dz)); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'walk'); } } }
+    m.x = m.g.position.x; m.z = m.g.position.z; });
+}
+// the creatures coming for you: walk up, fight, and strike as in the solo delve (your own game rolls their blows against you)
+function partyFight(now, dt, host){
+  const mine = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead' && m.tg === ONLINE.id);
+  const lead = FIGHT && mine.includes(FIGHT.m) ? FIGHT.m : null, leadA = lead ? Math.atan2(lead.g.position.x - hero.position.x, lead.g.position.z - hero.position.z) : 0;
+  mine.forEach((m, i) => { const reach = reachOf(m);
+    if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur);
+    if (lead === m) return;
+    let tx = hero.position.x, tz = hero.position.z, want = reach;
+    if (lead) { const a = leadA + (i % 2 ? 1 : -1) * Math.PI * 0.6; tx += Math.sin(a) * reach; tz += Math.cos(a) * reach; want = 0.15; }
+    const dx = tx - m.g.position.x, dz = tz - m.g.position.z, d = Math.hypot(dx, dz);
+    if (host && d > want + 0.1) { const st = Math.min(d - want, 3.2 * dt); m.g.position.x += dx / d * st; m.g.position.z += dz / d * st; turnChibi(m.g, Math.atan2(dx, dz)); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'walk'); }
+    else if (Math.hypot(hero.position.x - m.g.position.x, hero.position.z - m.g.position.z) < reach + 0.6) {
+      m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z);
+      if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready');
+      if (!FIGHT && !walkTarget && m.state === 'standing') { m.state = 'engaged'; FIGHT = { m, nextP: now + 600, nextM: now + 1200, pAnim: null, mAnim: null }; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, m.g.position.x, m.g.position.z); setAct({ k: 'fight', n: m.name, t: Date.now() }); }
+      else if (FIGHT && FIGHT.m !== m) { if (!m.nextHit) m.nextHit = now + 900 + Math.random() * 600; if (now > m.nextHit) { m.nextHit = now + m.t.speed; sideSwing(m); } }
+    }
+    m.x = m.g.position.x; m.z = m.g.position.z; });
+}
+function finishPartyDelve(dv){
+  if (dv.ok && dv.ok[ONLINE.id]) { delveWon(); return; }
+  clearDelveMonsters(); DELVE.done = true; DELVE.mons = [];
+  showToast("The cellar falls quiet. Your party won through, but you barely lifted a finger. There's no reward for you this time.");
+  addSystemLine('Climb the ladder to leave the cellar.');
+}
 // ===== the farmers' market, east of the windmill: Tilly's long counter under a striped awning, crates of what the farm grows, and a painted sign =====
 function buildMarket(){
   const MX = 110, MZ = 4.4, add = (geo, m, x, y, z, parent) => { const o = new THREE.Mesh(geo, typeof m === 'number' ? mat(m) : m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
@@ -5903,7 +6123,7 @@ function openBandageMenu(it){
     if (b.dataset.o === 'me') { itemMenu.hidden = true; if (HP.cur >= maxHp()) { showToast('You are not hurt.'); return; } beginBandage(it, null); return; }
     if (b.dataset.o === 'other') {   // the hurt players nearby, nearest first
       const near = Object.entries(remote).map(([id, r]) => ({ id, r, d: Math.hypot(r.sprite.position.x - hero.position.x, r.sprite.position.z - hero.position.z) }))
-        .filter(o => o.d < HEAL_RANGE && o.r.hp && o.r.hp[0] < o.r.hp[1] && !inDelveZone(o.r.tx, o.r.tz)).sort((a, b) => a.d - b.d);
+        .filter(o => o.d < HEAL_RANGE && o.r.hp && o.r.hp[0] < o.r.hp[1] && sameWorld(o.r)).sort((a, b) => a.d - b.d);
       itemMenu.innerHTML = '<div class="imHead">Heal who?</div>' + (near.length ? near.map(o => `<button data-p="${o.id}">${escapeHtml(o.r.name)} <small style="color:#c9b27a">(${o.r.hp[0]}/${o.r.hp[1]})</small></button>`).join('') : '<div style="padding:6px 8px;color:#c9b27a">Nobody nearby is hurt.</div>') + '<button data-o="x">Cancel</button>';
       itemMenu.onclick = e2 => { const b2 = e2.target.closest('button'); if (!b2) return; itemMenu.hidden = true; if (b2.dataset.p) healOther(it, b2.dataset.p); };
       e.stopPropagation();
@@ -5971,7 +6191,7 @@ function updateBandage(){
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
     const r = remote[who]; fetch(`${DB}/adventure/live/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
-    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal');   /* what they'll really gain, the same number they see */ bandageChime(); addXp('Crafting', 10);
+    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal'); if (DELVE && DELVE.party) DELVE.heal = (DELVE.heal || 0) + gain;   /* what they'll really gain, the same number they see */ bandageChime(); addXp('Crafting', 10);
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
   if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? { k: 'fight', n: FIGHT.m.name, t: Date.now(), m: FIGHT.m.sid } : null);
@@ -6070,10 +6290,11 @@ function openPlayerMenu(id){
   const r = remote[id]; if (!r) return;
   // someone has already asked you: clicking them accepts, like in RuneScape
   if (r.tr && r.tr.to === ONLINE.id && r.tr.s === -1 && !TRADE.tr) { acceptTrade(id); return; }
-  playerMenu.innerHTML = `<div class="imHead">${escapeHtml(r.name)}</div><button data-o="trade">Trade with ${escapeHtml(r.name)}</button><button data-o="x">Cancel</button>`;
+  const inMine = PARTY.id && r.pt === PARTY.id, full = PARTY.d && Object.keys(PARTY.d.m || {}).length >= PARTY_MAX;
+  playerMenu.innerHTML = `<div class="imHead">${escapeHtml(r.name)}${r.cb ? ` <small style="color:#c9b27a">(level ${r.cb})</small>` : ''}</div><button data-o="trade">Trade with ${escapeHtml(r.name)}</button>${inMine ? '' : full ? '<button disabled style="opacity:.45;cursor:default">Your party is full</button>' : `<button data-o="party">Invite to party</button>`}<button data-o="x">Cancel</button>`;
   playerMenu.hidden = false;
   playerMenu.style.left = Math.min(innerWidth - 180, lastTap.x + 6) + 'px'; playerMenu.style.top = Math.min(innerHeight - 110, lastTap.y - 10) + 'px';
-  playerMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; playerMenu.hidden = true; if (b.dataset.o === 'trade') requestTrade(id); };
+  playerMenu.onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; playerMenu.hidden = true; if (b.dataset.o === 'trade') requestTrade(id); if (b.dataset.o === 'party') inviteToParty(id); };
 }
 addEventListener('pointerdown', e => { if (!playerMenu.hidden && !playerMenu.contains(e.target)) playerMenu.hidden = true; });
 const escapeHtml = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -6358,6 +6579,7 @@ function startMobStream(){
 }
 function startEventStreams(){
   startMobStream();
+  startPartyFeed();
   const es = liveFeed('event');
   es.addEventListener('put', e => { evApply(JSON.parse(e.data)); });
   es.addEventListener('patch', e => { evMerge(JSON.parse(e.data)); });
