@@ -1341,8 +1341,8 @@ function clickNode(rec){
   walkStart(new THREE.Vector3(spots[0].x, 0, spots[0].z), () => { if (rec.kind === 'furnace') smelt(rec); else if (rec.kind === 'anvil') openSmithing(); else if (rec.kind === 'npc') openDialog(rec); else if (rec.kind === 'fish') catchFish(rec); else if (rec.kind === 'door') toggleDoor(rec); else if (rec.kind === 'range') cook(rec); else if (rec.kind === 'animal') petAnimal(rec); else { chop.rec = rec; chop.t = 0; setAct({ k: rec.kind === 'rock' ? 'mine' : 'chop', n: rec.key, t: Date.now() }); } });
 }
 // one copper ore and one tin ore make one bronze bar
-function removeItem(name){
-  const it = bag.find(i => i.name === name); if (!it) return false;
+function removeItem(name, which){
+  const it = which && bag.includes(which) ? which : bag.find(i => i.name === name); if (!it) return false;
   if (--it.qty <= 0) bag.splice(bag.indexOf(it), 1);
   renderBag(); return true;
 }
@@ -1533,7 +1533,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
-  if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name); const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
+  if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
 
@@ -1544,7 +1544,7 @@ function openShop(){ document.getElementById('shopPanel').hidden = false; render
 function coinCount(){ const c = bag.find(i => i.name === 'Coins'); return c ? c.qty : 0; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const SELL = { 'Logs': 4, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
-function countOf(name){ const it = bag.find(i => i.name === name); return it ? it.qty : 0; }
+function countOf(name){ let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
 function demandNow(name){ const d = DEMAND[name]; return d ? Math.max(0, d.n - Math.floor((Date.now() - d.t) / 90000)) : 0; }   // one sale fades every 90 seconds
@@ -2428,7 +2428,7 @@ function dressChibi(g, eq){
     const fo = new THREE.Mesh(geo('torchFlameO', () => new THREE.ConeGeometry(0.13, 0.42, 7).translate(0, 0.21, 0)), new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0.9, depthWrite: false })); flame.add(fo);
     const fi = new THREE.Mesh(geo('torchFlameI', () => new THREE.ConeGeometry(0.07, 0.28, 6).translate(0, 0.14, 0)), new THREE.MeshBasicMaterial({ color: 0xffe28a, transparent: true, depthWrite: false })); flame.add(fi);
     let light = null;
-    if (g === hero) { light = new THREE.PointLight(0xffa050, 0, 14, 1.6); light.position.y = 0.3; flame.add(light); }   // only your own torch lights the ground, to keep phones fast
+    if (g === hero) light = true;   /* only your own torch lights the ground; the light itself lives in the scene all the time (heroTorchLight), because adding or removing a light makes three.js rebuild every shader */
     c.torch = { flame, light };
   } else if (eq.shield) {   // a big round shield on the left arm, with a rim, a boss and rivets
     use(eq.shield);
@@ -2944,7 +2944,16 @@ const bag = [];
 const AXE_NAME = "Bronze axe";
 const PICK_NAME = 'Bronze pickaxe';
 const ORE_NAME = 'Copper ore';
+// food doesn't stack: every piece takes its own slot, so the bag limits how much you can carry into a fight
+const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Burnt shrimp', 'Raw chicken', 'Cooked chicken', 'Burnt chicken', 'Raw beef', 'Cooked beef', 'Burnt beef', 'Bread dough', 'Bread', 'Burnt bread', "Brenna's bread"]);
+const roomForOne = name => bag.length < BAG_SIZE || (!SINGLE.has(name) && hasItem(name));
 function addItem(name, qty = 1, icon = '') {
+  if (SINGLE.has(name)) {   // one slot each; as many as fit (and false if not all of them did)
+    const n = Math.min(qty, BAG_SIZE - bag.length);
+    for (let i = 0; i < n; i++) bag.push({ name, qty: 1, icon, slot: freeSlot() });
+    if (n > 0) renderBag();
+    return n === qty;
+  }
   const have = bag.find(i => i.name === name);
   if (have) have.qty += qty;
   else if (bag.length < BAG_SIZE) bag.push({ name, qty, icon, slot: freeSlot() });
@@ -3138,7 +3147,7 @@ let fishing = null;
 const FISH_MS = 3000;
 function catchFish(rec){
   if (fishing) return;
-  if (bag.length >= BAG_SIZE && !hasItem('Raw shrimp')) { showToast('Your bag is full.'); return; }
+  if (!roomForOne('Raw shrimp')) { showToast('Your bag is full.'); return; }
   fishing = { rec: rec || trees.find(t => t.userData.rec && t.userData.rec.kind === 'fish').userData.rec, t0: performance.now() };
   showToast('You dip your net in the water...'); splashSound();
   setAct({ k: 'fish', t: Date.now() });
@@ -3157,7 +3166,7 @@ function updateFishing(){
     if (!addItem('Raw shrimp', 1, SHRIMP_ICON)) { stopFishing('Your bag is full.'); return; }
     addXp('Fishing', 10); showToast(`You catch a raw shrimp (${countOf('Raw shrimp')}).  +10 Fishing XP`);
   }
-  if (bag.length >= BAG_SIZE && !hasItem('Raw shrimp')) { stopFishing('Your bag is full.'); return; }
+  if (!roomForOne('Raw shrimp')) { stopFishing('Your bag is full.'); return; }
   fishing.t0 = performance.now(); splashSound(); setAct({ k: 'fish', t: Date.now() });   // the net goes in again
 }
 function updateFish(){
@@ -4496,6 +4505,7 @@ function applySave(d){
     bag.length = 0;
     d.bag.forEach(it => { if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
+    for (const b of bag.slice()) while (SINGLE.has(b.name) && b.qty > 1 && bag.length < BAG_SIZE) { b.qty--; bag.push({ name: b.name, qty: 1, icon: b.icon, slot: freeSlot() }); }   // food from before it stopped stacking: spread into free slots (any left over stays together)
   }
   if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
   if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
@@ -4766,9 +4776,12 @@ function frame(){
   requestAnimationFrame(frame);
 }
 // ----- a held torch: the flame flickers, and at night it lights the ground round you -----
+let heroTorchLight = null; const _tp = new THREE.Vector3();
 function updateTorch(){
   const t = performance.now() / 1000;
-  const flick = (T, seed) => { const k = 0.85 + 0.15 * Math.sin(t * 13 + seed) * Math.sin(t * 7.3 + seed); T.flame.scale.set(1, k * (0.9 + 0.1 * Math.sin(t * 21 + seed)), 1); if (T.light) T.light.intensity = (0.5 + 6 * DAY.night) * k; };
+  if (!heroTorchLight) { heroTorchLight = new THREE.PointLight(0xffa050, 0, 14, 1.6); scene.add(heroTorchLight); }
+  heroTorchLight.intensity = 0;
+  const flick = (T, seed) => { const k = 0.85 + 0.15 * Math.sin(t * 13 + seed) * Math.sin(t * 7.3 + seed); T.flame.scale.set(1, k * (0.9 + 0.1 * Math.sin(t * 21 + seed)), 1); if (T.light) { T.flame.getWorldPosition(_tp); heroTorchLight.position.set(_tp.x, _tp.y + 0.3, _tp.z); heroTorchLight.intensity = (0.5 + 6 * DAY.night) * k; } };
   const c = hero && hero.userData.chibi; if (c && c.torch) flick(c.torch, 0);
   let i = 1; for (const id in remote) { const rc = remote[id].sprite.userData.chibi; if (rc && rc.torch) flick(rc.torch, i++ * 1.7); }
 }
@@ -5135,9 +5148,8 @@ tradePanel.addEventListener('click', e => {
 function closeTradeWindow(){ tradePanel.hidden = true; TRADE.open = false; }
 // will everything you're getting fit, once what you're giving has gone?
 function roomFor(give, get){
-  const left = {}; for (const it of bag) left[it.name] = it.qty; for (const g of give) left[g.name] -= g.qty;
-  let used = Object.values(left).filter(q => q > 0).length;
-  for (const g of get) if (!(left[g.name] > 0)) used++;
+  const left = {}; for (const it of bag) left[it.name] = (left[it.name] || 0) + it.qty; for (const g of give) left[g.name] -= g.qty; for (const g of get) left[g.name] = (left[g.name] || 0) + g.qty;
+  let used = 0; for (const n in left) if (left[n] > 0) used += SINGLE.has(n) ? left[n] : 1;   // a slot per piece of food, a slot per stack of anything else
   return used <= BAG_SIZE;
 }
 // the swap itself: give what you offered, take what they offered
@@ -5586,7 +5598,7 @@ function graveClick(id){
   if (id !== ONLINE.id) { showToast(`Here lies ${g.n || 'a traveller'}. Their things are safe in the stone for ${mins} more minute${mins === 1 ? '' : 's'}.`); return; }
   walkStart(new THREE.Vector3(g.x + 1.2, 0, g.z + 1.2), () => {
     const left = [];
-    for (const it of g.items || []) if (!addItem(it.name, it.qty, ICON_FOR[it.name] || '')) left.push(it);
+    for (const it of g.items || []) { const before = countOf(it.name); addItem(it.name, it.qty, ICON_FOR[it.name] || ''); const got = countOf(it.name) - before; if (got < it.qty) left.push({ name: it.name, qty: it.qty - got }); }
     if (left.length) { g.items = left; fetch(`${DB}/adventure/graves/${id}.json`, { method: 'PUT', body: JSON.stringify({ n: g.n, x: g.x, z: g.z, items: left, until: g.until }) }).catch(() => {}); showToast('Your bag is full. The rest is still in the stone.'); }
     else { fetch(`${DB}/adventure/graves/${id}.json`, { method: 'DELETE' }).catch(() => {}); dropGrave(id); showToast('You collect your things from the gravestone.'); }
     saveNow(false);
