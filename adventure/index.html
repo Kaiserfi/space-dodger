@@ -1834,7 +1834,7 @@ function completeHeartyWelcome(){
   quietLevelUps = true;
   for (const [k, v] of [['Woodcutting', 60], ['Fishing', 60], ['Cooking', 60], ['Mining', 60], ['Smithing', 80]]) addXp(k, v);
   quietLevelUps = false;
-  questJingle();
+  questJingle(); restoreQuestScroll();
   document.getElementById('questDone').hidden = false;
   renderStats(); saveNow(false);
 }
@@ -4398,13 +4398,14 @@ function clearDelveMonsters(){
   for (const m of DELVE ? DELVE.mons : []) { scene.remove(m.g); const i = trees.indexOf(m.g); if (i >= 0) trees.splice(i, 1); m.bar.remove(); const j = MONSTERS.indexOf(m); if (j >= 0) MONSTERS.splice(j, 1); }
 }
 function leaveDelve(msg){
-  if (FIGHT) endFight(); clearDelveMonsters(); DELVE = null;
+  if (FIGHT) endFight(); clearDelveMonsters(); if (DELVE && DELVE.chest) { scene.remove(DELVE.chest.g); const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); } DELVE = null;
   const sp = delveExitSpot(); walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z);
   if (msg) showToast(msg); writePresence(true); saveNow(false);
 }
 function delveLadder(){
   if (!DELVE) return;
+  if (DELVE.done && DELVE.chest && !DELVE.chest.opened) { delveAsk("You haven't opened the reward chest yet. Leave it behind?", 'Leave it', () => leaveDelve('You climb back up, leaving the chest unopened.'), 'Go back'); return; }
   if (DELVE.done) { leaveDelve('You climb back up into the daylight, your pack heavier than before.'); return; }
   delveAsk('Climb out of the cellar now? You keep your coins, but you get no reward for the waves you have beaten.', 'Climb out', () => leaveDelve('You scramble up the ladder and slam the doors behind you.'), 'Keep fighting');
 }
@@ -4428,19 +4429,86 @@ function delveFailed(){
   showToast(lost > 0 ? `You black out... and wake up by the cellar doors, ${lost} coins lighter.` : 'You black out... and wake up by the cellar doors.');
 }
 function delveWon(){
-  DELVE.done = true; DELVE.mons = [];
+  clearDelveMonsters(); DELVE.done = true; DELVE.mons = [];
+  showToast('The cellar falls quiet. You have cleared all eight waves! A chest rises out of the sand...');
+  addSystemLine('Open the chest in the middle of the pit to claim your reward.');
+  spawnDelveChest();
+}
+// the reward chest: banded wood, a domed lid that swings open, and a golden glow inside
+function spawnDelveChest(){
+  const g = new THREE.Group(), cx = DELVE_C.x, cz = DELVE_C.z; g.position.set(cx, 0, cz); scene.add(g);
+  const wood = texMat(woodTex(), 1, 1, 0x8a5a30), band = mat(0x3a3a40), gold = mat(0xe2b84c);
+  const add = (geo, m, x, y, z, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+  add(new THREE.BoxGeometry(1.6, 0.9, 1.0), wood, 0, 0.45, 0);
+  for (const x of [-0.6, 0.6]) add(new THREE.BoxGeometry(0.12, 0.94, 1.04), band, x, 0.45, 0);
+  const glow = add(new THREE.BoxGeometry(1.4, 0.05, 0.8), new THREE.MeshBasicMaterial({ color: 0xffd060 }), 0, 0.88, 0); glow.visible = false;
+  const lid = new THREE.Group(); lid.position.set(0, 0.9, -0.5); g.add(lid);   // hinged at the back
+  add(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2), wood, 0, 0, 0.5, lid);
+  for (const x of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.53, 0.53, 0.12, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2), band, x, 0, 0.5, lid);
+  add(new THREE.BoxGeometry(0.22, 0.3, 0.08), gold, 0, -0.1, 1.02, lid);   // the clasp
+  g.rotation.y = Math.PI;   // facing the ladder, where you come from
+  g.scale.setScalar(0.01);
+  const rec = { kind: 'chest', state: 'standing', x: cx, z: cz, s: 0.9, onClick: () => openDelveChest() };
+  g.userData = { action: 'Open', name: 'Reward chest', rec }; trees.push(g);
+  DELVE.chest = { g, lid, glow, born: performance.now(), opened: false, openAt: 0 };
+  if (!LIGHT_SPOTS.some(p => p[0] === cx && p[2] === cz)) LIGHT_SPOTS.push([cx, 2.5, cz]);   /* a lamp light over the chest */
+  updateDayNight.next = 0;
+}
+function chestSound(){
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + 0.01;
+  const out = ctx.createGain(); out.gain.value = 0.5; out.connect(sfxOut(ctx));
+  // the latch clicks, the hinges creak, then a little shimmer of gold
+  const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.05); const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500; const ng = ctx.createGain(); ng.gain.value = 0.7; n.connect(hp); hp.connect(ng); ng.connect(out); n.start(t);
+  creak(true); setTimeout(() => creak(true), 380);
+  [1318.5, 1568, 1975.5, 2637].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f; const s0 = t + 0.9 + i * 0.09;
+    g.gain.setValueAtTime(0.0001, s0); g.gain.linearRampToValueAtTime(0.25, s0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, s0 + 0.9); o.connect(g); g.connect(out); o.start(s0); o.stop(s0 + 1); });
+}
+function openDelveChest(){
+  const C = DELVE && DELVE.chest; if (!C || C.opened) return;
+  walkStart(new THREE.Vector3(C.g.position.x, 0, C.g.position.z - 2.6), () => {
+    if (C.opened) return; C.opened = true; C.openAt = performance.now();
+    heroAnim.yaw = yawTo(hero.position.x, hero.position.z, C.g.position.x, C.g.position.z);
+    chestSound();
+    setTimeout(() => grantDelveRewards(), 1600);   // once the lid is up
+  });
+}
+function grantDelveRewards(){
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-  addXp('Melee', 400); addXp('Hitpoints', 150);
-  const got = [], left = [];
-  for (const [name, n] of [['Copper ore', r(5, 10)], ['Tin ore', r(5, 10)], ['Feathers', r(25, 50)], ['Wheat seeds', r(5, 10)]]) (addItem(name, n, ICON_FOR[name]) ? got : left).push(`${n} ${name.toLowerCase()}`);
-  showToast(`The cellar falls quiet. You've cleared all eight waves! +400 Melee XP, +150 Hitpoints XP, and ${got.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`);
-  if (left.length) addSystemLine(`Your bag was too full for ${left.join(', ')}.`);
-  addSystemLine('Climb the ladder to leave the cellar.'); saveNow(false);
+  quietLevelUps = true; addXp('Melee', 400); addXp('Hitpoints', 150); quietLevelUps = false;
+  const rows = [], left = [];
+  for (const [name, n] of [['Copper ore', r(5, 10)], ['Tin ore', r(5, 10)], ['Feathers', r(25, 50)], ['Wheat seeds', r(5, 10)]]) {
+    const ok = addItem(name, n, ICON_FOR[name]); rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name]}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(bag full)</small>'}</div>`); if (!ok) left.push(name);
+  }
+  if (DELVE && DELVE.chest) { const i = trees.indexOf(DELVE.chest.g); if (i >= 0) trees.splice(i, 1); DELVE.chest.g.userData.action = null; }
+  questJingle(); renderStats(); saveNow(false);
+  showRewardScroll({ banner: 'Delve complete', title: 'The Root Cellar', sub: 'All eight waves beaten, alone in the dark.',
+    rewards: rows.join(''), xp: '<div class="qr">Melee<b>+400</b></div><div class="qr">Hitpoints<b>+150</b></div>',
+    quote: '&ldquo;Cleared the whole cellar? On your own? Well I never. Keep whatever you found down there, you earned it.&rdquo; &mdash; Ezra' });
+  if (left.length) addSystemLine('Your bag was too full for some of it, so it stayed in the chest.');
+  addSystemLine('Climb the ladder to leave the cellar.');
+}
+// the quest-complete scroll, reused for other rewards (the welcome quest's own text is put back when it is needed)
+let QD_ORIG = null;
+function showRewardScroll(o){
+  const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
+  if (!QD_ORIG) QD_ORIG = { banner: q('.qBanner').innerHTML, title: q('h1').innerHTML, sub: q('.qSub').innerHTML, cols: q('.qCols').innerHTML, quote: q('.qQuote').innerHTML };
+  q('.qBanner').innerHTML = o.banner; q('h1').innerHTML = o.title; q('.qSub').innerHTML = o.sub;
+  q('.qCols').innerHTML = `<div class="qBox"><h3>Rewards</h3>${o.rewards}</div><div class="qBox"><h3>Experience</h3>${o.xp}</div>`; q('.qQuote').innerHTML = o.quote;
+  d.hidden = false;
+}
+function restoreQuestScroll(){ if (!QD_ORIG) return; const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
+  q('.qBanner').innerHTML = QD_ORIG.banner; q('h1').innerHTML = QD_ORIG.title; q('.qSub').innerHTML = QD_ORIG.sub; q('.qCols').innerHTML = QD_ORIG.cols; q('.qQuote').innerHTML = QD_ORIG.quote; }
+function updateDelveChest(){
+  const C = DELVE && DELVE.chest; if (!C) return;
+  const now = performance.now(), k = Math.min(1, (now - C.born) / 900);
+  C.g.scale.setScalar(1.5 * Math.max(0.01, 1 - Math.pow(1 - k, 3)));   // pops up out of the sand
+  if (C.opened) { const o = Math.min(1, (now - C.openAt) / 1300); const e = o < 0.25 ? o * 0.3 : 0.075 + (1 - Math.pow(1 - (o - 0.25) / 0.75, 2)) * 0.925;   // a stiff first lift, then it swings up
+    C.lid.rotation.x = -1.9 * e; C.glow.visible = o > 0.2; }
 }
 function updateDelve(){
   if (!DELVE || !hero) return;
   const now = performance.now(), dt = Math.min(0.25, (now - (DELVE.last || now)) / 1000); DELVE.last = now;
-  if (DELVE.done) return;
+  if (DELVE.done) { updateDelveChest(); return; }
   const alive = DELVE.mons.filter(m => m.state !== 'dying' && m.state !== 'dead');
   if (!alive.length) {
     if (DELVE.wave >= 0 && !DELVE.next) { if (DELVE.wave === DELVE_WAVES.length - 1) { setTimeout(() => DELVE && delveWon(), 1500); DELVE.next = Infinity; return; } DELVE.next = now + 5000; showToast(`Wave ${DELVE.wave + 1} beaten! The next one comes in 5 seconds.`); }
