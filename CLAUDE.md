@@ -72,7 +72,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **One progress bar at a time.** Smelting, cooking, milling, spinning and bandaging share `#smeltBar`, so starting one must stop the others.
 - **Never automate a choice the player should make.** The farming loop only waters and harvests by itself; planting always goes through the seed menu.
 - **Movement must not depend on frame rate.** Scale per-frame movement by the elapsed time (`dt`), and approach targets with a small tolerance (`d > want + 0.1`), or a mover can creep forever without arriving.
-- **In combat, clicking another monster doesn't switch targets.** It says "You're already in combat!". Only clicking the ground runs away.
+- **Up top, clicking another monster mid-fight doesn't switch targets.** It says "You're already in combat!". Only clicking the ground runs away. The cellar is multi-combat, so there clicking another creature switches to it.
 
 ### Combat and skills
 
@@ -94,6 +94,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Parties live at `adventure/live/parties/<pid>` (`lead`, members `m`, and while delving `dv`, `hits`, `c`), with invites at `parties/_inv/<player id>`; all on the one live feed (`liveFeed('parties')`). Up to 4 players. Presence carries `cb` (combat level) and `pt` (party id).
 - Party frames (`renderPartyFrames`) show each member's name, combat level and health; tapping a member with a bandage heals them.
 - **Party delve:** whoever opens the cellar with party members nearby leads it. The leader's game runs the waves, targets and movement and shares them in `dv` (`mons`, `wave`, `next` in server time); everyone else's game shows copies (`m.ghost`) and posts its blows to `hits` for the leader to count. Each player's own game rolls the blows of the creatures targeting them. If the leader falls or leaves, the next player still down takes over.
+- **Threat:** the leader counts each player's damage on each creature (`threat`, `m.dmgBy`), and a creature goes for whoever has hurt it most, turning only when someone overtakes its target (`topThreat`). Only that target's game rolls its blows; anyone else hitting it is safe.
 - Creatures get `1 + 0.6 × (players - 1)` times their health (`m.maxHp`). No per-creature drops in a party; rewards come from the chest.
 - Anyone who falls or flees is out for good (their own 25% coins and delve XP penalty). **No carrying:** at the end, a survivor needs damage plus healing of at least half an even share of the party's total, or they get no reward.
 - Other players are only visible when you're in the same world (`sameWorld`): both up top, or both in the same party's cellar.
