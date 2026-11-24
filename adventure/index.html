@@ -3858,7 +3858,7 @@ function makeFarmMonster(kind){
     P(head, geo('cowHead', () => new THREE.BoxGeometry(0.62, 0.62, 0.72)), 0xf0eee8, 0, 0, 0.1);
     P(head, geo('cowCrown', () => new THREE.BoxGeometry(0.64, 0.24, 0.5)), 0x1e1c1a, 0, 0.22, -0.02, false);
     P(head, geo('cowMuzzle', () => new THREE.BoxGeometry(0.5, 0.34, 0.24)), 0xf0a8a8, 0, -0.16, 0.52);
-    for (const s of [-1, 1]) { P(head, gRound(0.04, 6), 0x5a2a2a, s * 0.1, -0.12, 0.65, false); P(head, gRound(0.05, 6), 0x15110d, s * 0.25, 0.08, 0.38, false);
+    for (const s of [-1, 1]) { P(head, gRound(0.04, 6), 0x5a2a2a, s * 0.1, -0.12, 0.65, false); P(head, gRound(0.085, 10), 0x15110d, s * 0.17, 0.1, 0.45, false).scale.set(1, 1.15, 0.6); const gl = new THREE.Mesh(gRound(0.028, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); gl.position.set(s * 0.17 + 0.025, 0.14, 0.5); head.add(gl);   /* big shiny eyes on the face (they used to sit hidden inside the head) */
       const horn = P(head, geo('cowHorn', () => new THREE.ConeGeometry(0.06, 0.28, 6)), 0xe8dcb0, s * 0.28, 0.42, 0); horn.rotation.z = -s * 0.6;
       P(head, gRound(0.12, 8), 0x1e1c1a, s * 0.4, 0.18, -0.12, false).scale.set(1.4, 0.6, 0.5); }
     P(body, gRound(0.26, 10), 0xf0a0a8, 0, 0.72, -0.45).scale.set(1, 0.7, 1);
@@ -4052,7 +4052,7 @@ function killMonster(m){
   endFight();
 }
 function playerDies(){
-  if (DELVE) { endFight(); delveFailed(); return; }
+  if (DELVE && !DELVE.done) { endFight(); delveFailed(false); return; }
   endFight(); showToast('Oh dear, you are dead! You wake up in the hall.');
   if (EV.seat >= 0) standUp();
   dropOnDeath();
@@ -4399,13 +4399,13 @@ function delveAsk(html, yes, onYes, no = 'Not yet'){
 }
 function delveExitSpot(){ return { x: RUIN.cellar.x, z: RUIN.cellar.z + 2.7 }; }
 function askDelve(){
-  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Defeat 8 grueling waves using only what's in your bag!<br><br>If defeated, you lose 25% of your coins.<br><br>Do you accept?</div>`, 'Accept', startDelve, 'Cancel');
+  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Defeat 8 grueling waves using only what's in your bag!<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Do you accept?</div>`, 'Accept', startDelve, 'Cancel');
 }
 function startDelve(){
   buildDelveArena(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(DELVE_C.x, 0, DELVE_C.z - DELVE_C.pit + 2); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = 0;
-  DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false };
+  DELVE = { wave: -1, mons: [], next: performance.now() + 4000, done: false, startXp: { m: SKILL_XP.Melee, h: SKILL_XP.Hitpoints } };   /* combat XP from the waves is only kept if you win */
   showToast('You climb down into the dark. Something stirs behind the gates...'); addSystemLine('The Cellar: survive eight waves. The ladder behind you leads back up.');
   writePresence(true);
 }
@@ -4428,7 +4428,7 @@ function delveLadder(){
   if (!DELVE) return;
   if (DELVE.done && DELVE.chest && !DELVE.chest.opened) { delveAsk("You haven't opened the reward chest yet. Leave it behind?", 'Leave it', () => leaveDelve('You climb back up, leaving the chest unopened.'), 'Go back'); return; }
   if (DELVE.done) { leaveDelve('You climb back up into the daylight, your pack heavier than before.'); return; }
-  delveAsk('Climb out of the cellar now? You keep your coins, but you get no reward for the waves you have beaten.', 'Climb out', () => leaveDelve('You scramble up the ladder and slam the doors behind you.'), 'Keep fighting');
+  delveAsk('<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; FLEEING THE CHALLENGE &#9888;&#65039;</div><div style="text-align:center">Fleeing counts as a defeat! You will lose 25% of your coins and all delve XP.<br><br>Are you sure you want to flee?</div>', 'Flee', () => delveFailed(true), 'Keep fighting');
 }
 // a monster you aren't fighting still gets its blows in
 function sideSwing(m){
@@ -4444,10 +4444,14 @@ function sideSwing(m){
     if (HP.cur <= 0) playerDies();
   }, 480);
 }
-function delveFailed(){
-  const lost = Math.floor(COINS * 0.25); COINS -= lost; renderBag();
-  leaveDelve(); HP.cur = maxHp(); renderStats();
-  showToast(lost > 0 ? `You black out... and wake up by the cellar doors, ${lost} coins lighter.` : 'You black out... and wake up by the cellar doors.');
+function delveFailed(fled){
+  const lost = Math.floor(COINS * 0.25); COINS -= lost;
+  const sx = DELVE.startXp, lm = Math.max(0, SKILL_XP.Melee - sx.m), lh = Math.max(0, SKILL_XP.Hitpoints - sx.h);
+  SKILL_XP.Melee = Math.min(SKILL_XP.Melee, sx.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, sx.h);
+  renderBag(); leaveDelve(); HP.cur = maxHp(); renderStats();
+  const xpBits = [lm && `${lm.toLocaleString()} Melee XP`, lh && `${lh.toLocaleString()} Hitpoints XP`].filter(Boolean);
+  showToast(`${fled ? 'You flee the cellar.' : 'You black out... and wake up by the cellar doors.'} You lost ${lost.toLocaleString()} coins${xpBits.length ? ' and ' + xpBits.join(' and ') : ''}.`);
+  addSystemLine(`Cellar challenge failed: -${lost.toLocaleString()} coins${xpBits.map(b => ', -' + b).join('')}.`);
 }
 function delveWon(){
   clearDelveMonsters(); DELVE.done = true; DELVE.mons = [];
@@ -4826,7 +4830,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, pos: hero ? (DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t })), wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, pos: hero ? (DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -4857,6 +4861,11 @@ function applySave(d){
   if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0 }); });   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
   for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? d.tb[k] : null;
+  if (d && d.dv && typeof d.dv.m === 'number' && !DELVE) {   /* you left mid-delve: that counts as fleeing */
+    const lost = Math.floor(COINS * 0.25); COINS -= lost; const lm = Math.max(0, SKILL_XP.Melee - d.dv.m), lh = Math.max(0, SKILL_XP.Hitpoints - d.dv.h);
+    SKILL_XP.Melee = Math.min(SKILL_XP.Melee, d.dv.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, d.dv.h);
+    setTimeout(() => { addSystemLine(`You left the cellar mid-challenge, which counts as fleeing: -${lost.toLocaleString()} coins${lm ? ', -' + lm.toLocaleString() + ' Melee XP' : ''}${lh ? ', -' + lh.toLocaleString() + ' Hitpoints XP' : ''}.`); renderBag(); renderStats(); saveNow(false); }, 1500);
+  }
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
