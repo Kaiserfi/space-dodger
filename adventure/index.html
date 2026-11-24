@@ -2387,7 +2387,7 @@ function addCape(fig){
 // the sword, dagger and shield the hero wears, from the Gear tab
 let guardTex = null;
 function dressChibi(g, eq){
-  const c = g.userData.chibi; c.gear.clear();
+  const c = g.userData.chibi; c.gear.clear(); c.weapon = null;
   if (!c.cloak) { c.cloak = new THREE.Group(); c.body.add(c.cloak); }
   c.cloak.clear(); if (eq.back === "Villager's cloak") addCape(g);
   for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
@@ -2433,14 +2433,16 @@ function dressChibi(g, eq){
     A(l, geo('bootToe', () => new THREE.SphereGeometry(0.09, 10, 8)), BL, 0, -0.52, 0.3, false).scale.set(1.2, 0.7, 0.8);
   }
   if (eq.weapon) {   // a full-size blade held angled down and forward; the dagger is the same, shorter
-    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -0.75; c.arms[1].add(w);
+    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -1.15; c.arms[1].add(w); c.weapon = w;   /* angled forward enough that the point clears the ground when you stand */
     use(eq.weapon); const blade = pal(eq.weapon)[3];
     const len = eq.weapon.endsWith('sword') ? 1.15 : 0.6;
     chibiPart(w, geo('swGrip', () => new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8)), 0x4a2e16, 0, 0.05, 0);
     chibiPart(w, geo('swPommel', () => new THREE.SphereGeometry(0.07, 8, 6)), BL, 0, 0.22, 0, false);
     chibiPart(w, geo('swGuard' + len, () => new THREE.BoxGeometry(len > 1 ? 0.5 : 0.34, 0.08, 0.12)), BD, 0, -0.13, 0);
     chibiPart(w, geo('swBlade' + len, () => new THREE.BoxGeometry(len > 1 ? 0.16 : 0.13, len, 0.04)), blade, 0, -0.17 - len / 2, 0);
-    chibiPart(w, geo('swTip' + len, () => new THREE.ConeGeometry(len > 1 ? 0.113 : 0.092, 0.2, 4)), blade, 0, -0.27 - len, 0).rotation.set(Math.PI, Math.PI / 4, 0);
+    chibiPart(w, geo('swTip2' + len, () => {   /* a flat, sharp point: exactly the blade's width and thickness, tapering to an edge */
+      const hw = (len > 1 ? 0.16 : 0.13) / 2, sh = new THREE.Shape(); sh.moveTo(-hw, 0); sh.lineTo(hw, 0); sh.lineTo(0, -0.26); sh.closePath();
+      return new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: false }).translate(0, 0, -0.02); }), blade, 0, -0.17 - len, 0);
     chibiPart(w, geo('swFuller' + len, () => new THREE.BoxGeometry(0.03, len * 0.85, 0.05)), BL, 0, -0.17 - len / 2, 0, false);
   }
   c.torch = null;
@@ -3980,9 +3982,12 @@ function endFight(msg){
 function fightPose(c, kind, k){
   const [AL, AR] = c.arms;
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2); c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0); c.legs.forEach(l => l.rotation.set(0, 0, 0));
+  if (c.weapon) { c.weapon.rotation.x = -1.15; c.weapon.rotation.z = 0; }
   if (kind === 'swing') {
     const a = k < 0.45 ? lerp(-0.4, -2.9, ease(k / 0.45)) : k < 0.6 ? lerp(-2.9, -0.6, (k - 0.45) / 0.15) : lerp(-0.6, -0.4, (k - 0.6) / 0.4);
-    AR.rotation.set(a, 0, 0.05); c.body.rotation.x = k < 0.45 ? -0.12 * ease(k / 0.45) : (k < 0.75 ? 0.2 : 0.2 * (1 - (k - 0.75) / 0.25)); c.legs[0].rotation.x = -0.35;
+    AR.rotation.set(a, 0, 0.05);
+    if (c.weapon) { const up = Math.max(0, Math.min(1, (-a - 0.6) / 2.0)); c.weapon.rotation.x = lerp(-1.15, 0.8, up); c.weapon.rotation.z = 0.8 * up; }   /* as the arm rises the blade lifts in line with it and tips out to the side, clear of the big head */
+    c.body.rotation.x = k < 0.45 ? -0.12 * ease(k / 0.45) : (k < 0.75 ? 0.2 : 0.2 * (1 - (k - 0.75) / 0.25)); c.legs[0].rotation.x = -0.35;
   } else if (kind === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); AL.rotation.set(-1.45 * b, 0.5 * b, -0.2 + 0.3 * b); c.body.rotation.x = 0.06 * b; c.legs[1].rotation.x = 0.3 * b; }
   else if (kind === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); c.body.rotation.x = -0.3 * b; c.head.rotation.z = 0.2 * b; AL.rotation.set(0.4 * b, 0, -0.2 - 0.4 * b); AR.rotation.set(0.4 * b, 0, 0.2 + 0.4 * b); }
   else if (kind === 'eat') eatPose(c, k);
