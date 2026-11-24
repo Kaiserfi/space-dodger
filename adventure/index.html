@@ -3740,7 +3740,7 @@ function makeFarmMonster(kind){
     P(head, geo('henBeak', () => new THREE.ConeGeometry(0.07, 0.2, 6)), 0xf0b030, 0, -0.02, 0.27).rotation.x = Math.PI / 2;
     P(head, gRound(0.06, 8), 0xc81e22, 0, -0.14, 0.18, false).scale.set(0.8, 1.4, 0.8);
     for (const s of [-1, 1]) P(head, gRound(0.035, 6), 0x15110d, s * 0.17, 0.05, 0.13, false);
-    parts.legs = [-1, 1].map(s => { const l = new THREE.Group(); l.position.set(s * 0.16, 0.42, 0); g.add(l); P(l, geo('henLeg', () => new THREE.CylinderGeometry(0.035, 0.035, 0.38, 5)), 0xe8b030, 0, -0.2, 0);
+    parts.legs = [-1, 1].map(s => { const l = new THREE.Group(); l.position.set(s * 0.16, 0.42, 0); body.add(l); P(l, geo('henLeg', () => new THREE.CylinderGeometry(0.035, 0.035, 0.38, 5)), 0xe8b030, 0, -0.2, 0);
       for (const a of [-0.5, 0, 0.5]) { const t = P(l, geo('henToe', () => new THREE.BoxGeometry(0.04, 0.03, 0.16)), 0xe8b030, Math.sin(a) * 0.06, -0.4, 0.06, false); t.rotation.y = a; } return l; });
     pose = (mode, k, now) => { const H = parts.head, [WL, WR] = parts.wings, [LL, LR] = parts.legs;
       body.rotation.set(0, 0, 0); body.position.y = 0; H.rotation.set(0, 0, 0); H.position.set(0, 1.12, 0.42); WL.rotation.z = WR.rotation.z = 0; LL.rotation.x = LR.rotation.x = 0;
@@ -3748,7 +3748,7 @@ function makeFarmMonster(kind){
       else if (mode === 'swing') { const p = k < 0.45 ? k / 0.45 : 1 - (k - 0.45) / 0.55; H.position.set(0, 1.12 - 0.35 * p, 0.42 + 0.35 * p); H.rotation.x = 0.9 * p; body.rotation.x = 0.25 * p; WL.rotation.z = -1.1 * Math.sin(k * Math.PI * 3); WR.rotation.z = 1.1 * Math.sin(k * Math.PI * 3); }   // a sharp peck, wings beating
       else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.x = -0.35 * b; WL.rotation.z = -1.3 * b; WR.rotation.z = 1.3 * b; }
       else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.y = 0.25 * b; WL.rotation.z = -0.9 * b; WR.rotation.z = 0.9 * b; }   // a startled hop
-      else if (mode === 'dead') { body.rotation.z = 1.4 * k; body.position.y = -0.25 * k; }
+      else if (mode === 'dead') { body.rotation.z = 1.4 * k; body.position.y = 0.2 * k; }
       else if (mode === 'ready') { H.rotation.x = -0.2 + Math.sin(now * 6) * 0.1; WL.rotation.z = -0.3; WR.rotation.z = 0.3; }
       else { const peck = (now % 4) < 0.5 ? Math.sin((now % 4) / 0.5 * Math.PI) : 0; H.rotation.x = peck * 0.8; H.position.z = 0.42 + peck * 0.1; } };   // pecking at the ground now and then
     g.scale.setScalar(1.1);
@@ -3768,7 +3768,7 @@ function makeFarmMonster(kind){
     for (const [x, z] of [[-0.1, -0.38], [0.1, -0.38], [-0.1, -0.55], [0.1, -0.55]]) P(body, geo('teat', () => new THREE.CylinderGeometry(0.03, 0.025, 0.14, 5)), 0xe88a96, x, 0.55, z, false);
     const tail = new THREE.Group(); tail.position.set(0, 1.6, -1.25); body.add(tail); parts.tail = tail;
     P(tail, geo('cowTail', () => new THREE.CylinderGeometry(0.03, 0.04, 0.9, 5)), 0xf0eee8, 0, -0.45, -0.05); P(tail, gRound(0.09, 8), 0x1e1c1a, 0, -0.92, -0.05, false).scale.set(1, 1.6, 1);
-    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.36, 0.85, sz * 0.75); g.add(l);
+    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.36, 0.85, sz * 0.75); body.add(l);
       P(l, geo('cowLeg', () => new THREE.CylinderGeometry(0.13, 0.11, 0.8, 7)), 0xf0eee8, 0, -0.4, 0); P(l, geo('hoof', () => new THREE.CylinderGeometry(0.12, 0.13, 0.12, 7)), 0x2a2420, 0, -0.82, 0); parts.legs.push(l); }
     pose = (mode, k, now) => { const H = parts.head, L = parts.legs;
       body.rotation.set(0, 0, 0); body.position.set(0, 0, 0); H.rotation.set(0, 0, 0); L.forEach(l => l.rotation.x = 0); parts.tail.rotation.x = Math.sin(now * 2) * 0.3;
@@ -3777,7 +3777,7 @@ function makeFarmMonster(kind){
         H.rotation.x = 0.55 * lower * back; body.position.z = 0.6 * hit - 0.15 * (k < 0.35 ? lower : 0); body.rotation.x = 0.08 * hit; }   // head down, then a charging butt
       else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.x = -0.12 * b; H.rotation.x = -0.4 * b; }
       else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.rotation.z = 0.08 * b; }
-      else if (mode === 'dead') { body.rotation.z = 1.35 * k; body.position.y = -0.4 * k; L.forEach(l => l.rotation.z = 1.2 * k); }
+      else if (mode === 'dead') { body.rotation.z = 1.35 * k; body.position.y = 0.35 * k; L.forEach((l, i) => l.rotation.x = (i % 2 ? 0.25 : -0.25) * k); }   // keeled over, stiff legs splayed a little
       else if (mode === 'ready') { H.rotation.x = 0.3; L[0].rotation.x = Math.max(0, Math.sin(now * 5)) * -0.4; }   // head lowered, pawing the ground
       else { H.rotation.x = 0.35 + Math.sin(now * 0.8) * 0.15; } };   // grazing
     g.scale.setScalar(1.05);
@@ -3796,7 +3796,7 @@ function makeFarmMonster(kind){
       P(head, gRound(0.12, 8), 0xc8807a, s * 0.22, 0.26, -0.05).scale.set(1, 1, 0.4); }
     const tail = new THREE.Group(); tail.position.set(0, 0.55, -0.82); body.add(tail); parts.tailSegs = [];
     let prev = tail; for (let i = 0; i < 8; i++) { const sg = new THREE.Group(); sg.position.z = i ? -0.22 : 0; prev.add(sg); P(sg, gCapsule(0.06 - i * 0.005, 0.18), 0xc8807a, 0, 0, -0.11).rotation.x = Math.PI / 2; parts.tailSegs.push(sg); prev = sg; }
-    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.35, 0.35, sz * 0.5); g.add(l);
+    parts.legs = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Group(); l.position.set(sx * 0.35, 0.35, sz * 0.5); body.add(l);
       P(l, geo('ratLeg', () => new THREE.CylinderGeometry(0.07, 0.06, 0.34, 6)), 0x3e3e44, 0, -0.15, 0); P(l, geo('ratPaw', () => new THREE.BoxGeometry(0.12, 0.05, 0.16)), 0xc8807a, 0, -0.32, 0.05, false); parts.legs.push(l); }
     pose = (mode, k, now) => { const H = parts.head, L = parts.legs;
       body.rotation.set(0, 0, 0); body.position.set(0, 0, 0); H.rotation.set(0, 0, 0); parts.jaw.rotation.x = 0; L.forEach(l => l.rotation.x = 0);
@@ -3806,7 +3806,7 @@ function makeFarmMonster(kind){
         body.position.z = -0.25 * wind + 0.7 * lunge; body.rotation.x = -0.15 * wind + 0.15 * lunge; parts.jaw.rotation.x = 0.7 * Math.max(wind, lunge); H.rotation.x = -0.2 * wind; }   // crouch back, then lunge and snap
       else if (mode === 'hurt') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.z = -0.25 * b; parts.jaw.rotation.x = 0.4 * b; }
       else if (mode === 'block') { const b = Math.sin(Math.min(1, k) * Math.PI); body.position.x = 0.3 * b; }
-      else if (mode === 'dead') { body.rotation.z = 1.5 * k; body.position.y = -0.2 * k; L.forEach(l => l.rotation.z = 1.3 * k); }
+      else if (mode === 'dead') { body.rotation.z = 1.5 * k; body.position.y = 0.25 * k; L.forEach((l, i) => l.rotation.x = (i % 2 ? 0.3 : -0.3) * k); }
       else if (mode === 'ready') { parts.jaw.rotation.x = 0.35 + Math.sin(now * 9) * 0.1; body.position.y = Math.sin(now * 5) * 0.03; }   // teeth bared, twitching
       else { H.rotation.y = Math.sin(now * 1.3) * 0.35; H.rotation.x = Math.sin(now * 7) * 0.05; } };   // sniffing about
     g.scale.setScalar(1.15);
