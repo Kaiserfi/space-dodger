@@ -5104,6 +5104,41 @@ else openCreator();
 
 // ----- online: the village is shared. Players, trees and rocks, and progress are kept in the database -----
 const DB = 'https://space-dodger-1a558-default-rtdb.firebaseio.com';
+// ----- signing in: every browser gets its own invisible Firebase account (anonymous sign-in), so the database rules can say
+// "only you can change your own save". With no key here it stays off and the game works as before.
+const FB_KEY = 'AIzaSyANcegZrOyf1O03SbLMBQVTGRJXuNIKLPA';   /* public by design: it only names the project */
+const AUTH = { token: '', uid: '', rt: '', at: 0 };
+{ const plain = window.fetch.bind(window);   /* every database request carries the sign-in */
+  window.fetch = (u, o) => plain(typeof u === 'string' && AUTH.token && u.startsWith(DB) ? u + (u.includes('?') ? '&' : '?') + 'auth=' + AUTH.token : u, o); }
+async function authRefresh(){
+  const res = await fetch('https://securetoken.googleapis.com/v1/token?key=' + FB_KEY, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(AUTH.rt) });
+  if (!res.ok) throw new Error('refresh ' + res.status);
+  const d = await res.json(); AUTH.token = d.id_token; AUTH.rt = d.refresh_token; AUTH.uid = d.user_id; AUTH.at = Date.now();
+}
+async function signIn(){
+  if (!FB_KEY) return false;
+  try { const s0 = JSON.parse(localStorage.getItem('itapAuth') || 'null'); if (s0 && s0.rt) { AUTH.rt = s0.rt; await authRefresh(); } } catch (e) { AUTH.rt = ''; AUTH.token = ''; }
+  if (!AUTH.token) try {
+    const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FB_KEY, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }) });
+    if (!res.ok) return false;
+    const d = await res.json(); AUTH.token = d.idToken; AUTH.rt = d.refreshToken; AUTH.uid = d.localId; AUTH.at = Date.now();
+  } catch (e) { return false; }
+  try { localStorage.setItem('itapAuth', JSON.stringify({ rt: AUTH.rt, uid: AUTH.uid })); } catch (e) {}
+  // the sign-in lasts an hour: renew it well before then, and reopen the live stream with the new one
+  setInterval(() => authRefresh().then(() => { try { localStorage.setItem('itapAuth', JSON.stringify({ rt: AUTH.rt, uid: AUTH.uid })); } catch (e) {} if (LIVE.es) { LIVE.es.close(); LIVE.es = null; startLive(); } }).catch(() => {}), 45 * 60000);
+  return true;
+}
+// a player from before sign-ins: their save moves to their new account once. The claim stops anyone else taking it.
+async function moveOldSave(oldId){
+  if (!oldId || oldId === AUTH.uid) return true;
+  try {
+    const mine = await fetch(`${DB}/adventure/saves/${AUTH.uid}.json`); if (!mine.ok) return false; if (await mine.json()) return true;   // already moved
+    const claim = await fetch(`${DB}/adventure/claimed/${oldId}.json`, { method: 'PUT', body: JSON.stringify(AUTH.uid) });
+    if (!claim.ok) { const who = await (await fetch(`${DB}/adventure/claimed/${oldId}.json`)).json(); if (!who) return false; if (who !== AUTH.uid) { showToast("Your old progress couldn't be moved to this browser."); return true; } }
+    const old = await (await fetch(`${DB}/adventure/saves/${oldId}.json`)).json(); if (!old) return true;
+    return (await fetch(`${DB}/adventure/saves/${AUTH.uid}.json`, { method: 'PUT', body: JSON.stringify(old) })).ok;
+  } catch (e) { return false; }
+}
 const REGROW_MS = 25000;   // a shared tree or rock comes back after this long
 const ONLINE = { ok: false, id: '', name: '', ready: false, nodes: {}, chatK: 0, sig: '', lastWrite: 0, saveJson: '', lastSave: 0 };
 const remote = {};   // the other players on screen
@@ -5165,9 +5200,12 @@ async function enterVillage(name){
   ONLINE.name = name;
   try { localStorage.setItem('itapName', name); } catch (e) {}
   let id = ''; try { id = localStorage.getItem('itapId') || ''; } catch (e) {}
+  setStatus('Joining...');
+  if (await signIn()) {   // from now on you're your account; the old id is kept until its save has moved
+    let moved = false; try { if (id && id !== AUTH.uid) localStorage.setItem('itapOld', id); moved = await moveOldSave(localStorage.getItem('itapOld')); if (moved) localStorage.removeItem('itapOld'); } catch (e) {}
+    if (moved) { id = AUTH.uid; try { localStorage.setItem('itapId', id); } catch (e) {} } }   /* if the move failed, play on the old save and try again next time */
   if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem('itapId', id); } catch (e) {} }
   ONLINE.id = id;
-  setStatus('Joining...');
   try { const r = await fetch(`${DB}/adventure/saves/${id}.json`); applySave(await r.json()); } catch (e) {}
   ONLINE.saveJson = JSON.stringify(currentSave());
   cleanStalePlayers();
@@ -6695,7 +6733,8 @@ function liveFeed(part){
 function liveSend(part, type, path, data){ const sub = LIVE.subs[part]; if (!sub) return; const e = { data: JSON.stringify({ path, data }) }; for (const fn of sub[type]) { try { fn(e); } catch (err) { console.error(err); } } }
 function startLive(){
   if (LIVE.es) return;
-  LIVE.es = new EventSource(DB + '/adventure/live.json');
+  LIVE.es = new EventSource(DB + '/adventure/live.json' + (AUTH.token ? '?auth=' + AUTH.token : ''));
+  LIVE.es.addEventListener('auth_revoked', () => authRefresh().then(() => { LIVE.es.close(); LIVE.es = null; startLive(); }).catch(() => {}));   /* the sign-in ran out: renew it and reconnect */
   LIVE.es.addEventListener('put', e => { const d = JSON.parse(e.data), parts = d.path.split('/').filter(Boolean);
     if (!parts.length) { for (const part in LIVE.subs) liveSend(part, 'put', '/', d.data ? (d.data[part] ?? null) : null); return; }   // the whole snapshot: everyone gets their share
     liveSend(parts[0], 'put', '/' + parts.slice(1).join('/'), d.data); });
