@@ -258,7 +258,7 @@
     <button id="questDoneBtn">Continue</button>
   </div>
 </div>
-<div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:nowrap"></div>
+<div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:normal;width:max-content;max-width:min(560px, calc(100vw - 32px));box-sizing:border-box;text-align:center;line-height:1.35"></div>
 <button id="lookBtn">Change look</button>
 <div id="creator" hidden>
   <div class="crBox">
@@ -1303,7 +1303,7 @@ const felledTrees = [];           // { rec, wait } for trees waiting to grow bac
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.style.display = 'block';
-  clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { t.style.display = 'none'; }, 2400);
+  clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { t.style.display = 'none'; }, Math.max(2400, Math.min(9000, 1200 + String(msg).length * 45)));   /* longer messages stay up longer */
 }
 function addXp(skill, amt){
   const before = levelOf(SKILL_XP[skill]);
