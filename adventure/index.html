@@ -5888,8 +5888,10 @@ function inviteToParty(id){
   let pid = PARTY.id;
   if (!pid) { pid = 'p' + ONLINE.id.slice(0, 6) + Date.now().toString(36); pput(partyPath(pid), { lead: ONLINE.id, m: { [ONLINE.id]: { n: ONLINE.name } } }); PARTY.id = pid; writePresence(true); }
   else if (Object.keys(PARTY.d && PARTY.d.m || {}).length >= PARTY_MAX) { showToast('Your party is full.'); return; }
-  pput(`${DB}/adventure/live/parties/_inv/${id}.json`, { pid, by: ONLINE.name, t: SNOW() });
-  showToast(`You invite ${r.name} to your party.`);
+  // only say it's sent once the database has taken it, so a refused write isn't passed off as an invite
+  fetch(`${DB}/adventure/live/parties/_inv/${id}.json`, { method: 'PUT', body: JSON.stringify({ pid, by: ONLINE.name, t: SNOW() }) })
+    .then(res => showToast(res.ok ? `You invite ${r.name} to your party.` : "Your invite couldn't be sent. Try again in a moment."))
+    .catch(() => showToast("Your invite couldn't be sent. Try again in a moment."));
 }
 function joinParty(inv){
   const d = PT[inv.pid]; if (!d) { showToast('That party has broken up.'); return; }
