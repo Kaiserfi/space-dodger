@@ -1662,11 +1662,35 @@ function startMusic(){
   MUSIC.nextTime = ctx.currentTime + 0.1;
   MUSIC.timer = setInterval(musicTick, 150);
 }
+// fight music, from Idle Tap Adventure: the battle theme in a fight, the boss theme in the goblin raid (and, later, the delves).
+// The calm village music fades out underneath while a theme plays, and back in a few seconds after the fighting stops.
+const FIGHT_MUSIC = { el: {}, want: null, lastFight: -1e9, quietSince: 0 };
+function fightTrack(name){
+  let a = FIGHT_MUSIC.el[name];
+  if (!a) { a = FIGHT_MUSIC.el[name] = new Audio(`music/${name}.mp3`); a.loop = true; a.preload = 'auto'; a.volume = 0; }
+  return a;
+}
+function updateFightMusic(){
+  const now = performance.now();
+  if (FIGHT) FIGHT_MUSIC.lastFight = now;
+  const st = typeof EV !== 'undefined' && EV.data && EV.data.raid && EV.data.raid.st;
+  const raid = typeof evActive === 'function' && evActive() && (st === 'rush' || st === 'lost' || evPhase() === 'creep') && hero && Math.hypot(hero.position.x - BF.x, hero.position.z - BF.z) < 40;
+  const want = raid ? 'boss_battle_theme' : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
+  const level = musicLevel(); FIGHT_MUSIC.want = want;
+  for (const name of ['battle_theme', 'boss_battle_theme']) {
+    const on = want === name, a = on ? fightTrack(name) : FIGHT_MUSIC.el[name]; if (!a) continue;
+    const target = on ? level * 0.8 : 0;
+    a.volume = Math.max(0, Math.min(1, a.volume + Math.sign(target - a.volume) * Math.min(Math.abs(target - a.volume), 0.02)));   // a gentle fade either way
+    if (on && a.paused) { if (now - (a.stoppedAt || 0) > 30000) a.currentTime = 0; a.play().catch(() => {}); }   // back after a long break: start from the top
+    if (!on && !a.paused && a.volume <= 0.001) { a.pause(); a.stoppedAt = now; }
+  }
+  if (MUSIC.master) { const g = MUSIC.master.gain, t = want ? 0 : level; g.value = g.value + (t - g.value) * 0.05; }   // the village music ducks out of the way
+}
 const SPEAKER = muted => `<svg viewBox="0 0 16 16"><path d="M2 6h3l4-3v10l-4-3H2z" fill="#c9b27a"/>${muted
   ? '<path d="M11 5.5l4 5M15 5.5l-4 5" stroke="#d64b3c" stroke-width="1.6"/>'
   : '<path d="M11 5.5q2 2.5 0 5M12.8 3.8q3.5 4.2 0 8.4" fill="none" stroke="#c9b27a" stroke-width="1.3"/>'}</svg>`;
 function applySettings(){
-  if (MUSIC.master) MUSIC.master.gain.value = musicLevel();
+  if (MUSIC.master && !FIGHT_MUSIC.want) MUSIC.master.gain.value = musicLevel();
   if (audioCtx) sfxOut(audioCtx);
   for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
     const m = SETTINGS[k + 'Mute'], b = document.getElementById('mute' + id);
@@ -4714,6 +4738,7 @@ function frame(){
   updateDayNight();
   updateHall();
   updateFight();
+  updateFightMusic();
   updateBonfire();
   growCrops();
   updateCellar();
