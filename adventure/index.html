@@ -4440,13 +4440,31 @@ function spawnDelveChest(){
   const wood = texMat(woodTex(), 1, 1, 0xc08850), band = mat(0x55555c), gold = mat(0xe2b84c);
   wood.emissive = new THREE.Color(0x2a1808); gold.emissive = new THREE.Color(0x5a3a08);   /* a little glow of its own, so it reads in the dark pit */
   const add = (geo, m, x, y, z, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
-  add(new THREE.BoxGeometry(1.6, 0.9, 1.0), wood, 0, 0.45, 0);
-  for (const x of [-0.6, 0.6]) add(new THREE.BoxGeometry(0.12, 0.94, 1.04), band, x, 0.45, 0);
-  const glow = add(new THREE.BoxGeometry(1.4, 0.05, 0.8), new THREE.MeshBasicMaterial({ color: 0xffd060 }), 0, 0.88, 0); glow.visible = false;
-  const lid = new THREE.Group(); lid.position.set(0, 0.9, -0.5); g.add(lid);   // hinged at the back
-  add(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), wood, 0, 0, 0.5, lid);
-  for (const x of [-0.6, 0.6]) add(new THREE.CylinderGeometry(0.53, 0.53, 0.12, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), band, x, 0, 0.5, lid);
-  add(new THREE.BoxGeometry(0.22, 0.3, 0.08), gold, 0, -0.1, 1.02, lid);   // the clasp
+  // a hollow box: floor and four walls, so there is a real inside
+  const inner = mat(0x3a2414), T = 0.08, W = 1.6, D = 1.0, H = 0.9;
+  add(new THREE.BoxGeometry(W, T, D), wood, 0, T / 2, 0);
+  for (const z of [-1, 1]) add(new THREE.BoxGeometry(W, H, T), wood, 0, H / 2, z * (D - T) / 2);
+  for (const x of [-1, 1]) add(new THREE.BoxGeometry(T, H, D - 2 * T), wood, x * (W - T) / 2, H / 2, 0);
+  add(new THREE.BoxGeometry(W - 2 * T, 0.02, D - 2 * T), inner, 0, T + 0.01, 0);
+  // iron bands round the outside walls only, never across the opening
+  for (const x of [-0.55, 0.55]) { for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.12, H - 0.04, 0.03), band, x, (H - 0.04) / 2, z * (D / 2 + 0.015)); add(new THREE.BoxGeometry(0.12, 0.03, D + 0.06), band, x, 0.015, 0); }
+  add(new THREE.BoxGeometry(0.22, 0.12, 0.05), gold, 0, H - 0.08, D / 2 + 0.03);   // the catch on the front
+  // the treasure: a heap of coins and a few gems, glowing softly once the lid is up
+  const glow = new THREE.Group(); g.add(glow); glow.visible = false;
+  const coinM = new THREE.MeshStandardMaterial({ color: 0xf0c040, emissive: 0x8a5a10, metalness: 0.6, roughness: 0.35, flatShading: true });
+  const heap = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), coinM); heap.scale.set(1.15, 0.45, 0.62); heap.position.y = 0.5; glow.add(heap);
+  let qq = 5; const rr = () => (qq = (qq * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 26; k++) { const c = new THREE.Mesh(geo('chestCoin', () => new THREE.CylinderGeometry(0.075, 0.075, 0.02, 10)), coinM); const a = rr() * 6.28, rad = rr() * 0.6;
+    c.position.set(Math.cos(a) * rad, 0.5 + 0.27 * (1 - rad / 0.6) * 1.0 + 0.02, Math.sin(a) * rad * 0.55); c.rotation.set(rr() * 0.8, rr() * 3, rr() * 0.8); glow.add(c); }
+  for (const [col, x, z] of [[0xd02040, -0.3, 0.1], [0x2060e0, 0.25, -0.12], [0x30c060, 0.05, 0.18]]) { const gm = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.4, metalness: 0.2, roughness: 0.2, flatShading: true })); gm.position.set(x, 0.74, z); glow.add(gm); }
+  // the domed lid, hinged at the back: a closed half-cylinder with end caps, seen from both sides
+  const lid = new THREE.Group(); lid.position.set(0, H, -D / 2); g.add(lid);
+  const lidWood = wood.clone(); lidWood.side = THREE.DoubleSide;
+  add(new THREE.CylinderGeometry(D / 2, D / 2, W, 14, 1, true, 0, Math.PI).rotateZ(Math.PI / 2), lidWood, 0, 0, D / 2, lid);
+  for (const x of [-1, 1]) { const cap = add(new THREE.CircleGeometry(D / 2, 14, 0, Math.PI), lidWood, x * W / 2, 0, D / 2, lid); cap.rotation.y = Math.PI / 2; }
+  add(new THREE.BoxGeometry(W - 0.04, 0.03, D - 0.04), inner, 0, 0.015, D / 2, lid);   // the underside, dark wood
+  for (const x of [-0.55, 0.55]) add(new THREE.CylinderGeometry(D / 2 + 0.02, D / 2 + 0.02, 0.12, 14, 1, true, 0, Math.PI).rotateZ(Math.PI / 2), Object.assign(band.clone(), { side: THREE.DoubleSide }), x, 0, D / 2, lid);
+  add(new THREE.BoxGeometry(0.2, 0.26, 0.05), gold, 0, 0.02, D + 0.03, lid);   // the clasp, hanging over the catch
   g.rotation.y = Math.PI;   // facing the ladder, where you come from
   g.scale.setScalar(0.01);
   const rec = { kind: 'chest', state: 'standing', x: cx, z: cz, s: 0.9, onClick: () => openDelveChest() };
