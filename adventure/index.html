@@ -1408,6 +1408,7 @@ function cancelChop(){
 // what you are doing right now, shared with the others (chop, mine, smelt, fish)
 function setAct(a){ ONLINE.act = a; writePresence(true); }
 function clickNode(rec){
+  if (rec.kind === 'npc' && rec.asleep) { showToast(`${rec.name} is fast asleep.`); return; }
   if (rec.onClick) { rec.onClick(rec); return; }   // the bonfire, its benches, raiders and gravestones handle their own clicks
   if (rec.state === 'felled') { showToast(`This ${rec.g && rec.g.userData ? rec.g.userData.name.toLowerCase() : 'node'} is gone for now. It will grow back soon.`); return; }
   if (rec.state === 'growing') { showToast('It is still growing back. Give it a moment.'); return; }
@@ -3318,7 +3319,7 @@ function buildBarracks(){
   floorAt(1.1, J1 - J0, B.x1 - 0.05, (J0 + J1) / 2); floorAt(D1 - D0, 0.7, (D0 + D1) / 2, B.z0 + 0.25);   /* exactly the gaps the main floors leave (x -26.6..-25.5, z 59.9..60.6), so nothing overlaps and flickers */   /* flagstones across both thresholds, so no ground shows in the doorways */
   // ----- inside the barracks -----
   // four bunk beds along the west wall: two decks each, green guard blankets, a chest at the foot
-  for (const z of [67, 71.5, 76, 80.5]) {   /* clear of the corner tower */ const x0 = B.x0 + t, x1 = x0 + 2.0, z0 = z - 1.8, z1 = z + 1.8;
+  for (const z of [67, 71.5, 76, 80.5]) {   /* clear of the corner tower */ const x0 = B.x0 + t, x1 = x0 + 2.0, z0 = z - 2.2, z1 = z + 2.2;   /* long enough for a guard to lie in */
     for (const [px, pz] of [[x0 + 0.15, z0 + 0.15], [x1 - 0.15, z0 + 0.15], [x0 + 0.15, z1 - 0.15], [x1 - 0.15, z1 - 0.15]]) box(M.dark, px - 0.15, px + 0.15, 0, 3.4, pz - 0.15, pz + 0.15);
     for (const y of [0.7, 2.5]) { box(M.wood, x0, x1, y, y + 0.2, z0, z1); box(M.green, x0 + 0.1, x1 - 0.1, y + 0.2, y + 0.42, z0 + 0.6, z1 - 0.1); box(M.straw, x0 + 0.2, x1 - 0.2, y + 0.2, y + 0.5, z0 + 0.15, z0 + 0.7); }
     box(M.wood, x1 + 0.2, x1 + 1.4, 0, 0.9, z - 0.6, z + 0.6); box(M.iron, x1 + 0.18, x1 + 1.42, 0.55, 0.65, z - 0.62, z + 0.62);
@@ -3847,12 +3848,53 @@ function guardWhere(w, h){
   const d = t < GUARD_REST ? 0 : t < GUARD_REST + leg ? (t - GUARD_REST) / leg * b.len : t < 2 * GUARD_REST + leg ? b.len : b.len * (1 - (t - 2 * GUARD_REST - leg) / leg);
   return beatPoint(b, d);
 }
+// ----- the guards' day: two on the day watch, two on the night watch. Each sleeps in their bunk at the barracks, eats at the
+// mess table, and walks the roads between there and their post. Everything comes from the clock, so every player sees the same.
+const GUARD_SHIFT = { Osric: 'day', Bertram: 'day', Edda: 'night', Godwin: 'night' };
+const GUARD_HOME = { Osric: { bunk: 67, seat: [-39.75, 72.4] }, Bertram: { bunk: 71.5, seat: [-36.25, 72.4] }, Edda: { bunk: 76, seat: [-39.75, 75] }, Godwin: { bunk: 80.5, seat: [-36.25, 75] } };
+// [hour, what they set off to do (a route), what they do once there]
+const GUARD_EVENTS = { day: [[0, 'sleep'], [6, 'bed2seat', 'eat'], [7.5, 'seat2post', 'duty'], [18.5, 'post2seat', 'eat'], [21, 'seat2bed', 'sleep']],
+  night: [[0, 'duty'], [6, 'post2seat', 'eat'], [7.5, 'seat2bed', 'sleep'], [16.5, 'bed2seat', 'eat'], [18, 'seat2post', 'duty']] };
+// their routes, worked out once at the start (all doors shut, the same for everyone): post to the barracks door to their seat, and seat to bunk
+function guardRoutes(w){
+  if (w.routes) return w.routes;
+  const H = GUARD_HOME[w.rec.name], V = (x, z) => new THREE.Vector3(x, 0, z);
+  const seat = H.seat, west = seat[0] < -38, sApp = [seat[0] + (west ? -1.6 : 1.6), seat[1]], bed = [-48.1, H.bunk], bApp = [-44.3, H.bunk];
+  const path = (a, b) => findPath(V(a[0], a[1]), V(b[0], b[1])).map(q => [q.x, q.z]);
+  const mk = pts => { const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return { pts, cum, len: cum[cum.length - 1] }; };
+  const toSeat = [...path([w.lx, w.lz], [-38, 56.4]), [-38, 62.6], ...path([-38, 62.6], sApp), seat], toBed = [seat, ...path(sApp, bApp), bed];
+  w.routes = { post2seat: mk(toSeat), seat2post: mk(toSeat.slice().reverse()), seat2bed: mk(toBed), bed2seat: mk(toBed.slice().reverse()), bed, seat, faceX: west ? 1 : -1 };
+  return w.routes;
+}
+function routeAt(r, d){ for (let i = 1; i < r.pts.length; i++) if (d <= r.cum[i] || i === r.pts.length - 1) { const k = Math.min(1, (d - r.cum[i - 1]) / ((r.cum[i] - r.cum[i - 1]) || 1)), a = r.pts[i - 1], b = r.pts[i]; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; } return r.pts[0]; }
+// what a guard is doing at this hour, and where
+function guardState(w, h){
+  const R = guardRoutes(w), ev = GUARD_EVENTS[GUARD_SHIFT[w.rec.name]]; let e = ev[0]; for (const x of ev) if (x[0] <= h) e = x;
+  let mode = e[2] || e[1];
+  if (e[2]) { const r = R[e[1]], d = (h - e[0]) * 3600 * GUARD_SPEED; if (d < r.len) return { mode: 'walk', at: routeAt(r, d), out: e[2] === 'duty' }; }
+  return mode === 'sleep' ? { mode, at: R.bed } : mode === 'eat' ? { mode, at: R.seat } : { mode: 'duty', at: guardWhere(w, h) };
+}
+let ZZZ_MAT = null;
+const GUARD_LIE = { y: 4.2, dz: 1.6 };   /* where a sleeping guard's figure goes, from their bunk's middle: up on the top deck, nudged towards the foot */
 function updateGuard(w, talker, dt){
-  const sp = w.sp, h = hourNow(), [tx, tz] = guardWhere(w, h), dx = tx - sp.position.x, dz = tz - sp.position.z, d = Math.hypot(dx, dz);
-  let moving = false;
-  if (!talker && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const st = Math.min(d, (d > 2 ? 3 : GUARD_SPEED) * dt); sp.position.x += dx / d * st; sp.position.z += dz / d * st; moving = true; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }   /* catching up after a chat, or walking the beat */
-  const dark = guardDark(h);
-  if (w.dark !== dark) { w.dark = dark; const gear = w.rec.gear; if (gear) dressChibi(sp, dark ? { ...gear, shield: 'Torch' } : gear); }   // a torch after dark instead of the shield
+  const sp = w.sp, h = hourNow(), st = guardState(w, h), [tx, tz] = st.at, c = sp.userData.chibi;
+  const asleep = st.mode === 'sleep', sitting = st.mode === 'eat';
+  w.rec.asleep = asleep;
+  if (w.lying) sp.position.z -= GUARD_LIE.dz;   // measure from where they really are, not from the lying-down offset
+  let dx = tx - sp.position.x, dz = tz - sp.position.z, d = Math.hypot(dx, dz), moving = false;
+  if (!(talker && !asleep) && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const sp2 = st.mode === 'walk' ? GUARD_SPEED * 1.15 : d > 2 ? 3 : GUARD_SPEED, step = Math.min(d, sp2 * dt); sp.position.x += dx / d * step; sp.position.z += dz / d * step; moving = d > 0.25; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }   /* walking their route, or catching up after a chat */
+  // what they wear: off duty the helmet, sword and shield go on the rack; after dark on duty, a torch instead of the shield
+  const kit = asleep || sitting ? 'off' : guardDark(h) ? 'torch' : 'duty';
+  if (w.kit !== kit) { w.kit = kit; w.dark = kit === 'torch'; const gear = w.rec.gear; if (gear) dressChibi(sp, kit === 'off' ? { ...gear, head: null, weapon: null, shield: null } : kit === 'torch' ? { ...gear, shield: 'Torch' } : gear); }
+  // lying in the bunk, head on the pillow, with Zs floating up
+  const lying = asleep && d < 0.3;
+  sp.rotation.x = lying ? -Math.PI / 2 : 0; sp.position.y = lying ? GUARD_LIE.y : 0;   // on the top deck: a lying chibi is too tall for the gap under it
+  if (lying) sp.position.z = tz + GUARD_LIE.dz;   // the feet towards the foot of the bunk, the head on the pillow
+  if (lying && !w.zzz) { if (!ZZZ_MAT) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g2 = cv.getContext('2d'); g2.fillStyle = '#e8eefa'; g2.strokeStyle = '#2a3048'; g2.lineWidth = 3; g2.font = 'bold 26px Georgia';
+      g2.strokeText('z', 8, 56); g2.fillText('z', 8, 56); g2.font = 'bold 34px Georgia'; g2.strokeText('Z', 30, 34); g2.fillText('Z', 30, 34); const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace; ZZZ_MAT = new THREE.SpriteMaterial({ map: tx2, transparent: true, depthWrite: false }); }
+    w.zzz = new THREE.Sprite(ZZZ_MAT.clone()); w.zzz.scale.set(0.9, 0.9, 1); scene.add(w.zzz); }
+  if (w.zzz) { w.zzz.visible = lying; if (lying) { const k = (performance.now() / 2400 + GUARD_NAMES.indexOf(w.rec.name) * 0.3) % 1; w.zzz.position.set(tx + 0.3, 5.6 + k * 1.2, tz - 1.4 - k * 0.3); w.zzz.material.opacity = Math.sin(k * Math.PI); } }
+  w.sitting = sitting && d < 0.3; w.lying = lying;
   return moving;
 }
 function updateWanderers(){
@@ -3861,8 +3903,12 @@ function updateWanderers(){
     const sp = w.sp, x = sp.position.x, z = sp.position.z;
     if (GUARD_NAMES.includes(w.rec.name) && w.k === 1) { const talker = talkerOf(w.rec), moving = updateGuard(w, talker, dtW);
       const wx = sp.position.x, wz = sp.position.z;
-      if (talker) w.yaw = yawTo(wx, wz, talker.x, talker.z); else if (moving) w.yaw = Math.atan2(w.dx, w.dz); else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z);
-      turnChibi(sp, w.yaw || 0); poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90); w.rec.x = wx; w.rec.z = wz; continue; }
+      if (w.lying) w.yaw = 0; else if (w.sitting) w.yaw = Math.atan2(guardRoutes(w).faceX, 0); else if (talker) w.yaw = yawTo(wx, wz, talker.x, talker.z); else if (moving) w.yaw = Math.atan2(w.dx, w.dz); else if (hero && Math.hypot(hero.position.x - wx, hero.position.z - wz) < 7) w.yaw = yawTo(wx, wz, hero.position.x, hero.position.z);
+      if (w.lying) sp.rotation.y = 0; else turnChibi(sp, w.yaw || 0);
+      poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90);
+      if (w.lying) sp.userData.chibi.eyes.forEach((e, i) => { if (i % 2 === 0) e.scale.y = 0.15; else e.visible = false; });   // eyes shut, as in a blink
+      if (w.sitting) { const c2 = sp.userData.chibi; c2.legs.forEach(l => l.rotation.x = -1.45); c2.body.position.y = 0.02; c2.arms.forEach(a => a.rotation.x = -0.6); }   // sat at the table, as Wenna sits on her bench
+      w.rec.x = wx; w.rec.z = w.lying ? wz - GUARD_LIE.dz : wz; continue; }   /* (while lying, the figure is shifted towards the foot of the bunk) */
     let moving = false;
     const talker = talkerOf(w.rec);   // someone is talking to them: stand still and face whoever spoke to them last
     if (talker) w.pause = Math.max(w.pause, 40);
@@ -4649,7 +4695,7 @@ function updateBarks(){
   const now = performance.now();
   if (hero && now > nextBark) {
     nextBark = now + 5000 + Math.random() * 8000;
-    const near = BARKERS.filter(b => b.rec.barks && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
+    const near = BARKERS.filter(b => b.rec.barks && !b.rec.asleep && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
     if (near.length) {
       const b = near[Math.floor(Math.random() * near.length)];
       b.el = document.createElement('div'); b.el.className = 'npcBub'; b.el.textContent = b.rec.barks[Math.floor(Math.random() * b.rec.barks.length)];
