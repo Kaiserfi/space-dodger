@@ -4612,6 +4612,7 @@ function updateRaiders(){
   const d = EV.data, list = (evActive() && d.gob) || [], now = performance.now();
   for (let i = 0; i < Math.max(list.length, EV.gobs.length); i++) {
     const s = list[i], m = s ? raiderRec(i) : EV.gobs[i]; if (!m) continue;
+    if (s && d.raid && d.raid.st === 'over' && s.hp > 0) s.hp = 0;   // the raid is over: none are left standing
     if (!s) { m.g.visible = false; m.state = 'dead'; if (FIGHT && FIGHT.m === m) endFight(); continue; }
     if (s.hp <= 0 || s.s === 'dead') {
       if (m.state !== 'dying' && m.state !== 'dead') { m.state = 'dying'; m.dieT = now; combatSound('goblinDie'); if (FIGHT && FIGHT.m === m) endFight(); }
@@ -4771,7 +4772,7 @@ function hostTick(){
       else { gd.f = g.x - gd.x > 0 ? 1 : -1; gd.tg = HOST.gob.indexOf(g);
         if (now > (gd.next || 0)) { gd.next = now + (st === 'lost' ? 1600 : 2600); gd.hit = now; const dmg = st === 'lost' ? 2 + Math.floor(Math.random() * 3) : Math.floor(Math.random() * 3); g.hp = Math.max(0, g.hp - dmg); if (g.hp <= 0) g.s = 'dead'; gd.dmg = dmg; } }
       gd.x = +gd.x.toFixed(2); gd.z = +gd.z.toFixed(2); }
-    if (!HOST.gob.some(g => g.hp > 0)) write.raid = { ...d.raid, st: 'over', at: now, won: st === 'rush' ? 1 : 0 };
+    if (!HOST.gob.some(g => g.hp > 0)) { write.raid = { ...d.raid, st: 'over', at: now, won: st === 'rush' ? 1 : 0 }; write.gob = HOST.gob.map(g => ({ x: +g.x.toFixed(2), z: +g.z.toFixed(2), hp: 0, s: 'dead', tg: g.tg })); }
     else if (st === 'rush' && part.length && !standing.length) { write.raid = { ...d.raid, st: 'lost', at: now }; Object.assign(HOST.gd, guardsStart()); }
     if (now - EV.lastHostWrite > 250) { EV.lastHostWrite = now; write.gob = HOST.gob.map(g => ({ x: +g.x.toFixed(2), z: +g.z.toFixed(2), hp: g.hp, s: g.s, tg: g.tg })); write.gd = HOST.gd; }
   }
@@ -4858,7 +4859,7 @@ function updateNightNpcs(t, ph, st){
   const raiding = st === 'rush' || st === 'lost' || (ph === 'creep' && Date.now() - EV.data.raidAt > 26000);
   const over = st === 'over', ending = over && Date.now() - EV.data.raid.at > 20000;
   // Aldric: walks out, kneels and strikes the flint, then stands guard by the way in; in the raid he fights
-  const ald = borrowNpc('Aldric');
+  const ald = ending && !EV.npcs.Aldric ? null : borrowNpc('Aldric');   // once sent home, they stay home
   if (ald) {
     const gd = EV.data.gd && EV.data.gd.Aldric;
     if ((st === 'rush' || st === 'lost') && gd) guardFrame(ald, gd);
@@ -4868,6 +4869,7 @@ function updateNightNpcs(t, ph, st){
     else { if (!ald.path || ald.path.tag !== 'post') { npcRoute(ald, ALD_POST(), Math.max(t, 10), 4.5); ald.path.tag = 'post'; } if (followRoute(ald, t)) { ald.sp.rotation.y = yawTo(ald.sp.position.x, ald.sp.position.z, BF.x, BF.z); poseChibi(ald.sp, 'idle', now); } }
   }
   for (const gst of GUESTS) {
+    if (ending && !EV.npcs[gst.name]) continue;   // already sent home: don't take them back
     const n = borrowNpc(gst.name); if (!n) continue;
     const seat = BF.seats[gst.seat], seed = gst.name.length;
     if (ending) { goHome(n, t); continue; }
