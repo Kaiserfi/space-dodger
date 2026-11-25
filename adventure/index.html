@@ -2943,7 +2943,8 @@ function updateHeroAnim(){
   if (!hero) return;
   if (!FIGHT && performance.now() < eatUntil) { turnChibi(hero, heroAnim.yaw); poseChibi(hero, 'eat', 1 - (eatUntil - performance.now()) / EAT_MS); return; }
   if (heroSeatFrame()) return;   // sat at the bonfire
-  { const c = hero.userData.chibi; if (c && c.rod) c.rod.g.visible = false; }
+  { const c = hero.userData.chibi; if (c && c.rod) c.rod.g.visible = false; if (c && c.net) c.net.g.visible = false; }
+  if (heroAnim.mode === 'net') { if (!fishing) heroAnim.mode = 'idle'; else { turnChibi(hero, heroAnim.yaw); netPose(hero, Math.min(1, (performance.now() - fishing.t0) / FISH_MS), fishing.will); return; } }
   if (heroAnim.mode === 'fish') {   // fishing with a rod: the cast at the start of each try, then the line waits in the water
     if (!fishing) heroAnim.mode = 'idle';
     else { const k = (performance.now() - fishing.cast0) / FISH_MS; turnChibi(hero, heroAnim.yaw); fishPose(hero, performance.now() / 1000, k < 0.22 ? k / 0.22 : 0, true); return; }   /* one cast when you start, then the line stays in */
@@ -3866,29 +3867,30 @@ function catchFish(rec){
   if (fishing) return;
   rec = rec || trees.find(t => t.userData.rec && t.userData.rec.kind === 'fish').userData.rec;
   if (!roomForOne(FISHES[rec.fish].raw)) { showToast('Your bag is full.'); return; }
-  fishing = { rec, t0: performance.now(), cast0: performance.now(), c: Date.now() };
+  fishing = { rec, t0: performance.now(), cast0: performance.now(), c: Date.now() }; fishing.will = fishRoll(FISHES[rec.fish]);
   showToast(FISHES[rec.fish].bait ? 'You cast your line out over the water...' : 'You dip your net in the water...'); splashSound();
   setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool === 'Fishing rod' ? 1 : 0, c: fishing.c });
   document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
 }
+const fishRoll = F => Math.random() < Math.min(0.9, 0.45 + (levelOf(SKILL_XP.Fishing) - F.lvl + 1) * 0.02);   // a catch is more likely the better you are
 function stopFishing(msg){ if (!fishing) return; fishing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'fish') setAct(null); if (msg) showToast(msg); }
 function updateFishing(){
   if (!fishing) return;
   const k = (performance.now() - fishing.t0) / FISH_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, fishing.rec.x, fishing.rec.z);
-  heroAnim.mode = FISHES[fishing.rec.fish].tool === 'Fishing rod' ? 'fish' : 'work';
+  heroAnim.mode = FISHES[fishing.rec.fish].tool === 'Fishing rod' ? 'fish' : 'net';
   if (k < 1) return;
   // a catch is more likely the better you are at fishing
   const F = FISHES[fishing.rec.fish];
-  if (Math.random() < Math.min(0.9, 0.45 + (levelOf(SKILL_XP.Fishing) - F.lvl + 1) * 0.02)) {
+  if (fishing.will) {
     if (F.bait && !hasItem(F.bait)) { stopFishing(F.out); return; }
     if (!addItem(F.raw, 1, ICON_FOR[F.raw])) { stopFishing('Your bag is full.'); return; }
     if (F.bait) removeItem(F.bait);   // the fly is used up with the catch
     addXp('Fishing', F.xp); showToast(`You catch a raw ${F.word} (${countOf(F.raw)}).  +${F.xp} Fishing XP`);
   }
   if (!roomForOne(F.raw)) { stopFishing('Your bag is full.'); return; }
-  fishing.t0 = performance.now(); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool === 'Fishing rod' ? 1 : 0, c: fishing.c });   // the net goes in again
+  fishing.t0 = performance.now(); fishing.will = fishRoll(F); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool === 'Fishing rod' ? 1 : 0, c: fishing.c });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
@@ -4231,6 +4233,34 @@ function fishRod(c){
   c.rod = { g, line, thread, bob }; return c.rod;
 }
 const rodQ = new THREE.Quaternion(), rodV = new THREE.Vector3();
+// the small fishing net, held: a pole from the hands with a hoop and a mesh bag at the end, and a shrimp that shows when one's caught
+function heldNet(c){
+  if (c.net) return c.net;
+  const g = new THREE.Group(); g.position.set(0, -0.45, 0); c.arms[1].add(g);
+  chibiPart(g, geo('netPole', () => new THREE.CylinderGeometry(0.04, 0.05, 2.0, 6)), 0x8a5a2a, 0, -0.85, 0);
+  const hoop = new THREE.Group(); hoop.position.set(0, -1.95, 0); g.add(hoop);
+  chibiPart(hoop, geo('netHoop', () => new THREE.TorusGeometry(0.42, 0.035, 6, 20)), 0x6a4a2a, 0, 0, 0).rotation.x = Math.PI / 2;
+  const bag = new THREE.Mesh(geo('netBag', () => new THREE.ConeGeometry(0.42, 0.6, 14, 1, true)), heldNet.mat || (heldNet.mat = new THREE.MeshStandardMaterial({ color: 0xd8ccaa, transparent: true, opacity: 0.6, side: THREE.DoubleSide })));
+  bag.rotation.x = Math.PI; bag.position.y = -0.3; hoop.add(bag);
+  const shrimp = chibiPart(hoop, geo('netShrimp', () => new THREE.CapsuleGeometry(0.06, 0.16, 4, 8)), 0xf08a6a, 0, -0.35, 0); shrimp.rotation.z = 1.2;
+  c.net = { g, hoop, shrimp }; return c.net;
+}
+// scooping with the net, once a try (k: 0 to 1): reach out and dip it under the surface, sweep it through, lift it out, a little shake
+function netPose(sp, k, caught){
+  const c = sp.userData.chibi; poseChibi(sp, 'idle', 0); const N = heldNet(c); N.g.visible = true;
+  for (const a of c.arms) a.children.forEach(o => { if (o.userData.isGear) o.visible = false; });
+  const [L, R] = c.legs, [AL, AR] = c.arms; let arm, crouch, sweep = 0, shake = 0;
+  if (k < 0.25) { const e = ease(k / 0.25); arm = lerp(-1.25, -0.8, e); crouch = e; }
+  else if (k < 0.65) { arm = -0.8; crouch = 1; sweep = Math.sin((k - 0.25) / 0.4 * Math.PI) * 0.35; }
+  else if (k < 0.85) { const e = ease((k - 0.65) / 0.2); arm = lerp(-0.8, -1.35, e); crouch = 1 - e * 0.7; }
+  else { const e = (k - 0.85) / 0.15; arm = -1.35 + Math.sin(e * Math.PI * 4) * 0.08; crouch = 0.3 * (1 - e); shake = Math.sin(e * Math.PI * 6) * 0.15; }
+  c.body.position.y = -0.28 * crouch; c.body.rotation.x = 0.35 * crouch; c.body.rotation.y = sweep * 0.6; c.head.rotation.x = 0.25 * crouch; c.head.rotation.y = -sweep * 0.4;
+  L.rotation.x = -0.9 * crouch; R.rotation.x = 0.45 * crouch;
+  AR.rotation.set(arm, 0, -0.1); AL.rotation.set(arm + 0.05, 0, 0.15);   // both arms out on the pole, clear of the chest
+  const tip = 0.75 * Math.min(1, crouch + 0.3); N.g.rotation.set(-tip, 0, shake);   // the pole tipped out past the hands, over the water
+  N.hoop.rotation.x = -arm + tip - Math.PI / 2 + 0.2;   // the hoop kept roughly level, mouth up
+  N.shrimp.visible = !!caught && k > 0.7;
+}
 const TWO_HAND = { ry: 0, rz: 0.1, lx: -0.1, ly: -0.4, lz: -0.1 };   /* measured with armour on: both arms out in front, clear of the chest; the left hand just under the rod (chibi arms can't quite meet on it) */
 function fishPose(sp, t, castK, twoHands = false){   /* castK: where a cast is (0 to 1, or 0 for none), for players' own timing; villagers cast every nine seconds */
   const c = sp.userData.chibi, R = fishRod(c); R.g.visible = true; poseChibi(sp, 'idle', t);
@@ -6132,8 +6162,9 @@ function updateOnline(){
     const verb = act ? ACT_LABEL[act.k] : '';
     if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
     if (moving) r.yaw = Math.atan2(nx - x, nz - z);   // face the way they walk
-    { const rc = r.sprite.userData.chibi; if (rc && rc.rod) rc.rod.g.visible = false; }
-    if (act && act.k === 'fish' && act.r && !moving) {   // someone fishing with a rod: the same pose, casting each time their line goes in
+    { const rc = r.sprite.userData.chibi; if (rc && rc.rod) rc.rod.g.visible = false; if (rc && rc.net) rc.net.g.visible = false; }
+    if (act && act.k === 'fish' && !act.r && !moving) netPose(r.sprite, Math.min(1, Math.max(0, (Date.now() - (act.t || 0)) / FISH_MS)), false);   // someone scooping with a net
+    else if (act && act.k === 'fish' && act.r && !moving) {   // someone fishing with a rod: the same pose, casting each time their line goes in
       const k = (Date.now() - (act.c || act.t || 0)) / FISH_MS; fishPose(r.sprite, t / 1000, k >= 0 && k < 0.22 ? k / 0.22 : 0, true);
     } else if (act && (act.k === 'chop' || act.k === 'mine')) {
       const node = nodeRecByKey(act.n);
