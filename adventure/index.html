@@ -1622,12 +1622,20 @@ function updateSmelt(){
 }
 // ----- smithing at the anvil: bronze bars become gear, and gear is worn from the bag -----
 const aOrAn = w => /^[aeiou]/i.test(w) ? 'an' : 'a';
-function openSmithing(){ document.getElementById('smithPanel').hidden = false; renderSmith(); }
+// the anvil's recipes come in tabs, one per metal; it opens on the best metal you have bars of
+let SMITH_TAB = null;
+const smithTabs = () => [...new Set(RECIPES.map(r => r.bar || 'Bronze bar'))];
+function openSmithing(){
+  const tabs = smithTabs(), have = tabs.filter(b => barCount(b) > 0);
+  SMITH_TAB = have.length ? have[have.length - 1] : (SMITH_TAB || tabs[0]);
+  document.getElementById('smithPanel').hidden = false; renderSmith(); }
 function barCount(name = 'Bronze bar'){ const b = bag.find(i => i.name === name); return b ? b.qty : 0; }
 const barOf = r => r.bar || 'Bronze bar';
 function renderSmith(){
-  const lvl = levelOf(SKILL_XP.Smithing);
-  document.getElementById('smithList').innerHTML = RECIPES.map((r, i) => {
+  const lvl = levelOf(SKILL_XP.Smithing), tab = SMITH_TAB || 'Bronze bar';
+  const tabs = smithTabs().map(b => `<button data-tab="${b}" style="flex:1;font:inherit;padding:6px 4px;cursor:pointer;border:1px solid #5b4324;border-radius:6px 6px 0 0;border-bottom:${b === tab ? 'none' : '1px solid #5b4324'};background:${b === tab ? '#3a2a14' : '#1d150b'};color:${b === tab ? '#f0c35a' : '#c9b27a'}">${b.replace(' bar', '')} <small>(${barCount(b)})</small></button>`).join('');
+  document.getElementById('smithList').innerHTML = `<div style="display:flex;gap:4px;margin-bottom:6px">${tabs}</div>` + RECIPES.map((r, i) => {
+    if (barOf(r) !== tab) return '';
     const bars = barCount(barOf(r)), ok = lvl >= r.level && bars >= r.bars, most = Math.floor(bars / r.bars);
     const btn = (n, label) => `<button data-r="${i}" data-n="${n}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 7px;cursor:pointer;${ok ? '' : 'opacity:.45;cursor:default'}">${label}</button>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ITEMS[r.name].icon}
@@ -1688,8 +1696,9 @@ function gearBonus(stat){
 }
 document.getElementById('smithClose').addEventListener('click', () => { document.getElementById('smithPanel').hidden = true; });
 document.getElementById('smithList').addEventListener('click', e => {
+  const tb = e.target.closest('button[data-tab]'); if (tb) { SMITH_TAB = tb.dataset.tab; renderSmith(); return; }
   const b = e.target.closest('button[data-r]'); if (!b || b.disabled) return;
-  const r = RECIPES[+b.dataset.r], most = Math.floor(barCount() / r.bars), v = b.dataset.n;
+  const r = RECIPES[+b.dataset.r], most = Math.floor(barCount(barOf(r)) / r.bars), v = b.dataset.n;
   let n = v === 'all' ? most : v === 'x' ? parseInt(prompt(`How many ${r.name.toLowerCase()}s? (up to ${most})`, String(most)), 10) : +v;
   if (!(n > 0)) return; makeGear(r, Math.min(n, most));
 });
@@ -4434,6 +4443,8 @@ function furnishSmithy(g, h){
   const apt = h.toWorld(ax * S, az * S);
   base.userData = { action: 'Smith', name: 'Anvil', rec: { kind: 'anvil', x: apt.x, z: apt.z, s: 1, state: 'standing' } };
   trees.push(base);
+  { const hit = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 1.4), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); hit.position.set(ax, 0.7, az); f.add(hit);
+    hit.userData = base.userData; trees.push(hit); }   // a bigger, invisible box round the anvil, so it's easy to click
   solidBoxes.push({ x0: apt.x - 1, x1: apt.x + 1, z0: apt.z - 1, z1: apt.z + 1 });
   addNpc(g, h, 0.6 * S, 1.0 * S, VILLAGERS[3]);
 }
