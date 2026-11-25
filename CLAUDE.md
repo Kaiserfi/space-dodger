@@ -6,11 +6,54 @@ The whole game is one file: a three.js module script inside `adventure/index.htm
 
 It is a RuneScape-style village game based on the owner's phone game, **Idle Tap Adventure (ITAP)**. When a feature exists in ITAP (monsters, delves, warnings, balance), match it: its code is in the `Kaiserfi/idletapadventure` repo (for example `www/js/combat.js` for challenge-mode delves and their wording). When it doesn't, follow how RuneScape does it, adapted to our simpler skills.
 
+### Quick start
+
+- `./tools/check.sh` syntax-checks the game. Run it after every edit.
+- `python3 -m http.server 8123 &` (repo root), then:
+  - `node tools/play.js hooks.js steps.js` for one player (offline),
+  - `node tools/play2.js hooks.js steps.js 2` for several players on a shared `FakeDb`.
+  The comments at the top of each file show the hook and step formats. Write the hook and step files in the scratchpad, not the repo. Both harnesses turn the battery saver off, so screenshots are full quality.
+- Edit the file with a Python script of exact `str.replace` calls that assert each match appears exactly once. That's faster and safer than many small edits in a file this size. Use `/* */` comments in code you insert mid-line (a `//` comment swallows the rest of the line).
+
+### Where things are (search for the name; line numbers drift)
+
+| Area | Look for |
+|---|---|
+| Characters, poses, gear | `makeChibi`, `poseChibi`, `dressChibi`, `fightPose`, `makeTool` |
+| Walking and paths | `walkStart`, `findPath`, `blocked`, `hardHit`, `solidBoxes`, `roadPath` |
+| NPCs | `TOWNSFOLK` (outdoors), `addNpc` (in a building), `MARA`, `updateWanderers`, `pickWanderTarget`, `openDialog`, `questTalk` |
+| Skills and XP | `SKILL_XP`, `levelOf`, `addXp`, `combatLevel`, `renderStats` |
+| Bag, items, shops | `addItem`, `removeItem`, `countOf`, `hasTool`, `renderBag`, `ICON_FOR`, `SELL`, `SHOPS`, `CRAFTS`, `craftItem`, `groundModel`, `dropToGround` |
+| Saves | `currentSave`, `applySave` (every new field needs a default here) |
+| Combat and monsters | `MONSTER_TYPES`, `makeFarmMonster`, `spawnMonster`, `startFight`, `playerSwing`, `monsterSwing`, `killMonster`, `reachOf`, `mobPath`, `mobUpdate` |
+| Delve | `DELVE_C`, `DELVE_WAVES`, `startDelve`, `updateDelve`, `delveWon`, `delveFailed`, `updateWaveHud`; party: `updatePartyDelve`, `hostPartyDelve`, `followPartyDelve`, `partyFight` |
+| Parties | `PARTY`, `onParties`, `inviteToParty`, `renderPartyFrames` |
+| Farming and silk | `buildFarmland`, `patchClick`, `farmAct`, `SEEDS`, `CROPS`, `cropStages`, `buildSilkworks`, `hutchClick`, `wheelClick`, `buildMarket` |
+| Healing | `startBandage`, `openBandageMenu`, `healOther`, `beginBandage`, `updateBandage`, `bandageSound` |
+| Multiplayer | `writePresence` (what you share), the remote loop in `updateRemotes`-style code (`for (const id in remote)`), `liveFeed`, `startLive`, `sameWorld` |
+| Bonfire night | `EV`, `BF`, `bonfireClick`, `hostTick` |
+| World look | `updateDayNight`, `grassMaskTexture`, `LIGHT_SPOTS`, `GLOW_MATS` |
+| Settings and performance | `SETTINGS`, `applySettings`, `applyPower`, `shouldDraw`, `busyNow` |
+| Sound | `audio`, `sfxOut`, `sfx`, `nz`, `soundAt`, `combatSound`, `FIGHT_MUSIC` |
+| The frame loop | `frame()`: every per-frame `update...` call lives in it, or in the big update block it calls |
+
+### Adding something new: checklists
+
+- **NPC:** an entry in `TOWNSFOLK` (`x`, `z`, `rad`, `look`, `hat`, `talks`, `asks`, `barks`; `shop` and `choice` for a shopkeeper), or `addNpc` with a `keep` box inside a building. Their spot must be clear of `solidBoxes`. Write their lines like a person.
+- **Item:** an SVG icon in `ICON_FOR`; `SELL` price and a shop that buys it (`FARM_GOODS` for farm goods); `SINGLE` if it's food; a `groundModel` shape if it's common; a `beltSlotFor` slot if it's a tool.
+- **Crop:** a `SEEDS` entry (seed name, crop, level), a `CROPS` entry (harvest item, amounts, XP), a model in `cropStages`, seeds on Tilly's list (`MARKET_BUY`).
+- **Monster:** stats in `MONSTER_TYPES` (from ITAP where it exists), a model in `makeFarmMonster` with a visible face, `monsterPose` poses, sounds in `combatSound`, a `reachOf` distance for its size. Spawn homes clear of buildings, added in a fixed order (shared ids come from spawn order).
+- **Quest:** a `QUEST.<key>` number, `questTalk` lines, step changes at the actions, the tracker, the quests tab, the "!" marker and `showRewardScroll` (see Quests below).
+- **Building:** solid walls in `solidBoxes`, the floor in `grassMaskTexture`, doorways 4.5+ high, furniture solid, built lazily if it needs later parts of the script, checked inside and out.
+- **Shared feature:** data under `adventure/live/<part>` through `liveFeed`, a rule in `database.rules.json` (and tell the owner), tested with `play2.js`.
+- **Sound:** a WAV draft for the owner first, then code it, `soundAt` for anything heard from elsewhere.
+
 ### Before you build
 
 - **Ask only when the choice changes what gets built** (single or multi-combat, private or shared ground items). Otherwise pick the sensible default, say which, and go.
 - **"Show me" means a mock-up, not a change.** When the owner asks what something would look like, render it with test hooks and send pictures, without changing the game. Offer to build it afterwards.
 - **Search before adding a name.** The file is huge and shares one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once). `node --check` catches a clash at the same level, but not one hidden in an inner scope.
+- **Keep a change small and merge it.** The owner tests on the live site straight after each merge, so one feature or fix per pull request, merged as soon as it's checked, works best.
 - **Read the owner's messages mid-task.** They often add a request while you work; fold it into the current change, or do it next and say so.
 
 ### Characters
