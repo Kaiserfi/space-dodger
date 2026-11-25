@@ -7138,8 +7138,102 @@ function buildSilkworks(){
   Object.assign(SILK, { wheel, flyer, bobbin, treadle, wheelGroup: wh });
 }
 function hutchReady(){ return SILK.hutch.n > 0 && Date.now() - SILK.hutch.t >= HUTCH_MS; }
+// the village green dressed up: flower beds, the meeting oak and its seat, bunting over the stalls, Brenna's garden and woodpile, Wenna's cat and tubs, Lyra's stump
+// built on the first frame (after the stalls, benches and NPC spots exist); everything comes from a fixed seed so every player has the same solid ground
+function buildGreen(){
+  const bins = new Map();
+  const col = (geo, hex) => { geo = geo.index ? geo.toNonIndexed() : geo; const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i*3] = c.r; a[i*3+1] = c.g; a[i*3+2] = c.b; } geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+  /* add a coloured part to a merge bin: geo, colour, position, rotation y, extra rot x/z, scale */
+  const put = (bin, geo, hex, x, y, z, ry = 0, rx = 0, rz = 0, sc = null) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.rotation.set(rx, ry, rz, 'YXZ'); if (sc) o.scale.set(...sc); o.updateMatrix(); const g = col(geo.clone(), hex); g.applyMatrix4(o.matrix); (bins.get(bin) || bins.set(bin, []).get(bin)).push(g); };
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const rnd = (() => { let q = 4242; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+  const roadD = (x, z) => { let best = 1e9; for (const [x1, z1, x2, z2] of ROADS) { const dx = x2 - x1, dz = z2 - z1, L = dx*dx + dz*dz || 1, t = Math.max(0, Math.min(1, ((x-x1)*dx + (z-z1)*dz) / L)); best = Math.min(best, Math.hypot(x - x1 - dx*t, z - z1 - dz*t)); } return best; };
+  const check = () => {};
+  const FLOW = [0xe85a6a, 0xf0c040, 0xf4f0e8, 0xa070d0, 0xf08a3a];
+
+  /* 1. flower beds in a broken ring round the cobbled green, only in the gaps between the roads */
+  const G = [-36, 8], R = 6.3, STEP = 0.07; let runs = [], cur = [];
+  for (let a = 0; a < Math.PI * 2; a += STEP) { const x = G[0] + Math.cos(a) * R, z = G[1] + Math.sin(a) * R;
+    const ok = roadD(x, z) > 1.8 && !blocked(x, z) && !solidBoxes.some(b => x > b.x0 - 0.6 && x < b.x1 + 0.6 && z > b.z0 - 0.6 && z < b.z1 + 0.6) && NPC_SPOTS.every(s => Math.hypot(s[0] - x, s[1] - z) > 1.8);
+    if (ok) cur.push(a); else if (cur.length) { runs.push(cur); cur = []; } }
+  if (cur.length) runs.push(cur);
+  runs = runs.filter(r => r.length >= 4);
+  for (const run of runs) run.forEach((a, i) => { const x = G[0] + Math.cos(a) * R, z = G[1] + Math.sin(a) * R, ry = -a + Math.PI / 2, seg = R * STEP + 0.04;
+    const end = i === 0 || i === run.length - 1;
+    for (const off of [-0.55, 0.55]) put('bed', B(seg, 0.32, 0.22), (i + (off > 0)) % 2 ? 0x9a948a : 0x86817a, x + Math.cos(a) * off, 0.16, z + Math.sin(a) * off, ry);   /* stone kerbs, inner and outer */
+    if (end) put('bed', B(0.22, 0.32, 1.32), 0x8c867e, x, 0.16, z, ry);
+    put('bed', B(seg, 0.26, 0.9), 0x5a3e26, x, 0.13, z, ry);   /* soil */
+    if (!end) for (let k = 0; k < 2; k++) { const fx = x + Math.cos(a) * (rnd() - 0.5) * 0.6, fz = z + Math.sin(a) * (rnd() - 0.5) * 0.6;
+      put('bed', new THREE.IcosahedronGeometry(0.24, 0), [0x3f7a2c, 0x4f8a34][k], fx, 0.38, fz, rnd() * 6, 0, 0, [1, 0.7, 1]);
+      put('bed', new THREE.DodecahedronGeometry(0.1, 0), FLOW[Math.floor(rnd() * FLOW.length)], fx + (rnd() - 0.5) * 0.2, 0.55, fz + (rnd() - 0.5) * 0.2); } });
+
+  /* 2. the meeting oak west of the stalls, with a round seat about its trunk */
+  const OX = -55, OZ = 16; check('oak', OX, OZ); for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) check('oak ring', OX + dx, OZ + dz);
+  put('oak', new THREE.CylinderGeometry(0.55, 0.85, 4.6, 8), 0x5a3a1e, OX, 2.3, OZ);
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + 0.3; put('oak', new THREE.ConeGeometry(0.4, 1.3, 5), 0x4a2e16, OX + Math.cos(a) * 0.75, 0.35, OZ + Math.sin(a) * 0.75, -a, 0, 0, null);
+  }
+  for (const [ang, len, y] of [[0.4, 3.2, 4.2], [2.5, 2.8, 4.6], [4.3, 3.0, 4.0]]) { const g = new THREE.CylinderGeometry(0.18, 0.32, len, 6); g.translate(0, len / 2, 0); put('oak', g, 0x5a3a1e, OX, y, OZ, -ang, 0, -1.0); }
+  const leaves = [[0, 7.2, 0, 3.0], [2.6, 6.6, 0.8, 2.3], [-2.4, 6.8, -0.6, 2.4], [0.4, 7.4, -2.5, 2.2], [-0.8, 7.6, 2.3, 2.2], [1.6, 8.4, -1.0, 1.8], [-1.6, 8.3, 1.0, 1.7], [0, 9.0, 0, 1.6]];
+  leaves.forEach(([dx, dy, dz, r], i) => { const geo = new THREE.IcosahedronGeometry(r, 0); const p = geo.attributes.position; for (let v = 0; v < p.count; v++) { const h = Math.sin(p.getX(v) * 12.9 + p.getY(v) * 78.2 + p.getZ(v) * 37.7 + i) * 43758.5; const j = 0.85 + 0.3 * (h - Math.floor(h)); p.setXYZ(v, p.getX(v) * j, p.getY(v) * j, p.getZ(v) * j); } geo.computeVertexNormals();
+    put('oak', geo, [0x3f6e2a, 0x4f7f32, 0x2e5a22, 0x5a8a3a][i % 4], OX + dx, dy, OZ + dz); });
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; const sx = OX + Math.cos(a) * 1.55, sz = OZ + Math.sin(a) * 1.55;
+    put('oak', B(1.25, 0.12, 0.6), 0x8a6038, sx, 0.62, sz, -a + Math.PI / 2); put('oak', B(0.12, 0.56, 0.12), 0x5a3a1e, OX + Math.cos(a) * 1.75, 0.28, OZ + Math.sin(a) * 1.75); }
+  /* acorns and fallen leaves in the grass under it */
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, r = 2.3 + rnd() * 2.6; put('oak', B(0.22, 0.02, 0.15), [0x6a8a2a, 0xa08030, 0x8a5a2a][i % 3], OX + Math.cos(a) * r, 0.02, OZ + Math.sin(a) * r, rnd() * 6); }
+
+  /* 3. bunting strung high between the two stalls, on poles that lift it clear of the tallest hat */
+  const poles = [[-45.0, 12.7], [-45.5, 16.3], [-48.0, 12.7], [-48.5, 16.3]];
+  for (const [px, pz] of poles) put('bunt', new THREE.CylinderGeometry(0.06, 0.07, 2.2, 6), 0x5a3a1e, px, 4.2, pz);
+  for (const [px, pz] of poles) put('bunt', new THREE.SphereGeometry(0.11, 6, 4), 0xd8b040, px, 5.33, pz);
+  const string = (a, b, sag, n) => { for (let i = 0; i <= n; i++) { const t = i / n, x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t, y = 5.2 - sag * 4 * t * (1 - t);
+      if (i < n) { const t2 = (i + 1) / n, x2 = a[0] + (b[0] - a[0]) * t2, z2 = a[1] + (b[1] - a[1]) * t2, y2 = 5.2 - sag * 4 * t2 * (1 - t2); const L = Math.hypot(x2 - x, y2 - y, z2 - z);
+        const g = new THREE.CylinderGeometry(0.015, 0.015, L, 3); g.rotateZ(Math.PI / 2); put('bunt', g, 0xe8e0c8, (x + x2) / 2, (y + y2) / 2, (z + z2) / 2, -Math.atan2(z2 - z, x2 - x), 0, Math.atan2(y2 - y, Math.hypot(x2 - x, z2 - z)));
+        const fl = new THREE.ConeGeometry(0.17, 0.42, 3); fl.rotateX(Math.PI); fl.scale(1, 1, 0.15); put('bunt', fl, [0xc84a3a, 0xf0c040, 0x3a6a9a, 0xf4f0e8, 0x5a9a4a][(i + n) % 5], (x + x2) / 2, (y + y2) / 2 - 0.22, (z + z2) / 2, -Math.atan2(z2 - z, x2 - x)); } } };
+  string(poles[0], poles[1], 0.55, 9); string(poles[2], poles[3], 0.55, 9); string(poles[0], poles[3], 0.6, 11); string(poles[2], [-44.6, 11.3], 0.3, 7);
+
+  /* 4. Brenna's front garden: a picket fence round herb rows west of her door, and a woodpile on the west wall */
+  const FX0 = -69.4, FX1 = -65.6, FZ0 = 4.0, FZ1 = 5.6; for (const [x, z] of [[FX0, FZ0], [FX1, FZ1], [FX0, FZ1], [FX1, FZ0]]) check('garden', x, z, 1.4);
+  for (let x = FX0; x <= FX1 + 0.01; x += 0.38) { put('gard', B(0.1, 0.75, 0.06), 0xf0e8d8, x, 0.38, FZ1); put('gard', new THREE.ConeGeometry(0.07, 0.14, 4), 0xf0e8d8, x, 0.82, FZ1, Math.PI / 4); }
+  for (let z = FZ0; z < FZ1; z += 0.38) for (const x of [FX0, FX1]) { put('gard', B(0.06, 0.75, 0.1), 0xf0e8d8, x, 0.38, z); put('gard', new THREE.ConeGeometry(0.07, 0.14, 4), 0xf0e8d8, x, 0.82, z, Math.PI / 4); }
+  for (const y of [0.25, 0.6]) { put('gard', B(FX1 - FX0, 0.07, 0.04), 0xe0d8c8, (FX0 + FX1) / 2, y, FZ1 - 0.05); for (const x of [FX0, FX1]) put('gard', B(0.04, 0.07, FZ1 - FZ0), 0xe0d8c8, x + (x < -67 ? 0.05 : -0.05), y, (FZ0 + FZ1) / 2); }
+  put('gard', B(FX1 - FX0 - 0.2, 0.1, FZ1 - FZ0 - 0.15), 0x5a3e26, (FX0 + FX1) / 2, 0.05, (FZ0 + FZ1) / 2);
+  const herbs = [0x4a8a3a, 0x3f7a2c, 0x2e6a2a, 0x5a9a3a];   /* all leafy greens: the paler ones read as white */ for (let r = 0; r < 3; r++) for (let x = FX0 + 0.4; x < FX1 - 0.2; x += 0.5) { const z = FZ0 + 0.4 + r * 0.55;
+    put('gard', new THREE.IcosahedronGeometry(0.2, 0), herbs[Math.abs(r + Math.round(x * 2)) % 4], x, 0.22, z, rnd() * 6, 0, 0, [1, r === 1 ? 1.5 : 0.8, 1]); if (r === 1 && rnd() < 0.5) put('gard', new THREE.DodecahedronGeometry(0.06, 0), 0xb090e0, x, 0.52, z); }
+  /* the woodpile: split logs stacked under a little lean-to against the outside of her west wall */
+  const WX = -71.2; check('woodpile', WX, -6, 0);
+  for (let row = 0; row < 4; row++) for (let i = 0; i < 9 - row; i++) { const g = new THREE.CylinderGeometry(0.22, 0.22, 1.1, 7); g.rotateX(Math.PI / 2); g.rotateY(Math.PI / 2);
+    put('gard', g, [0x8a5a2a, 0x7a4e24, 0x9a6a34][(i + row) % 3], WX, 0.22 + row * 0.4, -7.6 + i * 0.44 + row * 0.22, 0, 0, 0); { const c = new THREE.CylinderGeometry(0.19, 0.19, 0.04, 7); c.rotateZ(Math.PI / 2); put('gard', c, 0xf0d8a0, WX - 0.56, 0.22 + row * 0.4, -7.6 + i * 0.44 + row * 0.22); } }
+  put('gard', B(1.5, 0.1, 4.6), 0x6a4a2a, WX - 0.1, 2.2, -5.8, 0, 0, 0.3); for (const z of [-8.0, -3.6]) put('gard', B(0.12, 2.1, 0.12), 0x5a3a1e, WX - 0.7, 1.05, z);
+  put('gard', new THREE.CylinderGeometry(0.4, 0.45, 0.5, 9), 0x7a5a2a, WX - 0.4, 0.25, -2.6); { const ax = new THREE.CylinderGeometry(0.04, 0.04, 0.9, 5); put('gard', ax, 0x8a5a2a, WX - 0.4, 0.85, -2.6, 0, 0, 0.5); put('gard', B(0.06, 0.25, 0.3), 0xa0a4a8, WX - 0.6, 1.2, -2.6, 0, 0, 0.5); }
+
+  /* 5. Wenna's corner: her cat curled at the end of her bench, a tub of geraniums each side; Lyra's tree-stump stage by her spot */
+  const bn = NPC_SPOTS.find(s => Math.abs(s[0] + 31.58) < 0.1 && Math.abs(s[1] - 16.2) < 0.1) || [-31.58, 16.2];
+  const cx = bn[0] + 0.95, cz = bn[1] + 0.02, FUR = 0xe08a3a;   /* curled at Wenna's left, face to the green */
+  { put('cat', new THREE.SphereGeometry(0.3, 12, 8), FUR, cx, 0.86, cz, 0, 0, 0, [1.2, 0.62, 0.95]);
+    const hx = cx - 0.22, hz = cz + 0.24, hy = 0.98; put('cat', new THREE.SphereGeometry(0.21, 12, 8), FUR, hx, hy, hz);
+    for (const s of [-1, 1]) put('cat', new THREE.ConeGeometry(0.075, 0.17, 4), FUR, hx + s * 0.11, hy + 0.2, hz - 0.02, 0, 0, -s * 0.35);
+    put('cat', new THREE.SphereGeometry(0.1, 8, 6), 0xf8f0e0, hx, hy - 0.07, hz + 0.15, 0, 0, 0, [1.1, 0.75, 0.6]);
+    put('cat', new THREE.SphereGeometry(0.025, 6, 4), 0xd87080, hx, hy - 0.02, hz + 0.21);
+    for (const s of [-1, 1]) put('cat', B(0.1, 0.018, 0.02), 0x2a1a10, hx + s * 0.085, hy + 0.04, hz + 0.19, 0, 0, s * 0.2);   /* shut, contented eyes on the face */
+    const tail = new THREE.TorusGeometry(0.3, 0.06, 5, 10, Math.PI); tail.rotateX(Math.PI / 2); put('cat', tail, 0xc86a2a, cx + 0.02, 0.76, cz + 0.02, Math.PI * 1.05);
+    for (let i = 0; i < 3; i++) put('cat', B(0.045, 0.012, 0.36), 0xb85a22, cx - 0.05 + i * 0.13, 1.04, cz - 0.02, 0.15); }
+  for (const [tx, tz] of [[bn[0] - 2.0, bn[1] + 0.2], [bn[0] + 1.7, bn[1] + 0.2]]   /* the east one kept off the road */) { check('tub', tx, tz, 1.4);
+    put('cat', new THREE.CylinderGeometry(0.38, 0.3, 0.5, 9), 0x8a5a2a, tx, 0.25, tz); put('cat', new THREE.CylinderGeometry(0.4, 0.4, 0.06, 9), 0x5a3a1e, tx, 0.5, tz);
+    for (let k = 0; k < 5; k++) { const a = k * 1.26; put('cat', new THREE.IcosahedronGeometry(0.16, 0), 0x3f7a2c, tx + Math.cos(a) * 0.18, 0.62, tz + Math.sin(a) * 0.18); put('cat', new THREE.DodecahedronGeometry(0.08, 0), 0xe03a3a, tx + Math.cos(a) * 0.2, 0.78, tz + Math.sin(a) * 0.2); } }
+  const LX = -43.6, LZ = 0.8; check('stump', LX, LZ, 1.6);
+  put('stump', new THREE.CylinderGeometry(0.8, 0.95, 0.55, 10), 0x6b4a2a, LX, 0.27, LZ); put('stump', new THREE.CylinderGeometry(0.72, 0.72, 0.02, 10), 0xd8b880, LX, 0.56, LZ);
+  put('stump', new THREE.TorusGeometry(0.42, 0.02, 3, 16), 0xa07a48, LX, 0.575, LZ, 0, Math.PI / 2); put('stump', new THREE.TorusGeometry(0.22, 0.02, 3, 12), 0xa07a48, LX, 0.575, LZ, 0, Math.PI / 2);
+  for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.5; put('stump', new THREE.ConeGeometry(0.22, 0.6, 5), 0x5a3a1e, LX + Math.cos(a) * 0.85, 0.15, LZ + Math.sin(a) * 0.85, -a, 0, 0); }
+  { const hat = new THREE.CylinderGeometry(0.32, 0.4, 0.2, 10, 1, true); put('stump', hat, 0x7a3a6a, LX + 1.1, 0.1, LZ + 0.5, 0, Math.PI); put('stump', new THREE.CircleGeometry(0.4, 10), 0x5a2a4a, LX + 1.1, 0.2, LZ + 0.5, 0, -Math.PI / 2); }
+  for (let i = 0; i < 3; i++) put('stump', new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8), 0xe8c040, LX + 1.05 + (i - 1) * 0.1, 0.03 + i * 0.022, LZ + 0.4);   /* her hat, upturned on the grass for coins */
+  // what you walk round: the oak and its seat, Brenna's fence and woodpile, Wenna's tubs and Lyra's stump (the low flower beds are stepped over, the cat is on the solid bench)
+  solidBoxes.push({ x0: OX - 2.2, x1: OX + 2.2, z0: OZ - 2.2, z1: OZ + 2.2 }, { x0: FX0, x1: FX1, z0: FZ0, z1: FZ1 }, { x0: WX - 0.8, x1: -70.3, z0: -8, z1: -2.1 });
+  solidAt(bn[0] - 2.0, bn[1] + 0.2, 0.45); solidAt(bn[0] + 1.7, bn[1] + 0.2, 0.45); solidAt(LX, LZ, 1.0);
+  const vmat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, metalness: 0 }), grp = new THREE.Group(); town.add(grp);
+  for (const list of bins.values()) { const m = new THREE.Mesh(mergeGeometries(list), vmat); m.castShadow = m.receiveShadow = true; grp.add(m); }
+}
 function updateSilkworks(){
-  if (!SILK.built) { buildSilkworks(); buildMarket(); return; }   /* built on the first frame: the town is put up before this part of the script has run */
+  if (!SILK.built) { buildSilkworks(); buildMarket(); buildGreen(); return; }   /* built on the first frame: the town is put up before this part of the script has run */
   const H = SILK.hutch, ready = hutchReady(), busy = H.n > 0 && !ready, t = performance.now() / 1000;
   const B = SILK.SHED, inside = hero && Math.abs(hero.position.x - B.x) < B.hw + 0.5 && Math.abs(hero.position.z - B.z) < B.hd + 0.5; SILK.roof.visible = !inside;   /* see in while you're inside */
   // leaves on the trays while they're being eaten; the worms wriggle; cocoons once they're ready
