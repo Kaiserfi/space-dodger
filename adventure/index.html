@@ -1437,7 +1437,7 @@ function clickNode(rec){
   if (rec.kind === 'tree' && levelOf(SKILL_XP.Woodcutting) < rec.level) { showToast(`You need Woodcutting ${rec.level} to chop this ${rec.g.userData.name.toLowerCase()}.`); return; }
   // stand on the side of the node that is free and nearest to the adventurer
   const spots = [[2.4, 0], [-2.4, 0], [0, 2.4], [0, -2.4]]
-    .map(([dx, dz]) => ({ x: rec.x + dx * rec.s, z: rec.z + dz * rec.s }))
+    .map(([dx, dz]) => { const f = rec.kind === 'tree' ? 0.85 : 1; return { x: rec.x + dx * rec.s * f, z: rec.z + dz * rec.s * f }; })   /* trees: close enough for a level swing to bite */
     .filter(p => !blocked(p.x, p.z))
     .sort((a, b) => Math.hypot(a.x - hero.position.x, a.z - hero.position.z) - Math.hypot(b.x - hero.position.x, b.z - hero.position.z));
   if (!spots.length) return;
@@ -2470,9 +2470,15 @@ function makeTool(kind){
     chibiPart(t, geo('pickHead', () => new THREE.BoxGeometry(0.12, 0.12, 0.7)), 0xcd7f32, 0, -1.12, 0);
     for (const s of [-1, 1]) { const tip = chibiPart(t, geo('pickTip', () => new THREE.ConeGeometry(0.065, 0.3, 6)), 0xcd7f32, 0, -1.16, s * 0.48); tip.rotation.x = s * (Math.PI / 2 + 0.3); }
   } else {
-    chibiPart(t, geo('axeCheek', () => new THREE.BoxGeometry(0.1, 0.28, 0.2)), 0x9a5e22, 0, -1.08, -0.06);
-    const blade = chibiPart(t, geo('axeBlade', () => new THREE.CylinderGeometry(0.26, 0.26, 0.08, 16, 1, false, 0, Math.PI)), 0xcd7f32, 0, -1.08, -0.16);
-    blade.rotation.set(0, 0, Math.PI / 2); blade.rotation.y = Math.PI / 2; blade.scale.set(1, 1, 1.1);   // a half disc: the curved edge faces -z
+    // a real axe head, seen side on: the eye round the handle, a narrow neck, then the blade flaring out to a wide, slightly curved edge
+    // that drops into a beard at the bottom; flat along x, the edge facing -z
+    const head = chibiPart(t, geo('axeHead2', () => { const sh = new THREE.Shape();
+      sh.moveTo(-0.07, 0.11); sh.lineTo(0.2, 0.1); sh.quadraticCurveTo(0.34, 0.11, 0.46, 0.15);   // the straight top, lifting a touch to the toe
+      sh.quadraticCurveTo(0.5, -0.05, 0.44, -0.27);   // the edge, bowed out a little
+      sh.quadraticCurveTo(0.3, -0.17, 0.2, -0.08); sh.lineTo(0.12, -0.1); sh.lineTo(-0.07, -0.1); sh.lineTo(-0.07, 0.11);   // the beard sweeping back to the neck and eye
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 1, curveSegments: 6 });
+      g.translate(0, 0, -0.04); g.rotateY(Math.PI / 2); return g; }), 0xcd7f32, 0, -1.08, -0.02);
+    chibiPart(t, geo('axePoll', () => new THREE.BoxGeometry(0.1, 0.2, 0.1)), 0x9a5e22, 0, -1.08, 0.09);   // the butt behind the handle
   }
   t.visible = false;
   return t;
@@ -2678,6 +2684,15 @@ function dressChibi(g, eq){
 const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 const lerp = (a, b, k) => a + (b - a) * k;
 // one swing of an axe or pickaxe, p from 0 to 1: wind up over the shoulder (to 0.4), strike (by 0.55, when the blow sounds), recover
+// the axe chop, 0-1: wound back round to the right, a fast level swing that bites at AXE_HIT (the chop sound), a short jolt, then pulled free
+const AXE_HIT = 25 / 45;
+function axeChop(p){
+  const back = 1.6, bite = 0.2, ready = 0.45;
+  if (p < 0.4) return { twist: lerp(ready, back, ease(p / 0.4)), lunge: 0 };
+  if (p < AXE_HIT) { const k = (p - 0.4) / (AXE_HIT - 0.4); return { twist: lerp(back, bite, k * k), lunge: 0.35 * k * k }; }
+  if (p < 0.72) { const k = (p - AXE_HIT) / (0.72 - AXE_HIT); return { twist: bite + 0.04 * Math.sin(k * Math.PI * 3) * (1 - k), lunge: 0.35 }; }   // stuck in the wood a moment
+  const k = ease((p - 0.72) / 0.28); return { twist: lerp(bite, ready, k), lunge: 0.35 * (1 - k) };
+}
 function swingArm(p, tool){
   const rest = -0.55, up = tool === 'hoe' ? -2.7 : -3.25, hit = tool === 'pick' ? -0.75 : tool === 'hoe' ? -0.55 : -1.35;   // the hoe chops low into the soil in front of the feet
   if (p < 0.4) return lerp(rest, up, ease(p / 0.4));
@@ -2713,7 +2728,8 @@ function poseChibi(g, mode, t, tool = 'axe'){
   const handsBusy = !['idle', 'walk', 'fight', 'ready', 'block', 'hurt', 'dead'].includes(mode);   /* any skilling or everyday job: the sword, shield or torch is put away for the moment */
   for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = !handsBusy; });
   const [L, R] = c.legs, [AL, AR] = c.arms;
-  c.body.position.y = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
+  c.body.position.y = 0; c.body.position.z = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
+  c.tools.axe.rotation.y = mode === 'swing' && tool === 'axe' ? Math.PI / 2 : 0;   /* the level chop turns the blade's edge to lead the swing */
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
   if (c.bite) c.bite.visible = false;
   if (mode === 'eat') { eatPose(c, t); return; }
@@ -2766,6 +2782,12 @@ function poseChibi(g, mode, t, tool = 'axe'){
     AL.rotation.set(-1.1 + w * 0.15, 0, -0.15); AR.rotation.set(-1.1 - w * 0.15, 0, 0.15);
     c.body.rotation.x = 0.08; c.body.position.y = Math.abs(w) * 0.02;
     L.rotation.x = R.rotation.x = 0;
+  } else if (mode === 'swing' && tool === 'axe') {   // a lumberjack's chop: twist back, swing level into the trunk, a jolt as it bites, pull free
+    const k = axeChop(t), lift = 0.12 * Math.sin(Math.max(0, Math.min(1, t / AXE_HIT)) * Math.PI);
+    c.body.rotation.y = k.twist; c.body.position.z = k.lunge; c.head.rotation.y = -k.twist * 0.75;   // the head keeps its eyes on the cut
+    AR.rotation.set(-1.5 - lift, 0, -0.1); AL.rotation.set(-1.55 - lift, 0, 0.55);   // both hands on the handle, held out level
+    c.body.rotation.x = 0.06 + k.lunge * 0.4;
+    L.rotation.x = -0.25 - k.lunge; R.rotation.x = 0.2;   // feet planted, front foot forward
   } else if (mode === 'swing') {
     const arm = swingArm(t, tool);
     AR.rotation.set(arm, 0, -0.08); AL.rotation.set(arm + 0.12, 0, 0.32);   // both hands on the handle
