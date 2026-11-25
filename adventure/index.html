@@ -2911,18 +2911,6 @@ function touchEnd(e){
 }
 renderer.domElement.addEventListener('pointerup', touchEnd);
 renderer.domElement.addEventListener('pointercancel', touchEnd);
-// where you clicked, as in RuneScape: a yellow cross on the ground for a walk, a red one on something you use, talk to or fight
-const clickMarkEl = document.createElement('div'); clickMarkEl.id = 'clickMark'; document.body.appendChild(clickMarkEl);
-{ const st = document.createElement('style'); st.textContent = '#clickMark{position:fixed;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;z-index:5;display:none}'
-    + '#clickMark:before,#clickMark:after{content:"";position:absolute;left:7px;top:-1px;width:4px;height:20px;border-radius:2px;background:var(--cm);box-shadow:0 0 0 1px rgba(0,0,0,.55)}'
-    + '#clickMark:before{transform:rotate(45deg)}#clickMark:after{transform:rotate(-45deg)}'
-    + '#clickMark.go{display:block;animation:clickMark .55s ease-out forwards}@keyframes clickMark{0%{transform:scale(1.25);opacity:1}70%{opacity:1}100%{transform:scale(.55);opacity:0}}';
-  document.head.appendChild(st); }
-function clickMark(x, y, act){
-  clickMarkEl.style.setProperty('--cm', act ? '#e8322a' : '#f3d23a');
-  clickMarkEl.style.left = x + 'px'; clickMarkEl.style.top = y + 'px';
-  clickMarkEl.classList.remove('go'); void clickMarkEl.offsetWidth; clickMarkEl.classList.add('go');   // restart the animation on every click
-}
 renderer.domElement.addEventListener('pointerup', e => {
   lastTap.x = e.clientX; lastTap.y = e.clientY;   // where a menu should pop up
   // a short click (not a drag) sets where to walk
@@ -2931,13 +2919,12 @@ renderer.domElement.addEventListener('pointerup', e => {
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const hit = new THREE.Vector3();
-  if (ray.intersectObject(doorMesh, false).length) { clickMark(e.clientX, e.clientY, true); if (doorOpen) closeDoor(); else useDoor(); return; }
+  if (ray.intersectObject(doorMesh, false).length) { if (doorOpen) closeDoor(); else useDoor(); return; }
   const treeHit = ray.intersectObjects(trees, true)[0];
   if (treeHit) {
     let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
-    if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
+    if (g) { clickNode(g.userData.rec); return; }
   }
-  clickMark(e.clientX, e.clientY, false);
   cancelChop();
   if (FIGHT) { endFight('You run away.'); }
   if (ray.ray.intersectPlane(groundPlane, hit)) {
