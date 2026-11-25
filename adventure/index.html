@@ -4226,7 +4226,7 @@ const VILLAGER_DAY = {
   Ysolde: { seat: 5, ev: [[0, 'home', 'sleep'], [6.5, 'river', 'fish'], [12, 'pond', 'look'], [14, 'market', 'look'], [17, 'river', 'fish'], [19, 'seat', 'sit'], [22.5, 'home', 'sleep']] },
   Dunmore: { seat: 8, ev: [[0, 'home', 'sleep'], [7, 'home', 'work'], [18.5, 'seat', 'sit'], [22, 'home', 'sleep']] },
 };
-const VSTOPS = { woods: { x: -89.6, z: 4, yaw: -Math.PI / 2 }, river: { x: -26.5, z: -10.4, yaw: Math.PI }, pond: { x: -71, z: 80, yaw: -Math.PI / 2 }, market: { x: 107.5, z: 6.6, yaw: Math.PI } };
+const VSTOPS = { woods: { x: -89.6, z: 4, yaw: -Math.PI / 2 }, river: { x: -31.2, z: -10.4, yaw: Math.PI }, pond: { x: -71, z: 80, yaw: -Math.PI / 2 }, market: { x: 107.5, z: 6.6, yaw: Math.PI } };
 // a door swung open without a sound, for a villager walking through it (doors are each player's own, so this is only on your screen)
 function openDoorQuiet(rec){ if (rec.open) return; rec.open = true; rec.pivot.rotation.y = -Math.PI / 2; rec.leaf.userData.action = 'Close'; const i = solidBoxes.indexOf(rec.box); if (i >= 0) solidBoxes.splice(i, 1); }
 function vStop(w, name){
