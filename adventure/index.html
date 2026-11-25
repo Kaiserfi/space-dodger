@@ -2688,10 +2688,10 @@ const lerp = (a, b, k) => a + (b - a) * k;
 const AXE_HIT = 25 / 45;
 function axeChop(p){
   const back = 1.6, bite = 0.2, ready = 0.45;
-  if (p < 0.4) return { twist: lerp(ready, back, ease(p / 0.4)), lunge: 0 };
-  if (p < AXE_HIT) { const k = (p - 0.4) / (AXE_HIT - 0.4); return { twist: lerp(back, bite, k * k), lunge: 0.35 * k * k }; }
-  if (p < 0.72) { const k = (p - AXE_HIT) / (0.72 - AXE_HIT); return { twist: bite + 0.04 * Math.sin(k * Math.PI * 3) * (1 - k), lunge: 0.35 }; }   // stuck in the wood a moment
-  const k = ease((p - 0.72) / 0.28); return { twist: lerp(bite, ready, k), lunge: 0.35 * (1 - k) };
+  if (p < 0.4) return { twist: lerp(ready, back, ease(p / 0.4)), lunge: 0, step: 0 };
+  if (p < AXE_HIT) { const k = (p - 0.4) / (AXE_HIT - 0.4); return { twist: lerp(back, bite, k * k), lunge: 0.35 * k * k, step: Math.sin(k * Math.PI) }; }
+  if (p < 0.72) { const k = (p - AXE_HIT) / (0.72 - AXE_HIT); return { twist: bite + 0.04 * Math.sin(k * Math.PI * 3) * (1 - k), lunge: 0.35, step: 0 }; }   // stuck in the wood a moment
+  const k = ease((p - 0.72) / 0.28); return { twist: lerp(bite, ready, k), lunge: 0.35 * (1 - k), step: Math.sin(k * Math.PI) };
 }
 function swingArm(p, tool){
   const rest = -0.55, up = tool === 'hoe' ? -2.7 : -3.25, hit = tool === 'pick' ? -0.75 : tool === 'hoe' ? -0.55 : -1.35;   // the hoe chops low into the soil in front of the feet
@@ -2728,6 +2728,7 @@ function poseChibi(g, mode, t, tool = 'axe'){
   const handsBusy = !['idle', 'walk', 'fight', 'ready', 'block', 'hurt', 'dead'].includes(mode);   /* any skilling or everyday job: the sword, shield or torch is put away for the moment */
   for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = !handsBusy; });
   const [L, R] = c.legs, [AL, AR] = c.arms;
+  for (const leg of c.legs) { if (!leg.userData.hip) leg.userData.hip = leg.position.clone(); leg.position.copy(leg.userData.hip); leg.rotation.y = 0; leg.children[1].rotation.x = 0; }
   c.body.position.y = 0; c.body.position.z = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
   c.tools.axe.rotation.y = mode === 'swing' && tool === 'axe' ? Math.PI / 2 : 0;   /* the level chop turns the blade's edge to lead the swing */
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2);
@@ -2787,7 +2788,14 @@ function poseChibi(g, mode, t, tool = 'axe'){
     c.body.rotation.y = k.twist; c.body.position.z = k.lunge; c.head.rotation.y = -k.twist * 0.75;   // the head keeps its eyes on the cut
     AR.rotation.set(-1.5 - lift, 0, -0.1); AL.rotation.set(-1.55 - lift, 0, 0.55);   // both hands on the handle, held out level
     c.body.rotation.x = 0.06 + k.lunge * 0.4;
-    L.rotation.x = -0.25 - k.lunge; R.rotation.x = 0.2;   // feet planted, front foot forward
+    // a real step: the back foot stays put while the hips go forward, the front foot lifts and lands further ahead (legs hang 0.55 from the hip)
+    const LEG = 0.55, f0 = 0.136, b0 = -0.11, front = f0 + 1.6 * k.lunge;
+    const aF = -Math.asin(Math.min(0.95, (front - k.lunge) / LEG)) - 0.3 * k.step, aB = Math.asin(Math.min(0.95, (k.lunge - b0) / LEG));
+    L.rotation.x = aF; R.rotation.x = aB;
+    c.body.position.y = -LEG * (1 - Math.cos(Math.min(Math.abs(aF), aB)));   // the hips drop as the stride opens, just enough that neither foot sinks
+    for (const leg of c.legs) {   // the twist is the upper body's: the hips and legs stay square to the ground, so the planted foot doesn't slide
+      const h = leg.userData.hip; leg.rotation.order = 'YXZ'; leg.rotation.y = -k.twist;
+      leg.position.set(h.x * Math.cos(k.twist), h.y, h.x * Math.sin(k.twist)); leg.children[1].rotation.x = -leg.rotation.x * 0.8; }   /* boots stay flat on the ground */
   } else if (mode === 'swing') {
     const arm = swingArm(t, tool);
     AR.rotation.set(arm, 0, -0.08); AL.rotation.set(arm + 0.12, 0, 0.32);   // both hands on the handle
