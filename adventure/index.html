@@ -3387,7 +3387,7 @@ function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.s
 function hasItem(name){ if (name === 'Coins') return COINS > 0; return bag.some(i => i.name === name); }
 /* the toolbelt: one of each skilling tool, kept out of the bag; skilling works from the bag or the belt */
 const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', rod: 'Fishing rod', hoe: 'Hoe', can: 'Watering can', tinder: 'Tinderbox' };
-const toolbelt = { axe: null, pick: null, hammer: null, net: null, hoe: null, can: null, tinder: null };
+const toolbelt = { axe: null, pick: null, hammer: null, net: null, rod: null, hoe: null, can: null, tinder: null };
 function beltSlotFor(name){ return /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : /fishing rod$/.test(name) ? 'rod' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : name === 'Tinderbox' ? 'tinder' : null; }
 function hasTool(name){ return hasItem(name) || Object.values(toolbelt).includes(name); }
 function renderBag() {
