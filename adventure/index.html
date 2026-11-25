@@ -2943,6 +2943,11 @@ function updateHeroAnim(){
   if (!hero) return;
   if (!FIGHT && performance.now() < eatUntil) { turnChibi(hero, heroAnim.yaw); poseChibi(hero, 'eat', 1 - (eatUntil - performance.now()) / EAT_MS); return; }
   if (heroSeatFrame()) return;   // sat at the bonfire
+  { const c = hero.userData.chibi; if (c && c.rod) c.rod.g.visible = false; }
+  if (heroAnim.mode === 'fish') {   // fishing with a rod: the cast at the start of each try, then the line waits in the water
+    if (!fishing) heroAnim.mode = 'idle';
+    else { const k = (performance.now() - fishing.t0) / FISH_MS; turnChibi(hero, heroAnim.yaw); fishPose(hero, performance.now() / 1000, k < 0.22 ? k / 0.22 : 0); return; }
+  }
   if (FIGHT && heroAnim.mode === 'fight') { turnChibi(hero, heroAnim.yaw); return; }
   if (heroFrame === '') { heroFrame = 0; dressChibi(hero, equipped); }
   turnChibi(hero, heroAnim.yaw);
@@ -3863,7 +3868,7 @@ function catchFish(rec){
   if (!roomForOne(FISHES[rec.fish].raw)) { showToast('Your bag is full.'); return; }
   fishing = { rec, t0: performance.now() };
   showToast(FISHES[rec.fish].bait ? 'You cast your line out over the water...' : 'You dip your net in the water...'); splashSound();
-  setAct({ k: 'fish', t: Date.now() });
+  setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool === 'Fishing rod' ? 1 : 0 });
   document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
 }
 function stopFishing(msg){ if (!fishing) return; fishing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'fish') setAct(null); if (msg) showToast(msg); }
@@ -3872,7 +3877,7 @@ function updateFishing(){
   const k = (performance.now() - fishing.t0) / FISH_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, fishing.rec.x, fishing.rec.z);
-  heroAnim.mode = 'work';
+  heroAnim.mode = FISHES[fishing.rec.fish].tool === 'Fishing rod' ? 'fish' : 'work';
   if (k < 1) return;
   // a catch is more likely the better you are at fishing
   const F = FISHES[fishing.rec.fish];
@@ -3883,7 +3888,7 @@ function updateFishing(){
     addXp('Fishing', F.xp); showToast(`You catch a raw ${F.word} (${countOf(F.raw)}).  +${F.xp} Fishing XP`);
   }
   if (!roomForOne(F.raw)) { stopFishing('Your bag is full.'); return; }
-  fishing.t0 = performance.now(); splashSound(); setAct({ k: 'fish', t: Date.now() });   // the net goes in again
+  fishing.t0 = performance.now(); splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool === 'Fishing rod' ? 1 : 0 });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
@@ -4226,9 +4231,10 @@ function fishRod(c){
   c.rod = { g, line, thread, bob }; return c.rod;
 }
 const rodQ = new THREE.Quaternion(), rodV = new THREE.Vector3();
-function fishPose(sp, t){
+function fishPose(sp, t, castK){   /* castK: where a cast is (0 to 1, or 0 for none), for the hero's own timing; villagers cast every nine seconds */
   const c = sp.userData.chibi, R = fishRod(c); R.g.visible = true; poseChibi(sp, 'idle', t);
-  const k = (t % 9) / 9, cast = k > 0.9 ? (k - 0.9) / 0.1 : 0;   // every nine seconds: draw the rod back over the shoulder and flick it out again
+  for (const a of c.arms) a.children.forEach(o => { if (o.userData.isGear) o.visible = false; });   // sword and shield put away, both hands on the job
+  const k = (t % 9) / 9, cast = castK !== undefined ? castK : k > 0.9 ? (k - 0.9) / 0.1 : 0;   // draw the rod back over the shoulder and flick it out again
   c.arms[1].rotation.set(cast ? -1.1 - Math.sin(cast * Math.PI) * 1.3 : -1.1 + Math.sin(t * 1.3) * 0.04, 0, 0.12);
   c.arms[0].rotation.set(-0.7, 0, -0.25);   // the other hand steadies the line
   sp.updateMatrixWorld(true);
@@ -6119,7 +6125,10 @@ function updateOnline(){
     const verb = act ? ACT_LABEL[act.k] : '';
     if (verb !== r.verb) { r.verb = verb; r.label.textContent = r.name + (verb ? ' (' + verb + ')' : ''); }
     if (moving) r.yaw = Math.atan2(nx - x, nz - z);   // face the way they walk
-    if (act && (act.k === 'chop' || act.k === 'mine')) {
+    { const rc = r.sprite.userData.chibi; if (rc && rc.rod) rc.rod.g.visible = false; }
+    if (act && act.k === 'fish' && act.r && !moving) {   // someone fishing with a rod: the same pose, casting each time their line goes in
+      const k = (Date.now() - (act.t || 0)) / FISH_MS; fishPose(r.sprite, t / 1000, k >= 0 && k < 0.22 ? k / 0.22 : 0);
+    } else if (act && (act.k === 'chop' || act.k === 'mine')) {
       const node = nodeRecByKey(act.n);
       if (node) r.yaw = yawTo(nx, nz, node.x, node.z);   // face the tree or rock
       poseChibi(r.sprite, 'swing', ((t - r.actAt) / 750) % 1, act.k === 'mine' ? 'pick' : 'axe');
