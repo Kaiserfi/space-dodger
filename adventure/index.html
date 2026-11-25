@@ -1639,7 +1639,7 @@ function renderSmith(){
     const bars = barCount(barOf(r)), ok = lvl >= r.level && bars >= r.bars, most = Math.floor(bars / r.bars);
     const btn = (n, label) => `<button data-r="${i}" data-n="${n}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 7px;cursor:pointer;${ok ? '' : 'opacity:.45;cursor:default'}">${label}</button>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0"><span style="${ok ? '' : 'opacity:.4;filter:grayscale(1)'}">${iconOf(r.name)}</span>
-      <span style="flex:1;${ok ? '' : 'opacity:.45;filter:grayscale(1)'}">${r.name}<br><small style="color:#c9b27a">${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small><br><small style="color:#9ac87a">${statText(r.name)}</small></span>
+      <span style="flex:1;${ok ? '' : 'opacity:.45;filter:grayscale(1)'}">${r.name}<br><small style="color:#c9b27a">${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small></span>
       <span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;max-width:112px">${btn(1, '1')}${btn(5, '5')}${btn('x', 'X')}${btn('all', 'All' + (ok ? ' (' + most + ')' : ''))}</span></div>`;
   }).join('');
 }
