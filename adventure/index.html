@@ -4231,7 +4231,7 @@ function fishRod(c){
   c.rod = { g, line, thread, bob }; return c.rod;
 }
 const rodQ = new THREE.Quaternion(), rodV = new THREE.Vector3();
-const TWO_HAND = { ry: -0.4, rz: -1.2, lx: 0.7, ly: -0.4, lz: 1.2 };   /* found by measuring: the left hand closes on the rod just past the right */
+const TWO_HAND = { ry: 0, rz: 0.1, lx: -0.1, ly: -0.4, lz: -0.1 };   /* measured with armour on: both arms out in front, clear of the chest; the left hand just under the rod (chibi arms can't quite meet on it) */
 function fishPose(sp, t, castK, twoHands = false){   /* castK: where a cast is (0 to 1, or 0 for none), for players' own timing; villagers cast every nine seconds */
   const c = sp.userData.chibi, R = fishRod(c); R.g.visible = true; poseChibi(sp, 'idle', t);
   for (const a of c.arms) a.children.forEach(o => { if (o.userData.isGear) o.visible = false; });   // sword and shield put away, both hands on the job
