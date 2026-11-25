@@ -7426,7 +7426,7 @@ function buildRiverLife(){
     if (!q.attributes.uv) q.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2));
     const mm = typeof m === 'number' ? cm(m) : m; if (!bins.has(mm)) bins.set(mm, []); bins.get(mm).push(q); };
   // Fenwick's jetty, a plank deck out over the river from his bank, with a pail, a stool and his rowboat tied alongside
-  { const jx = -36, z0 = riverSouth(jx) + 0.6, z1 = z0 - 4.4;
+  { const jx = -42,   /* west of the shrimp spot at x -36, so its ripples stay in open water */ z0 = riverSouth(jx) + 0.6, z1 = z0 - 4.4;
     for (let z = z0; z > z1; z -= 0.55) add(B(2.2, 0.12, 0.48), wood, jx + (Math.round(z * 7) % 2) * 0.04, 0.12, z - 0.25, 0, (Math.round(z * 13) % 3 - 1) * 0.03);
     for (const s of [-1, 1]) { add(B(0.14, 0.14, z0 - z1), dark, jx + s * 0.95, 0.02, (z0 + z1) / 2); for (const z of [z0 - 0.3, (z0 + z1) / 2, z1 + 0.25]) add(Cy(0.13, 0.15, 1.6), dark, jx + s * 0.95, -0.4, z); }
     add(Cy(0.15, 0.17, 1.2), dark, jx + 0.95, 0.6, z1 + 0.25); add(new THREE.TorusGeometry(0.17, 0.05, 5, 10), 0xc8b080, jx + 0.95, 0.75, z1 + 0.25, Math.PI / 2);
