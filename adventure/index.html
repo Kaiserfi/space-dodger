@@ -3912,7 +3912,7 @@ function updateGuard(w, talker, dt){
       g2.strokeText('z', 8, 56); g2.fillText('z', 8, 56); g2.font = 'bold 34px Georgia'; g2.strokeText('Z', 30, 34); g2.fillText('Z', 30, 34); const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace; ZZZ_MAT = new THREE.SpriteMaterial({ map: tx2, transparent: true, depthWrite: false }); }
     w.zzz = new THREE.Sprite(ZZZ_MAT.clone()); w.zzz.scale.set(0.9, 0.9, 1); scene.add(w.zzz); }
   if (w.zzz) { w.zzz.visible = lying; if (lying) { const k = (performance.now() / 2400 + GUARD_NAMES.indexOf(w.rec.name) * 0.3) % 1; w.zzz.position.set(tx + 0.3, 5.6 + k * 1.2, tz - 1.4 - k * 0.3); w.zzz.material.opacity = Math.sin(k * Math.PI); } }
-  w.sitting = sitting && d < 0.3; w.lying = lying; w.rec.sitting = w.sitting;
+  w.sitting = sitting && d < 0.3; w.lying = lying; w.rec.sitting = w.sitting; w.rec.chatAt = 'table';
   return moving;
 }
 // ----- the villagers' day: Tobin, Ysolde and Dunmore leave their houses to work, eat, fish, shop and sit at the bonfire,
@@ -3983,7 +3983,7 @@ function updateVillager(w, talker, dt){
   if (!(talker && !asleep) && d > 0.1) { if (d > 40) sp.position.set(tx, 0, tz); else { const step = Math.min(d, (st.mode === 'walk' ? GUARD_SPEED * 1.15 : d > 2 ? 3 : GUARD_SPEED) * dt); sp.position.x += dx / d * step; sp.position.z += dz / d * step; moving = step > 0.2 * dt; w.dx = dx; w.dz = dz; w.tick += dt * 60; } }
   for (const h of houses) if (h.doorRec && !h.doorRec.open && Math.hypot(h.doorRec.x - sp.position.x, h.doorRec.z - sp.position.z) < 2.2) openDoorQuiet(h.doorRec);   // let themselves out (and in)
   const here = d < 0.3, rod = c.rod; if (rod) rod.g.visible = false;
-  w.rec.asleep = asleep && here; const seatSt = st.stop && st.stop.seat;
+  w.rec.asleep = asleep && here; const seatSt = st.stop && st.stop.seat; w.rec.sitting = st.mode === 'sit' && here; w.rec.chatAt = 'bonfire';
   if (seatSt) { if (here) VSEAT_TAKEN.add(seatSt.idx); else VSEAT_TAKEN.delete(seatSt.idx); } else VSEAT_TAKEN.delete(BF.seats[VILLAGER_DAY[w.rec.name].seat].idx);
   if (w.zzz) w.zzz.visible = false;
   if (moving || !here) { if (moving) w.yaw = Math.atan2(w.dx, w.dz); turnChibi(sp, w.yaw || 0); poseChibi(sp, moving ? 'walk' : 'idle', w.tick / 90); }
@@ -4812,24 +4812,46 @@ const TABLE_TALK = [
   [[0, "Hilde's hens were loose by the bonfire."], [1, "All of them?"], [0, "All but the brown one. She's got sense."]],
   [[0, "Quiet night."], [1, "Don't say that."], [0, "Why?"], [1, "Because then it won't be."]],
 ];
-const TT = { lines: null, i: 0, pair: null, next: performance.now() + 4000, last: -1 };
+// round the bonfire in the evening: Tobin, Ysolde and Dunmore, each in their own voice (only chats whose speakers are all there)
+const BONFIRE_TALK = [
+  [['Dunmore', "Catch anything today, Ysolde?"], ['Ysolde', "Three trout and Fenwick's pride."], ['Tobin', "Again?"]],
+  [['Tobin', "Chopped four trees today."], ['Dunmore', "Four?"], ['Tobin', "Well. One. Four times."]],
+  [['Ysolde', "Fenwick's telling everyone he caught a fish as long as a horse."], ['Dunmore', "It was a boot."], ['Ysolde', "It was a boot."]],
+  [['Dunmore', "Still no word from the master."], ['Tobin', "Eleven years now, isn't it?"], ['Dunmore', "Twelve, come spring. I've stopped setting his place."]],
+  [['Tobin', "Lovely and warm, this."], ['Ysolde', "You're asleep, Tobin."], ['Tobin', "Resting my eyes."]],
+  [['Ysolde', "Tilly took my whole catch today."], ['Dunmore', "What's she want with that much trout?"], ['Ysolde', "Didn't ask. Took the coin."]],
+  [['Dunmore', "Lost another eyebrow at the forge."], ['Ysolde', "Which one?"], ['Dunmore', "The good one."]],
+  [['Tobin', "Pip asked for a go with my axe."], ['Dunmore', "Tell me you said no."], ['Tobin', "I told him to ask Brenna. Same thing."]],
+  [['Ysolde', "Something big's been rippling the pond."], ['Tobin', "Fish?"], ['Ysolde', "Hope so."]],
+  [['Dunmore', "Bertram's brought his sword in for grinding again."], ['Tobin', "What's he been hitting?"], ['Dunmore', "Cabbages, I reckon."]],
+  [['Tobin', "Think Rennick did it?"], ['Ysolde', "He tried to sell me my own net last week."], ['Tobin', "So yes."]],
+  [['Ysolde', "Mind your boots, Dunmore, they're smoking."], ['Dunmore', "They always smoke."], ['Ysolde', "More than usual."]],
+];
+const TALK_AT = { table: { pool: () => TABLE_TALK }, bonfire: { pool: () => BONFIRE_TALK } };
+// people sat together chat with each other instead of calling out: a random exchange, line by line, in their bubbles.
+// Each place (the mess table, the bonfire) runs its own chat. Lines go to a role (0, 1) or to someone by name.
+for (const k in TALK_AT) Object.assign(TALK_AT[k], { lines: null, i: 0, who: null, next: performance.now() + 4000, last: -1 });
 function tableTalk(now){
   if (!hero) return;
-  if (!TT.lines) {
-    if (now < TT.next) return;
-    const sat = BARKERS.filter(b => b.rec.sitting && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
-    if (sat.length < 2) { TT.next = now + 3000; return; }
-    const a = sat.splice(Math.floor(Math.random() * sat.length), 1)[0], b = sat[Math.floor(Math.random() * sat.length)];
-    let k; do { k = Math.floor(Math.random() * TABLE_TALK.length); } while (k === TT.last && TABLE_TALK.length > 1);
-    TT.last = k; TT.lines = TABLE_TALK[k]; TT.i = 0; TT.pair = [a, b]; TT.next = now;
+  for (const at in TALK_AT) { const T = TALK_AT[at];
+    if (!T.lines) {
+      if (now < T.next) continue;
+      const sat = BARKERS.filter(b => b.rec.sitting && b.rec.chatAt === at && !b.el && b.sp.getWorldPosition(barkV).distanceTo(hero.position) < 24 && dlg !== b.rec);
+      const pool = T.pool().map((c, k) => [c, k]).filter(([c]) => typeof c[0][0] === 'number' ? sat.length >= 2 : c.every(([n]) => sat.some(b => b.rec.name === n)));
+      if (!pool.length) { T.next = now + 3000; continue; }
+      let pick = pool[Math.floor(Math.random() * pool.length)]; if (pick[1] === T.last && pool.length > 1) pick = pool.find(p => p[1] !== T.last);
+      const [c, k] = pick; T.last = k; T.lines = c; T.i = 0; T.next = now;
+      if (typeof c[0][0] === 'number') { const a = sat.splice(Math.floor(Math.random() * sat.length), 1)[0]; T.who = [a, sat[Math.floor(Math.random() * sat.length)]]; }
+      else T.who = Object.fromEntries(sat.map(b => [b.rec.name, b]));
+    }
+    if (now < T.next) continue;
+    const [who, text] = T.lines[T.i] || [], b = who !== undefined && T.who[who];
+    if (!b || !b.rec.sitting || dlg === b.rec) { T.lines = null; T.next = now + 8000; continue; }   // someone got up (or is being talked to): the chat ends
+    if (b.el) b.el.remove();
+    b.el = document.createElement('div'); b.el.className = 'npcBub'; b.el.textContent = text; document.body.appendChild(b.el);
+    b.until = now + 2200 + text.length * 55; T.next = b.until + 300; T.i++;
+    if (T.i >= T.lines.length) { T.lines = null; T.next = b.until + 9000 + Math.random() * 9000; }   // a pause before the next chat
   }
-  if (now < TT.next) return;
-  const [who, text] = TT.lines[TT.i] || [], b = who !== undefined && TT.pair[who];
-  if (!b || !b.rec.sitting || dlg === b.rec) { TT.lines = null; TT.next = now + 8000; return; }   // someone got up (or is being talked to): the chat ends
-  if (b.el) b.el.remove();
-  b.el = document.createElement('div'); b.el.className = 'npcBub'; b.el.textContent = text; document.body.appendChild(b.el);
-  b.until = now + 2200 + text.length * 55; TT.next = b.until + 300; TT.i++;
-  if (TT.i >= TT.lines.length) { TT.lines = null; TT.next = b.until + 9000 + Math.random() * 9000; }   // a pause before the next chat
 }
 function updateBarks(){
   const now = performance.now();
