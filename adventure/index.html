@@ -4681,6 +4681,7 @@ function grassMaskTexture(){
   g.beginPath(); g.arc(X(BF.x), Z(BF.z), BF.clearR * GM.ppu, 0, 7); g.fill();   // the bonfire clearing
   g.fillStyle = 'rgba(110,70,0,1)'; g.fillRect(X(62), Z(37), 46 * GM.ppu, 43 * GM.ppu); g.fillStyle = '#000';   // the ruined farm: patchy, stunted grass
   g.fillRect(X(97.6), Z(-7.6), 9.8 * GM.ppu, 6.8 * GM.ppu);   // the workshop floor
+  g.fillRect(X(50.2), Z(14.2), 5.6 * GM.ppu, 4.0 * GM.ppu);   // the duck pond by the field
   g.fillRect(X(FISH_SHACK.x - 4.5), Z(FISH_SHACK.z - 3.5), 9 * GM.ppu, 7 * GM.ppu);   // Jory's shack
   g.fillRect(X(BARRACKS.x0 - 1.5), Z(BARRACKS.z0 - 1.5), (BARRACKS.jx1 - BARRACKS.x0 + 3) * GM.ppu, (BARRACKS.z1 - BARRACKS.z0 + 3) * GM.ppu);   // the barracks and the jail
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
@@ -7232,6 +7233,68 @@ function buildGreen(){
   const vmat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, metalness: 0 }), grp = new THREE.Group(); town.add(grp);
   for (const list of bins.values()) { const m = new THREE.Mesh(mergeGeometries(list), vmat); m.castShadow = m.receiveShadow = true; grp.add(m); }
 }
+// Farm dressing (owner-approved mock-up): a dry-stone wall along the windmill lane with gaps for the pen paths, the hay wain, a grazing donkey
+// and haystacks behind the barn, bee skeps on a bench by the windmill, and a duck pond south of the field. One merged vertex-coloured mesh,
+// seeded random only, so it is the same for every player. Built on the first frame (as buildGreen).
+const FARMDRESS = { built: false };
+function buildFarmDress(){
+  FARMDRESS.built = true;
+  const root = new THREE.Group(); town.add(root); let q = 7; const rr = () => (q = (q * 16807) % 2147483647) / 2147483647;
+  const parts = [];
+  const V = (geo, col, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { let g = geo.index ? geo.toNonIndexed() : geo; g.deleteAttribute('uv');
+    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz)));
+    const c = new THREE.Color(col), a = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < a.length; i += 3) { a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); parts.push(g); return g; };
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d), stoneCols = [0x9a958a, 0x86827a, 0xa8a294, 0x7a766e];
+  const checks = [];   /* spots the designer checked against roads, water and solids */
+  /* 1. dry-stone wall south of the windmill lane, with a gap at each pen path and a stone stile */
+  const wall = (x0, x1, z) => { checks.push([x0, z], [x1, z], [(x0 + x1) / 2, z]); V(B(x1 - x0, 0.78, 0.5), 0x7e7a70, (x0 + x1) / 2, 0.39, z);
+    for (let row = 0; row < 3; row++) for (let x = x0 + (row % 2) * 0.35; x < x1 - 0.2; x += 0.62 + rr() * 0.15) {
+      const s = 0.3 - row * 0.03; V(new THREE.DodecahedronGeometry(s, 0), stoneCols[Math.floor(rr() * 4)], x, 0.2 + row * 0.3, z + (rr() - 0.5) * 0.06, 0, rr() * 0.6, (rr() - 0.5) * 0.3, 1.25, 0.62, 0.95); }
+    for (let x = x0; x < x1 - 0.2; x += 0.3) V(B(0.12, 0.34, 0.5), rr() < 0.5 ? 0x8a8478 : 0x9a958a, x + 0.15, 0.9, z, 0, 0, (rr() - 0.5) * 0.35);   /* coping stones on their edge */
+    for (let x = x0 + 0.5; x < x1; x += 1.3 + rr()) { if (rr() < 0.5) V(new THREE.IcosahedronGeometry(0.28, 0), rr() < 0.5 ? 0x5e8a3a : 0x4e7a32, x, 0.18, z + 0.55, 0, rr() * 3, 0, 1.3, 0.7, 1);   /* tufts at the foot */
+      if (rr() < 0.35) { V(new THREE.CylinderGeometry(0.03, 0.04, 0.9, 4), 0x4e7a32, x + 0.3, 0.45, z + 0.6); for (let k = 0; k < 4; k++) V(new THREE.ConeGeometry(0.09, 0.16, 5), 0xc070b8, x + 0.3, 0.55 + k * 0.12, z + 0.66, Math.PI, 0, 0); } } };
+  wall(63.2, 69.4, 13.8); wall(72.6, 78.6, 13.8); wall(82.6, 91.4, 13.8);
+  for (const s of [-1, 1]) for (let k = 0; k < 2; k++) V(B(0.9, 0.12, 0.42), 0x8e897e, 87, 0.3 + k * 0.32, 13.8 + s * (0.55 + (1 - k) * 0.35));   /* through-stones sticking out both sides: a step stile */
+  /* 2. the hay wain and donkey, east of the barn, with two haystacks */
+  const CX = 59.2, CZ = -5; const wood = 0x8a6038, dk = 0x5a3a1e; checks.push([CX, CZ], [CX, CZ - 1.6], [CX, CZ + 1.6], [CX - 3.4, CZ]);
+  V(B(2.2, 0.16, 3.4), wood, CX, 1.0, CZ); for (const s of [-1, 1]) { V(B(0.1, 0.55, 3.4), dk, CX + s * 1.1, 1.32, CZ); for (const zz of [-1.2, 1.2]) { const w = V(new THREE.CylinderGeometry(0.62, 0.62, 0.14, 10), dk, CX + s * 1.22, 0.62, CZ + zz, 0, 0, Math.PI / 2); V(new THREE.CylinderGeometry(0.16, 0.16, 0.2, 8), 0x3a2a1a, CX + s * 1.25, 0.62, CZ + zz, 0, 0, Math.PI / 2); } }
+  for (const zz of [-1.2, 1.2]) V(B(2.5, 0.1, 0.1), 0x3a2a1a, CX, 0.62, CZ + zz);
+  V(new THREE.DodecahedronGeometry(1.05, 1), 0xe0c060, CX, 1.55, CZ, 0, 0.3, 0, 1.0, 0.55, 1.55);   /* a heaped load of hay */
+  for (const s of [-1, 1]) V(B(0.09, 0.09, 2.6), dk, CX + s * 0.45, 0.95, CZ - 2.9, -0.2, 0, 0);   /* the shafts, resting low to the north */
+  /* the donkey, unhitched and grazing beside the shafts */
+  const DX = CX - 2.6, DZ = CZ - 2.2, grey = 0x9a8e84, pale = 0xd8d0c4; checks.push([DX, DZ]);
+  V(new THREE.IcosahedronGeometry(0.62, 1), grey, DX, 1.05, DZ, 0, 0, 0, 0.75, 0.72, 1.35);
+  for (const [lx, lz] of [[-0.25, -0.5], [0.25, -0.5], [-0.25, 0.5], [0.25, 0.5]]) { V(B(0.16, 0.78, 0.16), grey, DX + lx, 0.4, DZ + lz); V(B(0.18, 0.12, 0.18), 0x3a3230, DX + lx, 0.05, DZ + lz); }
+  V(B(0.26, 0.62, 0.3), grey, DX, 1.0, DZ - 0.95, 0.9, 0, 0); const hz = DZ - 1.35;   /* the neck, bent down to graze */
+  V(new THREE.IcosahedronGeometry(0.3, 1), grey, DX, 0.62, hz, 0, 0, 0, 0.85, 0.8, 1.15); V(new THREE.IcosahedronGeometry(0.2, 1), pale, DX, 0.45, hz - 0.28, 0, 0, 0, 1, 0.8, 1);
+  for (const s of [-1, 1]) { V(new THREE.ConeGeometry(0.09, 0.62, 5), grey, DX + s * 0.14, 0.95, hz + 0.12, -0.5, 0, s * -0.35); V(B(0.07, 0.09, 0.04), 0x15110d, DX + s * 0.22, 0.7, hz - 0.12); }
+  V(B(0.06, 0.5, 0.06), grey, DX, 1.0, DZ + 0.88, -0.3, 0, 0); V(new THREE.ConeGeometry(0.08, 0.2, 5), 0x3a3230, DX, 0.72, DZ + 0.96, Math.PI, 0, 0);
+  V(B(0.08, 0.18, 1.1), 0x4a4440, DX, 1.48, DZ - 0.2);   /* dark stripe of mane down the back */
+  for (const [x, z, s] of [[57.2, -9.4, 1], [60.4, -9.6, 0.85]]) { checks.push([x, z]); V(new THREE.CylinderGeometry(1.1 * s, 1.25 * s, 1.3 * s, 9), 0xd8b850, x, 0.65 * s, z); V(new THREE.ConeGeometry(1.2 * s, 1.3 * s, 9), 0xe0c060, x, 1.95 * s, z); V(new THREE.CylinderGeometry(0.06, 0.06, 0.5 * s, 4), dk, x, 2.75 * s, z); }
+  /* 3. bee skeps on a plank bench between the fields and the windmill, with lavender */
+  const HX = 89.4; for (const z of [-7.2, -5.8, -4.4]) checks.push([HX, z]);
+  V(B(1.1, 0.12, 4.2), wood, HX, 0.7, -5.8); for (const z of [-7.5, -4.1]) for (const s of [-1, 1]) V(B(0.12, 0.7, 0.12), dk, HX + s * 0.4, 0.35, z);
+  for (const z of [-7.2, -5.8, -4.4]) { for (let k = 0; k < 4; k++) { const r = 0.5 - k * 0.1; V(new THREE.TorusGeometry(r, 0.09, 5, 12), k % 2 ? 0xc89a48 : 0xd8b060, HX, 0.85 + k * 0.17, z, Math.PI / 2, 0, 0); }
+    V(new THREE.SphereGeometry(0.16, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0xd8b060, HX, 1.42, z); V(B(0.05, 0.12, 0.2), 0x2a1a10, HX + 0.53, 0.86, z);
+    for (let k = 0; k < 3; k++) V(new THREE.SphereGeometry(0.05, 5, 4), k % 2 ? 0x2a2010 : 0xe8c030, HX + 0.8 + rr() * 0.5, 1.1 + rr() * 0.6, z + (rr() - 0.5) * 0.8); }
+  for (let i = 0; i < 14; i++) { const x = HX - 1.0 - rr() * 0.6, z = -7.6 + i * 0.27; V(new THREE.IcosahedronGeometry(0.22, 0), 0x6a8a5a, x, 0.2, z, 0, rr() * 3, 0, 1, 0.8, 1); for (let k = 0; k < 3; k++) V(new THREE.ConeGeometry(0.05, 0.32, 4), 0x9070c8, x + (rr() - 0.5) * 0.3, 0.5, z + (rr() - 0.5) * 0.2); }
+  /* 4. a duck pond in the corner between the farm road and the field lane */
+  const PX = 53, PZ = 16.2, PR = 2.6; checks.push([PX, PZ], [PX - PR - 0.6, PZ], [PX + PR + 0.6, PZ], [PX, PZ - PR * 0.7 - 0.6], [PX, PZ + PR * 0.7 + 0.6]);
+  for (let a = 0; a < 6.28; a += 0.32) { const x = PX + Math.cos(a) * (PR + 0.25), z = PZ + Math.sin(a) * (PR * 0.72 + 0.25); if (rr() < 0.8) V(new THREE.DodecahedronGeometry(0.22 + rr() * 0.15, 0), stoneCols[Math.floor(rr() * 4)], x, 0.08, z, rr() * 3, rr() * 3, 0, 1, 0.5, 0.8);
+    if (a > 3.6 && a < 5.6) for (let k = 0; k < 3; k++) V(new THREE.CylinderGeometry(0.02, 0.035, 0.9 + rr() * 0.5, 4), 0x5a7a2e, x + (rr() - 0.5) * 0.4 - Math.cos(a) * 0.4, 0.5, z - Math.sin(a) * 0.3 + (rr() - 0.5) * 0.3, (rr() - 0.5) * 0.3, 0, (rr() - 0.5) * 0.3); }
+  V(new THREE.CylinderGeometry(PR + 0.15, PR + 0.15, 0.04, 24), 0x6a5a3a, PX, 0.03, PZ, 0, 0, 0, 1, 1, 0.72);   /* muddy rim */
+  for (const [x, z, ry, s] of [[52, 15.6, 0.6, 1], [54.2, 17.0, 2.2, 0.9], [51.2, 17.2, -0.9, 0.62]]) {   /* two ducks and a duckling */
+    const dx = Math.sin(ry), dz = Math.cos(ry); V(new THREE.IcosahedronGeometry(0.3 * s, 1), 0xf4f0e6, x, 0.18, z, 0, ry, 0, 0.8, 0.6, 1.25); V(new THREE.IcosahedronGeometry(0.17 * s, 1), s < 0.7 ? 0xf0d860 : 0x3a7a4a, x + dx * 0.3 * s, 0.42 * s + 0.1, z + dz * 0.3 * s);
+    V(B(0.12 * s, 0.05 * s, 0.16 * s), 0xe89030, x + dx * 0.46 * s, 0.4 * s + 0.1, z + dz * 0.46 * s, 0, ry, 0); }
+  const geo = mergeGeometries(parts); const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 })); mesh.castShadow = mesh.receiveShadow = true; root.add(mesh);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(PR, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4f8db5, roughness: 0.12, metalness: 0.1 })); water.position.set(PX, 0.07, PZ); water.scale.z = 0.72; root.add(water);
+  const padMat = mat(0x4e8a34); for (let i = 0; i < 5; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.3, 8).rotateX(-Math.PI / 2), padMat); p.position.set(PX + 1.2 - i * 0.35, 0.09, PZ - 0.9 + (i % 2) * 0.5); root.add(p); }
+  /* solid for walkers and monster paths; low tufts, lavender, rims and stones stay walkable */
+  for (const [x0, x1] of [[63.2, 69.4], [72.6, 78.6], [82.6, 91.4]]) solidBoxes.push({ x0, x1, z0: 13.5, z1: 14.1 });
+  solidBoxes.push({ x0: CX - 1.35, x1: CX + 1.35, z0: CZ - 4.2, z1: CZ + 1.75 }, { x0: HX - 0.6, x1: HX + 0.6, z0: -7.65, z1: -3.95 }, { x0: PX - PR, x1: PX + PR, z0: PZ - PR * 0.72, z1: PZ + PR * 0.72 });
+  solidAt(DX, DZ - 0.3, 0.45, 1.2); solidAt(57.2, -9.4, 1.25); solidAt(60.4, -9.6, 1.07);
+}
+
 // on the water: Fenwick's jetty and rowboat, the mooring posts and punt by the bridge, the watermill on the west bank, ducks on the pond,
 // stepping stones over the west stream, and a little mist on the river. Built on the first frame (as buildGreen), the same for everyone.
 const RIVERLIFE = { built: false, wheel: null, ducks: [] };
@@ -7300,7 +7363,7 @@ function updateRiverLife(){
     d.position.set(x, -0.38 + Math.sin(t * 2 + i) * 0.03, z); d.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * POND.k); });
 }
 function updateSilkworks(){
-  if (!SILK.built) { buildSilkworks(); buildMarket(); buildGreen(); buildRiverLife(); return; }   /* built on the first frame: the town is put up before this part of the script has run */
+  if (!SILK.built) { buildSilkworks(); buildMarket(); buildGreen(); buildRiverLife(); buildFarmDress(); return; }   /* built on the first frame: the town is put up before this part of the script has run */
   const H = SILK.hutch, ready = hutchReady(), busy = H.n > 0 && !ready, t = performance.now() / 1000;
   const B = SILK.SHED, inside = hero && Math.abs(hero.position.x - B.x) < B.hw + 0.5 && Math.abs(hero.position.z - B.z) < B.hd + 0.5; SILK.roof.visible = !inside;   /* see in while you're inside */
   // leaves on the trays while they're being eaten; the worms wriggle; cocoons once they're ready
