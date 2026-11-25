@@ -415,7 +415,7 @@ const riverSouth = x => -12.25 + 0.35 * Math.sin(x * 0.23) + 0.2 * Math.sin(x * 
 const riverWidth = x => 6 + 2.4 * Math.sin(x * 0.04 + 1) + 1 * Math.sin(x * 0.13);   // 2.6 to 9.4 wide, swelling and narrowing as it winds
 const STREAM_W = 1.9;   // half its width
 // the north's tracks: from the bridge up to the iron rocks, and across the stream to the trout pool
-const NORTH_PATHS = [[[-10, -21], [-9, -30], [-20, -45], [-36, -56], [-46, -63]], [[-9, -30], [12, -35], [41, -35], [48, -35], [46, -46], [45, -55]]];
+const NORTH_PATHS = [[[-10, -21], [-9, -30], [-20, -45], [-36, -56], [-46, -63]], [[-9, -30], [12, -35], [41, -35], [48, -35], [46, -44], [42, -50]]];
 const segDist = (x, z, [x0, z0], [x1, z1]) => { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - x0 - dx * t, z - z0 - dz * t); };
 // ----- the north, across the river: a meadow by the water rising to rocky uplands, sealed by hills on three sides -----
 // Reached only over the bridge from the village. The walkable floor stays flat (everyone walks at height 0); the hills round the
@@ -423,9 +423,9 @@ const segDist = (x, z, [x0, z0], [x1, z1]) => { const dx = x1 - x0, dz = z1 - z0
 const NORTH = {
   zN: x => -92 + 5 * Math.sin(x * 0.07) + 3 * Math.sin(x * 0.19 + 1),   // where the northern hills begin
   xW: z => -98 + 4 * Math.sin(z * 0.11), xE: z => 98 + 4 * Math.sin(z * 0.09 + 1),   // and the western and eastern ones
-  knolls: [[-63, -73, 7], [-24, -85, 6], [24, -82, 7], [78, -62, 6], [-82, -47, 5], [6, -66, 4.5], [-34, -38, 3.5], [70, -34, 4]],   // x, z, radius
+  knolls: [[-63, -73, 7], [-24, -85, 6], [24, -82, 7], [78, -63, 6], [-82, -47, 5], [6, -66, 4.5], [-34, -38, 3.5], [70, -34, 4]],   // x, z, radius
   stream: [[45, -16.5], [47, -28], [44, -38], [47, -50], [50, -57.5]], STREAM_W: 1.6,
-  pool: { x: 55, z: -67, r: 13, k: 0.8 },   // the lake the stream runs into
+  pool: { x: 60, z: -68, rx: 28, rz: 16, isle: [78, -63, 5] },   // the lake the stream runs into: wide east to west, with a wooded island
   ford: -35,                                    // the footbridge over the stream
   bridge: { x: -10, hw: 2 },                    // the bridge over the river: its middle, and half the gap in the river's solid strip
 };
@@ -440,8 +440,10 @@ function northWaterSD(x, z){
   let m = Infinity; const S = NORTH.stream;
   for (let i = 0; i < S.length - 1; i++) { const [x0, z0] = S[i], [x1, z1] = S[i + 1], dx = x1 - x0, dz = z1 - z0;
     const t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz))); m = Math.min(m, Math.hypot(x - x0 - dx * t, z - z0 - dz * t)); }
-  const P = NORTH.pool, dx = x - P.x, dz = (z - P.z) / P.k, a = Math.atan2(dz, dx);
-  return Math.min(m - NORTH.STREAM_W, Math.hypot(dx, dz) - (P.r + 1.1 * Math.sin(3 * a + 1) + 0.7 * Math.cos(5 * a) + 0.5 * Math.sin(7 * a + 2)));
+  const P = NORTH.pool, ex = (x - P.x) / P.rx, ez = (z - P.z) / P.rz, a = Math.atan2(ez, ex);
+  let lake = (Math.hypot(ex, ez) - 1 - 0.05 * Math.sin(3 * a + 1) - 0.035 * Math.cos(5 * a) - 0.025 * Math.sin(7 * a + 2)) * Math.min(P.rx, P.rz);   // an uneven shore
+  lake = Math.max(lake, P.isle[2] - Math.hypot(x - P.isle[0], z - P.isle[1]));   // the island
+  return Math.min(m - NORTH.STREAM_W, lake);
 }
 const STREAM = (() => {   // a smooth line through these bends, from the river down to the pond
   const c = [[-106, -16], [-107, -8], [-110, 2], [-106, 13], [-109, 25], [-104, 37], [-107, 49], [-101, 61], [-94, 70], [-87, 79]], out = [];
@@ -460,11 +462,11 @@ function streamSD(x, z){
 function waterSD(x, z){
   const s = riverSouth(x); let d = Math.max(z - s, s - riverWidth(x) - z);
   if (x > -116 && x < -66 && z > -20 && z < 100) d = Math.min(d, streamSD(x, z), pondSD(x, z));
-  if (x > 36 && x < 72 && z > -82 && z < -15) d = Math.min(d, northWaterSD(x, z));   // the north stream and its lake
+  if (x > 30 && x < 92 && z > -88 && z < -15) d = Math.min(d, northWaterSD(x, z));   // the north stream and its lake
   return d;
 }
 // the water surface: a strip along the river and a sheet over the stream and pond; the ground dips under it only where there is water
-const WATER_Y = -0.3, WATER_RECTS = [[-120, 120, -21, -10], [-117, -65, -11, 98], [36, 72, -82, -20]];
+const WATER_Y = -0.3, WATER_RECTS = [[-120, 120, -21, -10], [-117, -65, -11, 98], [30, 92, -88, -20]];
 const QUARRY = { x: 12, z: 72, r: 13.5 };   // the quarry, south-west of the smithy
 const groundGeo = new THREE.PlaneGeometry(240, 240, 240, 240);   // a fine grid so the hall's flat patch lines up
 groundGeo.rotateX(-Math.PI / 2);
@@ -1125,9 +1127,9 @@ solidBoxes.push(box(-0.5, 0.5, -0.5, 0.5));
   for (let x = -120; x < 120; x++) { if (x + 1 > bx - hw && x < bx + hw) continue;   // and the river's far half, out to 0.4 past its north bank
     const nb = Math.min(...[x, x + 0.5, x + 1].map(q => riverSouth(q) - riverWidth(q))) - 0.4; solidBoxes.push({ x0: x, x1: x + 1, z0: nb, z1: -16.9 }); }
   // the north stream and pool, like the stream in the west, with a gap at the footbridge
-  for (let z = -82; z < -16; z += 0.5) { if (z > NORTH.ford - 1.6 && z < NORTH.ford + 1.6) continue; let run = null;
-    for (let x = 36; x <= 72; x += 0.5) { const w = northWaterSD(x + 0.25, z + 0.25) < 0.4;
-      if (w && run === null) run = x; if ((!w || x === 72) && run !== null) { solidBoxes.push({ x0: run, x1: w ? x + 0.5 : x, z0: z, z1: z + 0.5 }); run = null; } } }
+  for (let z = -88; z < -16; z += 0.5) { if (z > NORTH.ford - 1.6 && z < NORTH.ford + 1.6) continue; let run = null;
+    for (let x = 30; x <= 92; x += 0.5) { const w = northWaterSD(x + 0.25, z + 0.25) < 0.4;
+      if (w && run === null) run = x; if ((!w || x === 92) && run !== null) { solidBoxes.push({ x0: run, x1: w ? x + 0.5 : x, z0: z, z1: z + 0.5 }); run = null; } } }
   // the hills: a strip of boxes for each unit going north, wherever the ground rises; and each knoll
   for (let z = -120; z < -19; z++) { let run = null;
     for (let x = -120; x <= 120; x++) { const w = x < 120 && northOut(x + 0.5, z + 0.5) > -0.3;
@@ -3601,6 +3603,12 @@ function buildPondSide(){
   for (const a of [-0.95, 0.95]) { const [x, z] = at(a, 3.6); if (!clearOf(x, z, 4)) continue; const fx = POND.x - x, fz = POND.z - z; bench(x, z, Math.atan2(-fx, -fz)); }
   for (const a of [-0.6, 0.1, 0.7]) { const [x, z] = at(a, 2.4); if (clearOf(x, z, 2.2)) lamp(x, z); }
 }
+// a point on the north lake's shore in direction a (radians round its middle), out (+) or in (-) from the water's edge by off
+function lakeShore(a, off){
+  const P = NORTH.pool, dx = Math.cos(a) * P.rx, dz = Math.sin(a) * P.rz; let k = 0.5;
+  for (let i = 0; i < 40; i++) { const x = P.x + dx * k, z = P.z + dz * k; if (northWaterSD(x, z) > 0) break; k += 0.025; }   // walk out to the edge
+  const L = Math.hypot(dx, dz); return [P.x + dx * k + dx / L * off, P.z + dz * k + dz / L * off];
+}
 function buildNorth(){
   const bins = new Map(), wood = texMat(woodTex(), 1, 3), dark = mat(0x4a3220), stoneM = mat(0x7a766c), bushM = mat(0x3e6a2e), bushL = mat(0x5a8a3a), flowerM = mat(0xe0d070), heath = mat(0x8a5a7a);
   const put = (m, geo, x, y, z, ry = 0, sc = null) => { if (sc) geo.scale(...sc); if (ry) geo.rotateY(ry); geo.translate(x, y, z); if (!bins.has(m)) bins.set(m, []); bins.get(m).push(geo.index ? geo.toNonIndexed() : geo); };
@@ -3626,13 +3634,16 @@ function buildNorth(){
   }
   // boulders on the hillsides, so the hills read as rocky
   for (let i = 0; i < 160; i++) { const x = -118 + r() * 236, z = -20 - r() * 99, h = hillH(x, z); if (h < 0.8 || h > 12) continue; const s = 0.8 + r() * 1.6; put(stoneM, new THREE.DodecahedronGeometry(s, 0), x, h + s * 0.2, z, r() * 6, [1, 0.7, 1]); }
+  // reeds along the lake shore, and a few on the island
+  const reedM = mat(0x5a7a2e);
+  for (let a = 0; a < Math.PI * 2; a += 0.05) { if (r() < 0.45) continue; const [x, z] = lakeShore(a, -0.3 + r() * 0.6); if (Math.hypot(x - bx, z + 22) < 4) continue;
+    for (let k = 0; k < 3; k++) { const h = 0.9 + r() * 0.9; put(reedM, new THREE.CylinderGeometry(0.02, 0.035, h, 4), x + (r() - 0.5) * 0.7, WATER_Y + h / 2, z + (r() - 0.5) * 0.7); } }
   const g = new THREE.Group(); town.add(g);
   for (const [m, geos] of bins) { const mesh = new THREE.Mesh(mergeGeometries(geos), m); mesh.castShadow = mesh.receiveShadow = true; g.add(mesh); }
   // the trout pool: trees all round it, leaving the path side open, and two trout spots on its south-west bank
-  const P = NORTH.pool;
-  for (let a = 0; a < Math.PI * 2; a += 0.3) { if (a > 1.4 && a < 3.1) continue; const d = P.r + 4.5 + (Math.sin(a * 5) + 1) * 0.8, x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d * P.k;
-    if (!blocked(x, z) && !blocked(x + 1.2, z) && !blocked(x - 1.2, z) && waterSD(x, z) > 2 && northOut(x, z) < -2) makeTree(x, z, a > 3.5 && a < 5.5 ? 1.5 : 1.4, a > 3.5 && a < 5.5); }   /* oaks on the far shore */
-  for (const a of [2.05, 2.45, 2.85, 1.65]) { const d = P.r - 1.3, x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d * P.k; addFishSpot(x, z, 'trout'); }
+  for (let a = 0; a < Math.PI * 2; a += 0.16) { if (a > 1.5 && a < 3.0) continue; const [sx, sz] = lakeShore(a, 4.5 + (Math.sin(a * 5) + 1) * 1.2), oak = a > 3.4 && a < 6;
+    if (!blocked(sx, sz) && !blocked(sx + 1.2, sz) && !blocked(sx - 1.2, sz) && waterSD(sx, sz) > 2 && northOut(sx, sz) < -2 && !treeRecs.some(t => Math.hypot(t.x - sx, t.z - sz) < 4)) makeTree(sx, sz, oak ? 1.5 : 1.4, oak); }   /* trees round the shore, oaks on the far side */
+  for (const a of [1.75, 2.05, 2.35, 2.65, 2.95]) { const [x, z] = lakeShore(a, -1.3); addFishSpot(x, z, 'trout'); }   // trout along the south-west bank, by the path
   // copses across the meadow, and oaks further up
   for (let i = 0; i < 70; i++) { const x = -92 + r() * 184, z = -26 - r() * 62, oak = r() < 0.3 + (-z - 26) / 120;
     if (onPath(x, z) || northOut(x, z) > -3 || hillH(x, z) > 0 || waterSD(x, z) < 3 || Math.hypot(x + 49, z + 68) < 11 || Math.hypot(x - bx, z + 22) < 6) continue;
@@ -6578,7 +6589,7 @@ function spawnFarmMonsters(){
   // the north, after all the farm's (so their shared ids never move): the meadow's rats, and the bigger ones by the iron rocks and the trout pool
   [[-25, -35], [-10, -45], [5, -31], [18, -48], [-28, -52], [26, -29]].forEach(([x, z]) => spawnMonster('hillRat', x, z, 5, { x0: -36, x1: 31, z0: -57, z1: -26 }));
   [[-46, -77], [-37, -66], [-57, -59]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: -62, x1: -34, z0: -82, z1: -56 }));
-  [[38, -75], [64, -55], [60, -79]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: 33, x1: 72, z0: -86, z1: -50 }));
+  [[32, -58], [66, -46], [92, -66]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: 28, x1: 96, z0: -88, z1: -42 }));
   MONSTERS.forEach((m, i) => { m.sid = i; });   /* shared with everyone: same id, same wandering path, one fight at a time */
 }
 function farmRoads(){
