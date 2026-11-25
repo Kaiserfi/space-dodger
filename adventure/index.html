@@ -1732,7 +1732,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
   if (it && FOOD[it.name]) { eatReadyAt = performance.now() + EAT_DELAY; if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + EAT_DELAY);   /* and eating in a fight holds back your next swing */
-    startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
+    startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast((/'s /.test(it.name) ? `You eat ${it.name}.` : `You eat the ${it.name.toLowerCase()}.`) + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && it.name === 'Bandage') { startBandage(it); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
@@ -2068,16 +2068,16 @@ function questTalk(name){
         run(() => { for (let i = 0; i < 5; i++) removeItem('Logs'); }), "There — the fire's going!", "Now I need a filling for my pies. Three cooked shrimp.",
         me("Where do I get shrimp?"), "Fenwick, down on the riverbank. He's got a spare net. Catch 'em, cook 'em on a fireplace, and bring 'em here.",
         me("Any fireplace?"), "Any one in the village. Mine included.", run(() => { QUEST.hw = 4; questStep('Get a fishing net from Fenwick, by the river.'); })];
-      return [me("How's the oven?"), () => `Still cold, dear. I need ${5 - cnt('Logs')} more log${5 - cnt('Logs') === 1 ? '' : 's'}.`, s === 2 ? "Mara's got an axe for you. Her store's out south-west, past the last houses." : 'The young trees round the village chop nice and easy.'];
+      return [me("How's the oven?"), () => "Still cold, dear. A few more logs and we'll be away.", s === 2 ? "Mara's got an axe for you. Her store's out south-west, past the last houses." : 'The young trees round the village chop nice and easy.'];
     }
     if (s <= 5) {
       if (cnt('Shrimp') >= 3) return [me("Three cooked shrimp, as promised."), "Ooh, they smell wonderful! And you didn't burn them all. I'm impressed.",
         run(() => { for (let i = 0; i < 3; i++) removeItem('Shrimp'); }), me("Is that everything?"), "Nearly. The oven door's come off its hinge. Dunmore can fix it, but he'll need a bronze bar.",
         me("And where do I get one of those?"), "Gertrude, up at the quarry. She'll lend you a pickaxe. Copper and tin, melted down together — you'll see.",
         run(() => { QUEST.hw = 6; questStep('Get a pickaxe from Gertrude at the quarry.'); })];
-      return [me("Still working on the shrimp."), () => `I need three cooked ones, dear. You've got ${cnt('Shrimp')}.`, s === 4 ? "Fenwick on the riverbank has a spare net." : "Cook 'em on a fireplace — there's one in every cottage."];
+      return [me("Still working on the shrimp."), () => "Not quite enough yet, dear. Three cooked ones, and don't eat any on the way.", s === 4 ? "Fenwick on the riverbank has a spare net." : "Cook 'em on a fireplace — there's one in every cottage."];
     }
-    if (s <= 7) return [me("About that hinge..."), "Dunmore needs a bronze bar to fix it, dear.", s === 6 ? "Gertrude at the quarry will lend you a pickaxe." : "Mine some copper and tin, smelt them at the smithy furnace, and take the bar to Dunmore."];
+    if (s <= 7) return [me("About that hinge..."), "Dunmore needs a bronze bar to fix it, dear.", s === 6 ? "Gertrude at the quarry will lend you a pickaxe." : "Dig out a bit of copper and tin, melt them down at the smithy furnace, and Dunmore will do the rest."];
     if (s === 8) return [me("Dunmore's fixed your oven door!"), "He has! The door shuts, the fire's roaring, and the whole village smells of bread again.",
       "You chopped, you fished, you cooked, you mined and you smelted. Not bad for a newcomer!", me("I had a lot of help."),
       "Here — this is for you. A villager's cloak, with our oak and river on the back. You're one of us now.", run(completeHeartyWelcome)];
@@ -2093,7 +2093,7 @@ function questTalk(name){
     run(() => { QUEST.hw = 5; questStep('Catch 3 shrimp, cook them on a fireplace, and bring them to Brenna.'); })];
   if (name === 'Gertrude' && s === 6) return [me("I need a bronze bar for Brenna's oven door."),
     () => hasTool(PICK_NAME) ? "Got your own pickaxe? Good. Saves me a lecture." : "For Brenna's oven? Fine. Take this pickaxe. Bring it back sharp, or don't bring it back.",
-    run(() => { giveTool(PICK_NAME, PICK_ICON); }), me("How do I make a bar?"), "Copper over there, tin over here. One of each at the smithy furnace makes a bronze bar.",
+    run(() => { giveTool(PICK_NAME, PICK_ICON); }), me("How do I make a bar?"), "Copper over there, tin over here. Melt 'em down together at the smithy furnace and you've got your bar.",
     run(() => { QUEST.hw = 7; questStep('Mine copper and tin, smelt a bronze bar, and give it to Dunmore.'); })];
   if (name === 'Dunmore' && s === 7) {
     if (cnt('Bronze bar') >= 1) return [me("Got a bronze bar for Brenna's oven hinge."), "Bronze bar, eh? Leave it with me.",
@@ -3693,7 +3693,7 @@ const VILLAGERS = [
   { name: 'Dunmore', title: 'the smith', look: { gender: 'male', skin: 0xc08a60, hair: 'short', hairCol: 0x5a5a5a, shirt: 0x6a4a3a, pants: 0x2a2a2a },
     talks: [
       ["Mind the sparks, and your eyebrows, if you want to keep them.", "I'm Dunmore. I keep the forge hot while the master's away. Been away eleven years, mind."],
-      [() => (sk('Smithing') < 4 ? "Start with bars, then daggers. Swords can wait until you've stopped burning your fingers." : "You're getting the feel of the hammer."), "Remember, one copper ore and one tin ore in the furnace makes you a bronze bar."],
+      [() => (sk('Smithing') < 4 ? "Start with bars, then daggers. Swords can wait until you've stopped burning your fingers." : "You're getting the feel of the hammer."), "Copper and tin, a lump of each, into the furnace. That's your bronze."],
       ["Always strike the metal while it's still glowing. Let it cool and it'll crack on you, and then you've wasted a good bar."],
       ["Gertrude brings me the best ore in the valley. Don't tell her. Her head's big enough already."] ],
     barks: ["Stand back from the forge, the sparks fly further than you'd think.", "It's hot work in here, I'll tell you that for nothing.", "Has anyone seen my good hammer? I had it a minute ago."] },
@@ -3782,7 +3782,8 @@ const TOWNSFOLK = [
       ["I sit here so nobody wanders down there by accident.", "Doing it on purpose, though, that's your own business."] ],
     asks: [
       { q: "What's down in the cellar?", a: ["Trouble. Wave after wave of it, if the old stories are true.", "You go down with whatever you're carrying, and that's all. There's no popping back up for supplies.", "Win, and you'll be well rewarded. Lose, and it'll cost you a quarter of your coin."] },
-      { q: "How do I get the chain off?", a: [() => `The padlock keeps count. Chickens ${Math.min(10, KILLS.chicken)} of 10, cows ${Math.min(10, KILLS.cow)} of 10, giant rats ${Math.min(10, KILLS.rat)} of 10, angry farmers ${Math.min(10, KILLS.farmer)} of 10.`, "Beat ten of each and come back. The chain will know."] } ],
+      { q: "How do I get the chain off?", a: [() => { const left = [['chickens', 'chicken'], ['cows', 'cow'], ['rats', 'rat'], ['my old farmhands', 'farmer']].filter(([, k]) => KILLS[k] < 10).map(([w]) => w);
+        return !left.length ? "The padlock's had its fill. Go on, then." : `The padlock keeps count, scratch by scratch. It still wants more of ${left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left[left.length - 1] : left[0]} before it lets go.`; }, "Beat ten of each and come back. The chain will know."] } ],
     barks: ["Keep away from that cellar if you value your coin.", "Best wheat in the valley, this was. Best wheat.", "Mind the rats. They bite harder than they look."] },
   { name: 'Jory', title: 'the fishmonger', x: -63, z: 92.4, rad: 0.5, s: 1.6, talkAt: FISH_SHACK.talk, hat: 'souwester', seaDog: true, shop: 'fish',
     look: { gender: 'male', skin: 0xe8b890, hair: 'short', hairCol: 0x9a9a9a, shirt: 0xe8c030, pants: 0x3a4a5a, boots: 0x2a2a2a },
@@ -3834,7 +3835,7 @@ const TOWNSFOLK = [
   { name: 'Gertrude', title: 'the miner', x: 15.5, z: 66, rad: 1.2, hat: 'helm',
     look: { gender: 'female', skin: 0xb07a50, hair: 'short', hairCol: 0x3a2a1a, shirt: 0x7a5a3a, pants: 0x3a3a3a },
     talks: [
-      ["You here to mine or to stand about? Either's fine. Only one of 'em pays.", "I'm Gertrude. The copper rocks are on the west side and the tin's on the east. You'll need one of each to make a bronze bar."],
+      ["You here to mine or to stand about? Either's fine. Only one of 'em pays.", "I'm Gertrude. Copper's on the west side, tin's on the east. Melt a bit of both together and you've got bronze."],
       [() => (sk('Mining') < 5 ? "Your hands are still soft, but they'll toughen up soon enough. Just keep swinging." : "You're getting the hang of it. Keep at it and you'll be out-mining me before long.")],
       ["Dunmore pretends he doesn't rate my ore. Keeps the best bits on a shelf, he does. I've seen it."],
       ["Rocks grow back, y'know. Slowly. Like my patience."] ],
