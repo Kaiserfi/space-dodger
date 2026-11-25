@@ -112,7 +112,18 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Give tools only if the player has none in the bag or on the toolbelt (`giveFarmTool`), check bag room first, and replace anything a player lost on a step.
 - The tracker (`updateQuest`), the quests tab and the "!" marker all need the new quest added. The completion screen reuses the quest scroll through `showRewardScroll`; `restoreQuestScroll` puts the welcome quest's own text back.
 
+### The map and the water
+
+- **Where things are** (world units; the ground runs from -120 to 120 each way, with black void beyond): the spawn hall at (16, 2), the bonfire clearing with the barracks south-west of it, the quarry at (12, 72), Fenwick's shrimp spot at (-36, -13.4), the woods around x = -90 to -100, Mara's store at (-75, 52), the trout pond at (-84, 85), the farm at x 30 to 62 by z -13 to 14, the fields and workshop further east (to about x = 112), and the ruined farm and cellar doors at x 60 to 110 by z 35 to 82. To get your bearings, render a top-down map: an `OrthographicCamera` at y = 200 looking down, with `scene.fog` off and the clouds (meshes above y = 15) hidden.
+- **All the water comes from one function, `waterSD(x, z)`**: how far a point is from the water's edge, below 0 in the water. It combines the winding river (`riverSouth`, `riverWidth`), the stream (`STREAM`, a smooth line, `STREAM_W` half-wide) and the pond (`POND`, `pondR`). The ground's dips and banks, the bank colours, the grass mask, the solid water boxes, the reeds and the path decorations all follow it. To reshape water, change these and everything follows.
+- The water surface is one mesh (`river`, kept out of shadow casting) made of the sheets in `WATER_RECTS`, at `WATER_Y` (-0.3). Near the water, dry ground never dips below -0.05, so the surface can't show through the land. Anything that floats (fishing rings, lily pads) goes at `WATER_Y` plus a little.
+- **The river's walkable south bank is fixed at z = -11.1** (the long solid box), and its water edge never comes closer than about -11.7. The stream and pond are solid as half-unit strips reaching 0.4 past the edge. `blocked()` keeps a body 1 unit from any box, so a fishing spot must sit about 1.1 inside the edge for its stand spots (2.4 × `s` away) to be free. Check this with `blocked()` when adding one.
+- Bank dressing (`buildWaterside`) is one merged vertex-coloured mesh: reeds, stones, lily pads. It keeps the shrimp spot, Fenwick's jetty and the pond's east bank (the trout spots) clear.
+
 ### What's in the game (so you don't rebuild it)
+
+- **Fishing and cooking:** `FISHES` holds each spot's catch (shrimp in the river with the net; trout in the pond at Fishing 15 with the fly fishing rod and feathers as bait), and `addFishSpot(x, z, fish)` makes a spot. `COOKS` holds what each raw food becomes, its XP and its level (`lvl`, trout 15). `nextToCook` skips food you're too low to cook, `nothingToCookMsg` says why, and burning eases off as you pass the food's level. Trout follow ITAP: Fishing 15 (25 XP, ITAP's 45 scaled like shrimp), Cooking 15 (40 XP), heals 6.
+- **Click marker:** every tap or click on the game screen shows a cross (`clickMark(x, y, act)`), yellow for a walk and red for an action (a node, NPC, monster or door). It's a single page element, not a 3D object. Any new way of clicking things in the world should call it too.
 
 - **Guards:** Osric and Bertram keep the day watch, Edda and Godwin the night watch (`GUARD_SHIFT`, `GUARD_EVENTS`). They sleep on the top decks of the barracks bunks, eat at the mess table, and walk routes worked out once at start-up between their post and the barracks (`guardRoutes`). Sleeping guards can't be talked to ("… is fast asleep.") and don't call out.
 - **Villagers' days** (`VILLAGER_DAY`): Tobin chops in the woods, Ysolde fishes at the river (with a rod: `fishPose`) and visits the pond and the market, Dunmore works the forge all day; all three sit at the bonfire in the evening and sleep at home (in their bed if the house has one). Their routes are worked out once with every house door open (`villagerRoute`), and they open shut doors on their way (`openDoorQuiet`). Brenna and Mara stay home.
@@ -158,6 +169,8 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Test hooks run inside the game module.** Game internals aren't on `window`, so put helper functions in code injected after `bootOnline();\nframe();` and call them through `window.__t`. Don't write a literal line break inside a string in injected code (it breaks the whole page), and don't give two helpers the same name (the later one silently wins).
 - **Headless runs at only a few frames per second.** Walking and wandering are slow there, so teleport the hero next to things for checks, and allow long waits.
 - **Render pictures with a separate camera** (`renderer.render(scene, cam)` then `toDataURL`) to look at an object up close; the game camera follows the hero.
+- **Start the local server again in every new session** (`python3 -m http.server 8123` from the repo root). The container is fresh, and a test against a dead server fails with an unhelpful error.
+- **Short CSS animations are often over before a screenshot is taken in headless runs.** Pause them first (`style.animationPlayState = 'paused'`), or check the element's class and style instead.
 - Check the script parses before testing: extract the module script and run `node --check` on it.
 - **Testing traps that wasted time:**
   - Logout navigates to the arcade page, so check `page.url()` after waiting for the navigation, not for the name box.
@@ -171,6 +184,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 ## Workflow
 
 - Develop on the session's branch, then open a pull request and squash-merge it into `main` without asking. Say what changed in the PR, and note anything the owner must do by hand, such as publishing database rules.
+- **Always start a change from the latest `main`** (`git fetch origin && git checkout -B <branch> origin/main`). A PR built on an older copy silently undoes everything merged since: #116 wiped out the click marker from #114 this way. Before merging, read the PR's diff for removed lines you didn't mean to remove.
 - After a squash merge the branch's remote copy still holds the old commits. Merge it with `-s ours` (your copy already contains them) before pushing, rather than force-pushing.
 - Report honestly what was tested and what wasn't (sounds, timers skipped in tests, untested paths).
 - **Don't merge anything that breaks the live game.** If a merge depends on the owner doing something first (publishing rules), say so and wait for them.
