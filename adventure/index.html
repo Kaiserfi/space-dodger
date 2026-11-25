@@ -5359,6 +5359,49 @@ function buildRuinedFarm(){
   cel.userData = { action: 'Open', name: 'Cellar', rec: { kind: 'cellar', state: 'standing', x: C.x, z: C.z, onClick: () => cellarClick() } }; trees.push(cel);
   // the old track down from the windmill path, between the pens, to the farmhouse
   roadPath([[81, 11], [81, 34], [83, 52], [85, 62], [H.x + 1, H.z - 4.6 * S]]);
+  buildScorchedYard();
+}
+
+// what the fire left round the farm: charred stakes with ember tips, a scorched scarecrow with crows, a sooted well and embers at the chimney's foot
+function buildScorchedYard(){
+  let q = 311; const R = () => (q = (q * 16807) % 2147483647) / 2147483647;   // seeded: the same yard for every player
+  const bins = new Map(), put = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.scale.set(sx, sy, sz); o.updateMatrix(); let g2 = geo.index ? geo.toNonIndexed() : geo.clone(); g2.applyMatrix4(o.matrix); for (const k of Object.keys(g2.attributes)) if (k !== 'position' && k !== 'normal') g2.deleteAttribute(k); if (!bins.has(m)) bins.set(m, []); bins.get(m).push(g2); };
+  const roadNear = (x, z, r) => ROADS.some(([ax, az, bx, bz]) => { const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)); return Math.hypot(x - ax - t * dx, z - az - t * dz) < r; });
+  const char = mat(0x221a15), charB = mat(0x3a2e24), cloth = mat(0x5a4a3a), sack = mat(0x9a8a62), crowM = mat(0x16161c), beakM = mat(0x5a5040), stone = mat(0x7a746a), soot = mat(0x3a3632), rope = mat(0x8a7a5a), iron = mat(0x3a3a40);
+  const ember = new THREE.MeshStandardMaterial({ color: 0xff7a30, emissive: 0xff4a10, emissiveIntensity: 1.6 }); GLOW_MATS.push(ember);
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d), C = (a, b, h, n = 6) => new THREE.CylinderGeometry(a, b, h, n);
+  /* charred stakes with snapped tops along the old west track */
+  for (let i = 0; i < 9; i++) { const z = 44 + i * 2.6, x = 77.0 + (z - 44) * 0.06, h = 0.8 + R() * 0.9, a = (R() - 0.5) * 0.3, b = (R() - 0.5) * 0.35, ry = R(); if (i === 4 || roadNear(x, z, 1.4)) continue;
+    put(C(0.1, 0.16, h), char, x, h / 2, z, a, 0, b); put(new THREE.ConeGeometry(0.11, 0.3, 5), ember, x - Math.sin(b) * h, h * Math.cos(a) + 0.03, z + Math.sin(a) * h, 0, ry, 0, 1, 0.3, 1); solidAt(x, z, 0.25); }
+  /* the scorched scarecrow, still standing in the east field */
+  const SX = 98, SZ = 51;
+  put(C(0.09, 0.12, 3.6), charB, SX, 1.8, SZ); put(B(2.6, 0.12, 0.12), charB, SX, 2.7, SZ, 0, 0, 0.12);
+  put(B(0.95, 1.1, 0.45), cloth, SX, 2.35, SZ, 0, 0, 0.06); for (let i = 0; i < 5; i++) put(B(0.22, 0.5 + R() * 0.4, 0.08), cloth, SX - 0.45 + i * 0.22, 1.6, SZ + 0.18, 0.1, 0, (R() - 0.5) * 0.4);
+  put(B(0.5, 0.35, 0.3), cloth, SX - 1.0, 2.62, SZ, 0, 0, 0.12); put(B(0.5, 0.35, 0.3), cloth, SX + 1.0, 2.86, SZ, 0, 0, 0.12);
+  put(new THREE.IcosahedronGeometry(0.42, 0), sack, SX + 0.05, 3.3, SZ, 0, 0, 0.35);
+  put(new THREE.ConeGeometry(0.75, 0.25, 7), char, SX + 0.1, 3.62, SZ, 0, 0, 0.35); put(C(0.3, 0.38, 0.4, 7), char, SX + 0.14, 3.78, SZ, 0, 0, 0.35);
+  const eyeM = new THREE.MeshBasicMaterial({ color: 0xffb040 }); for (const s of [-1, 1]) put(new THREE.SphereGeometry(0.06, 6, 4), eyeM, SX + s * 0.15 - 0.02, 3.3, SZ + 0.4);
+  solidAt(SX, SZ, 0.4);
+  /* crows: on the scarecrow's arms, the chimney top and pecking in the dirt */
+  const crow = (x, y, z, ry, peck) => { put(new THREE.SphereGeometry(0.22, 7, 5), crowM, x, y + 0.2, z, 0, ry, 0, 0.8, 0.8, 1.3); put(new THREE.SphereGeometry(0.13, 7, 5), crowM, x + Math.sin(ry) * 0.25, y + (peck ? 0.2 : 0.42), z + Math.cos(ry) * 0.25, 0, ry);
+    put(new THREE.ConeGeometry(0.05, 0.16, 4), beakM, x + Math.sin(ry) * 0.4, y + (peck ? 0.12 : 0.42), z + Math.cos(ry) * 0.4, Math.PI / 2 + (peck ? 0.8 : 0), ry, 0);
+    put(B(0.16, 0.04, 0.3), crowM, x - Math.sin(ry) * 0.28, y + 0.22, z - Math.cos(ry) * 0.28, -0.3, ry); };
+  crow(SX - 1.05, 2.8, SZ, 0.4); crow(SX + 1.1, 3.05, SZ, -0.9);
+  const H = RUIN.house, S = RUIN_S; crow(H.x - 3.8 * S, 7.35 * S, H.z - 3.2 * S, 2.2);   // on top of the chimney
+  for (const [x, z, ry] of [[92.5, 63, 1], [93.3, 62.2, -2], [74.6, 60.5, 2.6], [104, 52, 0.3]]) if (!roadNear(x, z, 1)) crow(x, 0, z, ry, true);
+  /* the old well: soot-stained stone, a snapped windlass, a rope running down into the dark */
+  const WX = 99, WZ = 70;
+  for (let i = 0; i < 12; i++) { const a = i / 12 * 6.28, h = 0.8 + R() * 0.25; if (i === 3 || i === 4) continue; put(B(0.62, h, 0.42), i % 3 ? stone : soot, WX + Math.cos(a) * 1.05, h / 2, WZ + Math.sin(a) * 1.05, 0, -a, 0); }
+  put(B(0.6, 0.3, 0.4), stone, WX + 1.6, 0.15, WZ + 0.9, 0.4, 1, 0); put(B(0.5, 0.25, 0.4), soot, WX + 1.3, 0.12, WZ + 1.5, 0, 0.3, 0.3);
+  put(C(0.95, 0.95, 0.02, 16), new THREE.MeshBasicMaterial({ color: 0x000000 }), WX, 0.5, WZ);
+  for (const s of [-1, 1]) put(B(0.2, s < 0 ? 2.4 : 1.3, 0.2), char, WX + s * 1.1, s < 0 ? 1.2 : 0.65, WZ, 0, 0, s < 0 ? 0.06 : 0);
+  put(C(0.12, 0.12, 1.3, 7), charB, WX - 0.45, 1.95, WZ, 0, 0, Math.PI / 2 + 0.5);
+  put(C(0.03, 0.03, 1.5, 4), rope, WX - 0.2, 1.1, WZ, 0, 0, 0.12);
+  put(C(0.3, 0.24, 0.45, 8), charB, WX + 2.1, 0.3, WZ - 1.1, 1.4, 0.4, 0); put(new THREE.TorusGeometry(0.29, 0.025, 4, 10), iron, WX + 2.1, 0.3, WZ - 1.0);
+  solidAt(WX, WZ, 1.4); solidAt(WX + 2.1, WZ - 1.1, 0.35);
+  /* smouldering embers at the chimney's foot (emissive only, no light) */
+  for (let i = 0; i < 14; i++) { const x = 81.8 + R() * 2.6, z = 70.6 + R() * 2.2, s = 0.1 + R() * 0.1; put(new THREE.DodecahedronGeometry(s, 0), ember, x, 0.13, z, R(), R(), R(), 1, 0.5, 1); }
+  for (const [m, geos] of bins) { const mesh = new THREE.Mesh(mergeGeometries(geos), m); mesh.castShadow = m !== ember && m.type !== 'MeshBasicMaterial'; mesh.receiveShadow = true; town.add(mesh); }
 }
 
 // ----- the Root Cellar delve: a solo instance far below the farm, eight waves of the farm's creatures -----
