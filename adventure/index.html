@@ -1475,7 +1475,7 @@ function clickNode(rec){
   if (rec.kind === 'fish' && FISHES[rec.fish].bait && !hasItem(FISHES[rec.fish].bait)) { showToast(FISHES[rec.fish].noBait); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast(nothingToCookMsg()); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
-  else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
+  else if (rec.kind === 'furnace') { if (!smeltKind()) { showToast(hasItem('Iron ore') ? 'You need Smithing 15 to smelt iron.' : 'Smelting needs copper ore and tin ore, or iron ore.'); return; } }
   else if (rec.kind === 'rock') { if (ORES[rec.ore].lvl && levelOf(SKILL_XP.Mining) < ORES[rec.ore].lvl) { showToast(`You need Mining ${ORES[rec.ore].lvl} to mine this rock.`); return; } if (!hasTool(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
   else if (!hasTool(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
   if (rec.kind === 'door') {
@@ -1613,6 +1613,7 @@ function updateSmelt(){
   setAct({ k: 'smelt', t: Date.now() });
 }
 // ----- smithing at the anvil: bronze bars become gear, and gear is worn from the bag -----
+const aOrAn = w => /^[aeiou]/i.test(w) ? 'an' : 'a';
 function openSmithing(){ document.getElementById('smithPanel').hidden = false; renderSmith(); }
 function barCount(name = 'Bronze bar'){ const b = bag.find(i => i.name === name); return b ? b.qty : 0; }
 const barOf = r => r.bar || 'Bronze bar';
@@ -1628,7 +1629,7 @@ function renderSmith(){
 }
 function makeGear(r, n = 1){
   if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
+  if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make ${aOrAn(r.name)} ${r.name.toLowerCase()}.`); return; }
   if (barCount(barOf(r)) < r.bars) { showToast(`You need ${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { showToast('Your bag is full.'); return; }
   if (smithing || smelting || cooking) return;
@@ -1641,7 +1642,7 @@ function makeGear(r, n = 1){
   setAct({ k: 'smith', t: Date.now() });
 }
 let smithing = null;
-function smithLabel(){ const s = smithing; document.getElementById('smeltLabel').textContent = s.total > 1 ? `Smithing ${s.r.name.toLowerCase()}s (${s.total - s.left + 1} of ${s.total})...` : `Smithing a ${s.r.name.toLowerCase()}...`; }
+function smithLabel(){ const s = smithing; document.getElementById('smeltLabel').textContent = s.total > 1 ? `Smithing ${s.r.name.toLowerCase()}s (${s.total - s.left + 1} of ${s.total})...` : `Smithing ${aOrAn(s.r.name)} ${s.r.name.toLowerCase()}...`; }
 function smithTime(r){ return 1800 + r.bars * 700; }
 function stopSmithing(){ if (!smithing) return; smithing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'smith') setAct(null); }
 function updateSmith(){
@@ -1657,14 +1658,14 @@ function updateSmith(){
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { stopSmithing(); showToast('Your bag is full.'); return; }
   for (let i = 0; i < r.bars; i++) removeItem(barOf(r));
   addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); anvilSound();
-  showToast(`You make a ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
+  showToast(`You make ${aOrAn(r.name)} ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
   smithing.left--;
   if (smithing.left <= 0 || barCount(barOf(r)) < r.bars || (bag.length >= BAG_SIZE && !hasItem(r.name))) { stopSmithing(); return; }   // done, or out of bars or room
   smithing.t0 = performance.now(); smithing.hits = 0; smithLabel(); setAct({ k: 'smith', t: Date.now() });   // straight on to the next one
 }
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
-  if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to wear a ${name.toLowerCase()}.`); return; }
+  if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to use ${aOrAn(name)} ${name.toLowerCase()}.`); return; }
   removeItem(name);
   if (old) addItem(old, 1, ITEMS[old].icon);   // the piece it replaces goes back to the bag
   equipped[def.slot] = name;
