@@ -1730,7 +1730,9 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
   if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
-  if (it && FOOD[it.name]) { startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
+  if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
+  if (it && FOOD[it.name]) { eatReadyAt = performance.now() + EAT_DELAY; if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + EAT_DELAY);   /* and eating in a fight holds back your next swing */
+    startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast(FOOD[it.name] + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
   if (it && it.name === 'Bandage') { startBandage(it); return; }
   if (it && ITEMS[it.name]) equip(it.name);
 });
@@ -2817,7 +2819,8 @@ function eatPose(c, k){
   if (!c.bite) { c.bite = chibiPart(c.arms[1], geo('bite', () => new THREE.SphereGeometry(0.11, 8, 6)), 0xc8843a, 0, -0.5, 0.12, false); }
   c.bite.visible = k < 0.85; c.bite.scale.setScalar(1 - 0.6 * k);   // it gets smaller as you eat it
 }
-let eatUntil = 0;
+let eatUntil = 0, eatReadyAt = 0;
+const EAT_DELAY = 1800;   // the gap between bites, and how long eating holds back your next swing (three game ticks in RuneScape)
 function startEatAnim(){
   eatUntil = performance.now() + EAT_MS;
   if (FIGHT) FIGHT.pAnim = { kind: 'eat', t0: performance.now(), dur: EAT_MS };
