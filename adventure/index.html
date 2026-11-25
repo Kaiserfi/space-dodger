@@ -414,6 +414,35 @@ const pondR = a => POND.r + 1.4 * Math.sin(3 * a + 0.6) + 0.7 * Math.cos(5 * a);
 const riverSouth = x => -12.25 + 0.35 * Math.sin(x * 0.23) + 0.2 * Math.sin(x * 0.57 + 1);
 const riverWidth = x => 6 + 2.4 * Math.sin(x * 0.04 + 1) + 1 * Math.sin(x * 0.13);   // 2.6 to 9.4 wide, swelling and narrowing as it winds
 const STREAM_W = 1.9;   // half its width
+// the north's tracks: from the bridge up to the iron rocks, and across the stream to the trout pool
+const NORTH_PATHS = [[[-10, -21], [-9, -30], [-20, -45], [-36, -56], [-46, -63]], [[-9, -30], [12, -35], [41, -35], [48, -35], [46, -46], [45, -55]]];
+const segDist = (x, z, [x0, z0], [x1, z1]) => { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - x0 - dx * t, z - z0 - dz * t); };
+// ----- the north, across the river: a meadow by the water rising to rocky uplands, sealed by hills on three sides -----
+// Reached only over the bridge from the village. The walkable floor stays flat (everyone walks at height 0); the hills round the
+// edge and the knolls inside are raised ground and solid. A stream leaves the river at x 45 for a pool among trees (trout).
+const NORTH = {
+  zN: x => -92 + 5 * Math.sin(x * 0.07) + 3 * Math.sin(x * 0.19 + 1),   // where the northern hills begin
+  xW: z => -98 + 4 * Math.sin(z * 0.11), xE: z => 98 + 4 * Math.sin(z * 0.09 + 1),   // and the western and eastern ones
+  knolls: [[-63, -73, 7], [-24, -85, 6], [24, -82, 7], [78, -62, 6], [-82, -47, 5], [6, -66, 4.5], [-34, -38, 3.5], [70, -34, 4]],   // x, z, radius
+  stream: [[45, -16.5], [47, -28], [44, -38], [47, -50], [50, -57.5]], STREAM_W: 1.6,
+  pool: { x: 51, z: -64, r: 7.2, k: 0.85 },
+  ford: -35,                                    // the footbridge over the stream
+  bridge: { x: -10, hw: 2 },                    // the bridge over the river: its middle, and half the gap in the river's solid strip
+};
+const northOut = (x, z) => Math.max(NORTH.zN(x) - z, NORTH.xW(z) - x, x - NORTH.xE(z));   // above 0 is in the hills
+function hillH(x, z){
+  if (z > -19.5) return 0;
+  const o = northOut(x, z); let h = o > 0 ? Math.min(17, o * 0.9 + o * o * 0.025) * (0.85 + 0.15 * Math.sin(x * 0.31 + z * 0.23)) : 0;
+  for (const [mx, mz, r] of NORTH.knolls) { const d = Math.hypot(x - mx, z - mz); if (d < r) h = Math.max(h, Math.pow(1 - d / r, 0.8) * r * 0.55 * (0.9 + 0.1 * Math.sin(x + z))); }
+  return h;
+}
+function northWaterSD(x, z){
+  let m = Infinity; const S = NORTH.stream;
+  for (let i = 0; i < S.length - 1; i++) { const [x0, z0] = S[i], [x1, z1] = S[i + 1], dx = x1 - x0, dz = z1 - z0;
+    const t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz))); m = Math.min(m, Math.hypot(x - x0 - dx * t, z - z0 - dz * t)); }
+  const P = NORTH.pool, dx = x - P.x, dz = (z - P.z) / P.k, a = Math.atan2(dz, dx);
+  return Math.min(m - NORTH.STREAM_W, Math.hypot(dx, dz) - (P.r + 0.8 * Math.sin(3 * a + 1) + 0.5 * Math.cos(4 * a)));
+}
 const STREAM = (() => {   // a smooth line through these bends, from the river down to the pond
   const c = [[-106, -16], [-107, -8], [-110, 2], [-106, 13], [-109, 25], [-104, 37], [-107, 49], [-101, 61], [-94, 70], [-87, 79]], out = [];
   for (let i = 0; i < c.length - 1; i++) { const p0 = c[Math.max(0, i - 1)], p1 = c[i], p2 = c[i + 1], p3 = c[Math.min(c.length - 1, i + 2)];
@@ -431,10 +460,11 @@ function streamSD(x, z){
 function waterSD(x, z){
   const s = riverSouth(x); let d = Math.max(z - s, s - riverWidth(x) - z);
   if (x > -116 && x < -66 && z > -20 && z < 100) d = Math.min(d, streamSD(x, z), pondSD(x, z));
+  if (x > 36 && x < 64 && z > -76 && z < -15) d = Math.min(d, northWaterSD(x, z));   // the north stream and its pool
   return d;
 }
 // the water surface: a strip along the river and a sheet over the stream and pond; the ground dips under it only where there is water
-const WATER_Y = -0.3, WATER_RECTS = [[-120, 120, -21, -10], [-117, -65, -11, 98]];
+const WATER_Y = -0.3, WATER_RECTS = [[-120, 120, -21, -10], [-117, -65, -11, 98], [36, 64, -76, -20]];
 const QUARRY = { x: 12, z: 72, r: 13.5 };   // the quarry, south-west of the smithy
 const groundGeo = new THREE.PlaneGeometry(240, 240, 240, 240);   // a fine grid so the hall's flat patch lines up
 groundGeo.rotateX(-Math.PI / 2);
@@ -446,6 +476,7 @@ for (let i = 0; i < gp.count; i++) {
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   let y = inHall || inVillage ? 0 : Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12;
+  if (z < -19.5) { const hh = hillH(x, z); y = hh > 0.05 ? hh : y * 0.5; }   /* the north: a flat floor to walk on, and the hills and knolls */
   if (WATER_RECTS.some(([x0, x1, z0, z1]) => x > x0 - 1 && x < x1 + 1 && z > z0 - 1 && z < z1 + 1)) {   // round the water: never dip below its surface on dry land, and slope into it at the banks
     const sd = waterSD(x, z); y = sd > 0.6 ? Math.max(y, -0.05) : Math.min(y, Math.max(-0.66, WATER_Y + sd * 0.5)); }
   gp.setY(i, y);
@@ -465,6 +496,12 @@ voidPlane.position.y = -3; scene.add(voidPlane);
     if (x > 60 && x < 110 && z > 35 && z < 82) {   // the ruined farm: dry, dead earth, fading back to green at the edges
       const edge = Math.min(x - 60, 110 - x, z - 35, 82 - z), k = Math.min(1, edge / 6) * (0.75 + 0.25 * Math.abs(n));
       c.lerp(new THREE.Color(0x8a7a52), k * 0.85); }
+    if (z < -19.5) {   // the north: greener by the river, drier and stonier towards the hills, bare rock up on them, and its dirt tracks
+      c.lerp(new THREE.Color(0x7a8a4a), Math.min(1, Math.max(0, (-z - 35) / 50)) * 0.55);
+      const hh = hillH(x, z); if (hh > 0.2) c.lerp(new THREE.Color(f > 0.5 ? 0x7a7466 : 0x6a665c), Math.min(0.9, hh / 5));
+      if (NORTH_PATHS.some(pts => pts.some((p, k) => k && segDist(x, z, pts[k - 1], p) < 1.3))) c.lerp(new THREE.Color(0xa48a5e), 0.75);
+      if (Math.hypot(x + 49, z + 68) < 9) c.lerp(new THREE.Color(0x8a8478), 0.6 * Math.min(1, (9 - Math.hypot(x + 49, z + 68)) / 3));   // gravel round the iron rocks
+    }
     if (WATER_RECTS.some(([x0, x1, z0, z1]) => x > x0 - 2 && x < x1 + 2 && z > z0 - 2 && z < z1 + 2)) {   // damp earth and a little sand along the banks, darker under the water
       const sd = waterSD(x, z); if (sd < 1.6) c.lerp(new THREE.Color(sd < 0 ? 0x4a4630 : 0x9a8a5c), Math.min(1, (1.6 - sd) / 1.4) * (0.55 + 0.25 * f)); }
     cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
@@ -1082,7 +1119,20 @@ const solidBoxes = [
 // the centre pillar blocks movement too
 solidBoxes.push(box(-0.5, 0.5, -0.5, 0.5));
 // the river is solid water: the route goes round the town, not through it
-solidBoxes.push({ x0: -120, x1: 120, z0: -16.9, z1: -11.1 });
+{ const bx = NORTH.bridge.x, hw = NORTH.bridge.hw;
+  solidBoxes.push({ x0: -120, x1: bx - hw, z0: -16.9, z1: -11.1 }, { x0: bx + hw, x1: 120, z0: -16.9, z1: -11.1 });   // the bridge crosses the gap
+  for (let x = -120; x < 120; x++) { if (x + 1 > bx - hw && x < bx + hw) continue;   // and the river's far half, out to 0.4 past its north bank
+    const nb = Math.min(...[x, x + 0.5, x + 1].map(q => riverSouth(q) - riverWidth(q))) - 0.4; solidBoxes.push({ x0: x, x1: x + 1, z0: nb, z1: -16.9 }); }
+  // the north stream and pool, like the stream in the west, with a gap at the footbridge
+  for (let z = -76; z < -16; z += 0.5) { if (z > NORTH.ford - 1.6 && z < NORTH.ford + 1.6) continue; let run = null;
+    for (let x = 36; x <= 64; x += 0.5) { const w = northWaterSD(x + 0.25, z + 0.25) < 0.4;
+      if (w && run === null) run = x; if ((!w || x === 64) && run !== null) { solidBoxes.push({ x0: run, x1: w ? x + 0.5 : x, z0: z, z1: z + 0.5 }); run = null; } } }
+  // the hills: a strip of boxes for each unit going north, wherever the ground rises; and each knoll
+  for (let z = -120; z < -19; z++) { let run = null;
+    for (let x = -120; x <= 120; x++) { const w = x < 120 && northOut(x + 0.5, z + 0.5) > -0.3;
+      if (w && run === null) run = x; if (!w && run !== null) { solidBoxes.push({ x0: run, x1: x, z0: z, z1: z + 1 }); run = null; } } }
+  for (const [mx, mz, r] of NORTH.knolls) solidBoxes.push({ x0: mx - r * 0.62, x1: mx + r * 0.62, z0: mz - r * 0.62, z1: mz + r * 0.62 });
+}
 // the stream and the pond are solid too: a strip of boxes for each half unit going south, reaching 0.4 past the water's edge
 for (let z = -11; z < 98; z += 0.5) { let run = null;
   for (let x = -117; x <= -65; x += 0.5) { const w = waterSD(x + 0.25, z + 0.25) < 0.4;
@@ -1425,8 +1475,8 @@ function clickNode(rec){
   if (rec.kind === 'fish' && FISHES[rec.fish].bait && !hasItem(FISHES[rec.fish].bait)) { showToast(FISHES[rec.fish].noBait); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast(nothingToCookMsg()); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
-  else if (rec.kind === 'furnace') { if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; } }
-  else if (rec.kind === 'rock') { if (!hasTool(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
+  else if (rec.kind === 'furnace') { if (!smeltKind()) { showToast(hasItem('Iron ore') ? 'You need Smithing 15 to smelt iron.' : 'Smelting needs copper ore and tin ore, or iron ore.'); return; } }
+  else if (rec.kind === 'rock') { if (ORES[rec.ore].lvl && levelOf(SKILL_XP.Mining) < ORES[rec.ore].lvl) { showToast(`You need Mining ${ORES[rec.ore].lvl} to mine this rock.`); return; } if (!hasTool(PICK_NAME)) { showToast('You need a pickaxe to mine this rock.'); return; } }
   else if (!hasTool(AXE_NAME)) { showToast('You need an axe to chop this tree.'); return; }
   if (rec.kind === 'door') {
     // approach from whichever side the adventurer is on
@@ -1454,14 +1504,17 @@ function removeItem(name, which){
 // Clicking the furnace again while it works does nothing, and walking away stops it.
 const SMELT_MS = 2400;
 let smelting = null;   // { rec, t0 } while a bar is in the furnace
-const canSmelt = () => hasItem('Copper ore') && hasItem('Tin ore') && (bag.length < BAG_SIZE || hasItem('Bronze bar'));
+const smeltKind = () => hasItem('Copper ore') && hasItem('Tin ore') ? 'bronze' : hasItem('Iron ore') && levelOf(SKILL_XP.Smithing) >= 15 ? 'iron' : null;
+const SMELT_BAR = { bronze: 'Bronze bar', iron: 'Iron bar' };
+const canSmelt = () => { const k = smeltKind(); return !!k && (bag.length < BAG_SIZE || hasItem(SMELT_BAR[k])); };
+const ironChance = () => Math.min(1, 0.5 + (levelOf(SKILL_XP.Smithing) - 15) / 30 * 0.5);
 function smelt(rec){
   if (smelting || cooking) return;
-  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { showToast('Smelting needs copper ore and tin ore.'); return; }
+  if (!smeltKind()) { showToast(hasItem('Iron ore') ? 'You need Smithing 15 to smelt iron.' : 'Smelting needs copper ore and tin ore, or iron ore.'); return; }
   if (!canSmelt()) { showToast('Your bag is full.'); return; }   // check room before starting
   smelting = { rec, t0: performance.now() };
   setAct({ k: 'smelt', t: Date.now() });
-  document.getElementById('smeltLabel').textContent = 'Smelting bronze...';
+  document.getElementById('smeltLabel').textContent = `Smelting ${smeltKind()}...`;
   document.getElementById('smeltBar').style.display = 'block';
 }
 // cooking: raw shrimp on a fireplace, one at a time; low levels burn some
@@ -1546,33 +1599,38 @@ function updateSmelt(){
   heroAnim.mode = 'work';
   if (k < 1) return;
   // the bar is done: the ores go in, a bar comes out
-  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting('You have run out of ore.'); return; }
-  removeItem('Copper ore'); removeItem('Tin ore');
+  const kind = smeltKind();
+  if (!kind) { stopSmelting('You have run out of ore.'); return; }
   smeltSound();
-  addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6);
-  showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6 Smithing XP`);
-  if (!hasItem('Copper ore') || !hasItem('Tin ore')) { stopSmelting(); return; }
+  if (kind === 'bronze') { removeItem('Copper ore'); removeItem('Tin ore'); addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6); showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6 Smithing XP`); }
+  else { removeItem('Iron ore');
+    if (Math.random() < ironChance()) { addItem('Iron bar', 1, IRON_BAR_ICON); addXp('Smithing', 12); showToast(`You smelt an iron bar (${barCount('Iron bar')} in your bag).  +12 Smithing XP`); }
+    else showToast('The ore is too impure, and the iron is lost.'); }
+  if (!smeltKind()) { stopSmelting(); return; }
+  document.getElementById('smeltLabel').textContent = `Smelting ${smeltKind()}...`;
   if (!canSmelt()) { stopSmelting('Your bag is full.'); return; }
   smelting.t0 = performance.now();   // the next bar goes in
   setAct({ k: 'smelt', t: Date.now() });
 }
 // ----- smithing at the anvil: bronze bars become gear, and gear is worn from the bag -----
+const aOrAn = w => /^[aeiou]/i.test(w) ? 'an' : 'a';
 function openSmithing(){ document.getElementById('smithPanel').hidden = false; renderSmith(); }
-function barCount(){ const b = bag.find(i => i.name === 'Bronze bar'); return b ? b.qty : 0; }
+function barCount(name = 'Bronze bar'){ const b = bag.find(i => i.name === name); return b ? b.qty : 0; }
+const barOf = r => r.bar || 'Bronze bar';
 function renderSmith(){
-  const lvl = levelOf(SKILL_XP.Smithing), bars = barCount();
+  const lvl = levelOf(SKILL_XP.Smithing);
   document.getElementById('smithList').innerHTML = RECIPES.map((r, i) => {
-    const ok = lvl >= r.level && bars >= r.bars, most = Math.floor(bars / r.bars);
+    const bars = barCount(barOf(r)), ok = lvl >= r.level && bars >= r.bars, most = Math.floor(bars / r.bars);
     const btn = (n, label) => `<button data-r="${i}" data-n="${n}" ${ok ? '' : 'disabled'} style="font:inherit;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:5px;padding:3px 7px;cursor:pointer;${ok ? '' : 'opacity:.45;cursor:default'}">${label}</button>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">${ITEMS[r.name].icon}
-      <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} bronze bar${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small><br><small style="color:#9ac87a">${statText(r.name)}</small></span>
+      <span style="flex:1">${r.name}<br><small style="color:#c9b27a">${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''} &middot; Smithing ${r.level}</small><br><small style="color:#9ac87a">${statText(r.name)}</small></span>
       <span style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;max-width:112px">${btn(1, '1')}${btn(5, '5')}${btn('x', 'X')}${btn('all', 'All' + (ok ? ' (' + most + ')' : ''))}</span></div>`;
   }).join('');
 }
 function makeGear(r, n = 1){
   if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make a ${r.name.toLowerCase()}.`); return; }
-  if (barCount() < r.bars) { showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
+  if (levelOf(SKILL_XP.Smithing) < r.level) { showToast(`You need Smithing ${r.level} to make ${aOrAn(r.name)} ${r.name.toLowerCase()}.`); return; }
+  if (barCount(barOf(r)) < r.bars) { showToast(`You need ${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { showToast('Your bag is full.'); return; }
   if (smithing || smelting || cooking) return;
   // hammering takes a moment: the bars are used when the piece is finished, so walking away wastes nothing
@@ -1584,7 +1642,7 @@ function makeGear(r, n = 1){
   setAct({ k: 'smith', t: Date.now() });
 }
 let smithing = null;
-function smithLabel(){ const s = smithing; document.getElementById('smeltLabel').textContent = s.total > 1 ? `Smithing ${s.r.name.toLowerCase()}s (${s.total - s.left + 1} of ${s.total})...` : `Smithing a ${s.r.name.toLowerCase()}...`; }
+function smithLabel(){ const s = smithing; document.getElementById('smeltLabel').textContent = s.total > 1 ? `Smithing ${s.r.name.toLowerCase()}s (${s.total - s.left + 1} of ${s.total})...` : `Smithing ${aOrAn(s.r.name)} ${s.r.name.toLowerCase()}...`; }
 function smithTime(r){ return 1800 + r.bars * 700; }
 function stopSmithing(){ if (!smithing) return; smithing = null; document.getElementById('smeltBar').style.display = 'none'; if (ONLINE.act && ONLINE.act.k === 'smith') setAct(null); }
 function updateSmith(){
@@ -1596,18 +1654,18 @@ function updateSmith(){
   const hits = Math.floor(k * 4); if (hits > smithing.hits && k < 1) { smithing.hits = hits; anvilSound(); }   // a clang every so often
   if (k < 1) return;
   const r = smithing.r;
-  if (barCount() < r.bars) { stopSmithing(); showToast(`You need ${r.bars} bronze bar${r.bars > 1 ? 's' : ''}.`); return; }
+  if (barCount(barOf(r)) < r.bars) { stopSmithing(); showToast(`You need ${r.bars} ${barOf(r).toLowerCase()}${r.bars > 1 ? 's' : ''}.`); return; }
   if (bag.length >= BAG_SIZE && !hasItem(r.name)) { stopSmithing(); showToast('Your bag is full.'); return; }
-  for (let i = 0; i < r.bars; i++) removeItem('Bronze bar');
+  for (let i = 0; i < r.bars; i++) removeItem(barOf(r));
   addItem(r.name, 1, ITEMS[r.name].icon); addXp('Smithing', r.xp); anvilSound();
-  showToast(`You make a ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
+  showToast(`You make ${aOrAn(r.name)} ${r.name.toLowerCase()} (${statText(r.name)}).  +${r.xp} Smithing XP`);
   smithing.left--;
-  if (smithing.left <= 0 || barCount() < r.bars || (bag.length >= BAG_SIZE && !hasItem(r.name))) { stopSmithing(); return; }   // done, or out of bars or room
+  if (smithing.left <= 0 || barCount(barOf(r)) < r.bars || (bag.length >= BAG_SIZE && !hasItem(r.name))) { stopSmithing(); return; }   // done, or out of bars or room
   smithing.t0 = performance.now(); smithing.hits = 0; smithLabel(); setAct({ k: 'smith', t: Date.now() });   // straight on to the next one
 }
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
-  if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to wear a ${name.toLowerCase()}.`); return; }
+  if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to use ${aOrAn(name)} ${name.toLowerCase()}.`); return; }
   removeItem(name);
   if (old) addItem(old, 1, ITEMS[old].icon);   // the piece it replaces goes back to the bag
   equipped[def.slot] = name;
@@ -1721,7 +1779,7 @@ let CUR_SHOP = SHOPS.mara;
 function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; if (CUR_SHOP.stock) loadFishStock(); document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Iron ore': 8, 'Iron bar': 18, 'Iron dagger': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2329,8 +2387,8 @@ function giveLogs(rec){
 function mineDone(rec){
   burstRock(rec); explosionSound();
   hideNode(rec);
-  const oreName = ORES[rec.ore].item, icon = rec.ore === 'tin' ? TIN_ICON : ORE_ICON;
-  if (addItem(oreName, 1, icon)) { addXp('Mining', 20); showToast(`You get some ${oreName.toLowerCase()}.  +20 Mining XP`); }
+  const oreName = ORES[rec.ore].item, icon = ICON_FOR[oreName], xp = ORES[rec.ore].xp || 20;
+  if (addItem(oreName, 1, icon)) { addXp('Mining', xp); showToast(`You get some ${oreName.toLowerCase()}.  +${xp} Mining XP`); }
   else showToast('Your bag is full.');
 }
 
@@ -2395,7 +2453,8 @@ function explosionSound(){
 // ----- a copper ore rock: grey-brown stone with copper veins, built from our own shapes -----
 const ORES = {
   copper: { label: 'Copper rock', item: 'Copper ore', veins: [0xc2652b, 0xd9773a] },
-  tin:    { label: 'Tin rock',    item: 'Tin ore',    veins: [0xb8c4cc, 0xdfe6ea] }
+  tin:    { label: 'Tin rock',    item: 'Tin ore',    veins: [0xb8c4cc, 0xdfe6ea] },
+  iron:   { label: 'Iron rock',   item: 'Iron ore',   veins: [0x7a4a32, 0x9a5e42], lvl: 15, xp: 35 }   /* as in the phone game: Mining 15, 35 XP */
 };
 function makeRock(x, z, s = 1, ore = 'copper'){
   const g = new THREE.Group();
@@ -3262,8 +3321,20 @@ const ITEMS = {
   'Bronze leg armour': { slot: 'legs', def: 5, icon: LEGS_ICON },
   'Bronze boots': { slot: 'feet', def: 1, icon: BOOTS_ICON },
   'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
-  'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON }
+  'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON },
+  'Iron dagger': { slot: 'weapon', atk: 5, req: 10, icon: ironIcon(DAGGER_ICON) },
+  'Iron helmet': { slot: 'head', def: 4, req: 10, icon: ironIcon(HELM_ICON) },
+  'Iron chestplate': { slot: 'body', def: 13, req: 10, icon: ironIcon(CHEST_ICON) },
+  'Iron leg armour': { slot: 'legs', def: 8, req: 10, icon: ironIcon(LEGS_ICON) },
+  'Iron boots': { slot: 'feet', def: 2, req: 10, icon: ironIcon(BOOTS_ICON) },
+  'Iron sword':  { slot: 'weapon', atk: 10, req: 10, icon: ironIcon(SWORD_ICON) },
+  'Iron shield': { slot: 'shield', def: 10, req: 10, icon: ironIcon(SHIELD_ICON) }
 };
+// iron's icons are bronze's, in cool grey: every colour keeps its brightness and loses its warmth
+function ironIcon(svg){ return svg.replace(/#([0-9a-f]{6})\b/gi, (_, h) => { const n = parseInt(h, 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  if (Math.abs(r - g) < 12 && Math.abs(g - b) < 12) return '#' + h;   /* already grey (outlines, shine): leave it */
+  const l = Math.round(0.3 * r + 0.55 * g + 0.15 * b), c = v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'); return '#' + c(l - 6) + c(l + 2) + c(l + 12); }); }
+const IRON_ORE_ICON = ironIcon(ORE_ICON).replace(/#c2652b|#d9773a/gi, '#8a5a42'), IRON_BAR_ICON = ironIcon(BAR_ICON);
 const RECIPES = [
   { name: 'Bronze dagger',     bars: 1, level: 1,  xp: 12 },
   { name: 'Bronze boots',      bars: 1, level: 2,  xp: 12 },
@@ -3271,7 +3342,15 @@ const RECIPES = [
   { name: 'Bronze sword',      bars: 2, level: 4,  xp: 25 },
   { name: 'Bronze shield',     bars: 2, level: 6,  xp: 30 },
   { name: 'Bronze leg armour', bars: 3, level: 8,  xp: 40 },
-  { name: 'Bronze chestplate', bars: 5, level: 10, xp: 65 }
+  { name: 'Bronze chestplate', bars: 5, level: 10, xp: 65 },
+  // iron, from the north's rocks: the step up from bronze, for the forest beyond
+  { name: 'Iron dagger',       bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
+  { name: 'Iron boots',        bars: 1, level: 16, xp: 25, bar: 'Iron bar' },
+  { name: 'Iron helmet',       bars: 1, level: 17, xp: 28, bar: 'Iron bar' },
+  { name: 'Iron sword',        bars: 2, level: 19, xp: 50, bar: 'Iron bar' },
+  { name: 'Iron shield',       bars: 2, level: 21, xp: 60, bar: 'Iron bar' },
+  { name: 'Iron leg armour',   bars: 3, level: 23, xp: 80, bar: 'Iron bar' },
+  { name: 'Iron chestplate',   bars: 5, level: 25, xp: 130, bar: 'Iron bar' }
 ];
 const BAG_SIZE = 30;
 const bag = [];
@@ -3509,6 +3588,48 @@ function buildFishShop(){
   solidBoxes.push({ x0: X - 4.2, x1: X + 4.2, z0: Z - 3.2, z1: Z - 2.8 }, { x0: X - 4.2, x1: X - 3.8, z0: Z - 3.2, z1: Z + 3.2 }, { x0: X + 3.8, x1: X + 4.2, z0: Z - 3.2, z1: Z + 3.2 },
     { x0: X - 4.2, x1: X + 4.2, z0: Z + 1.9, z1: Z + 2.95 }, { x0: X + 2.7, x1: X + 3.7, z0: Z - 2.7, z1: Z - 0.7 }, { x0: X - 6.9, x1: X - 5.1, z0: Z - 4.0, z1: Z + 1.2 }, { x0: X + 4.5, x1: X + 5.6, z0: Z - 2.8, z1: Z - 1.6 });
 }
+// ----- the north: the bridge over the river, a footbridge over the stream, trees, iron rocks, trout, and stones and bushes on the uplands -----
+// Everything decorative is merged into one mesh per material. Trees and rocks are ordinary shared nodes, placed from a fixed seed so everyone has the same.
+function buildNorth(){
+  const bins = new Map(), wood = texMat(woodTex(), 1, 3), dark = mat(0x4a3220), stoneM = mat(0x7a766c), bushM = mat(0x3e6a2e), bushL = mat(0x5a8a3a), flowerM = mat(0xe0d070), heath = mat(0x8a5a7a);
+  const put = (m, geo, x, y, z, ry = 0, sc = null) => { if (sc) geo.scale(...sc); if (ry) geo.rotateY(ry); geo.translate(x, y, z); if (!bins.has(m)) bins.set(m, []); bins.get(m).push(geo.index ? geo.toNonIndexed() : geo); };
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  // the bridge: a plank deck on posts from the village bank to the far one, with a rail each side
+  const bx = NORTH.bridge.x, z0 = -10.2, z1 = -21.4, L = z0 - z1, zc = (z0 + z1) / 2;
+  put(wood, B(4.4, 0.18, L), bx, -0.03, zc);
+  for (let z = z1 + 0.4; z <= z0; z += 0.9) put(dark, B(4.5, 0.04, 0.08), bx, 0.07, z);   // the gaps between planks
+  for (const sx of [-1, 1]) { put(dark, B(0.16, 0.16, L), bx + sx * 2.1, 1.05, zc); put(dark, B(0.12, 0.12, L), bx + sx * 2.1, 0.55, zc);
+    for (let z = z1; z <= z0 + 0.01; z += L / 6) put(dark, B(0.22, 1.9, 0.22), bx + sx * 2.1, 0.2, z); }   // posts down into the water
+  // the footbridge over the stream
+  { const z = NORTH.ford, x0 = 40.5, x1 = 48.6, l = x1 - x0, xc = (x0 + x1) / 2;
+    put(wood, B(l, 0.16, 3.0), xc, -0.03, z); for (const sz of [-1, 1]) { put(dark, B(l, 0.12, 0.12), xc, 0.95, z + sz * 1.4); for (let x = x0; x <= x1 + 0.01; x += l / 3) put(dark, B(0.18, 1.6, 0.18), x, 0.2, z + sz * 1.4); } }
+  // stones, bushes and heather, from a fixed seed: thin by the river, thicker up towards the hills
+  let q = 9001; const r = () => (q = (q * 16807) % 2147483647) / 2147483647;
+  const onPath = (x, z) => NORTH_PATHS.some(pts => pts.some((p, k) => k && segDist(x, z, pts[k - 1], p) < 2));
+  for (let i = 0; i < 520; i++) {
+    const x = -96 + r() * 192, z = -23 - r() * 72, up = (-z - 23) / 72, kind = r();
+    if (onPath(x, z) || northOut(x, z) > -1 || hillH(x, z) > 0.1 || waterSD(x, z) < 1.2 || Math.hypot(x - bx, z + 22) < 4) continue;
+    if (kind < 0.25 + up * 0.35) { const s = 0.25 + r() * 0.5; put(stoneM, new THREE.DodecahedronGeometry(s, 0), x, s * 0.35, z, r() * 6, [1, 0.6, 1]); }   // a stone, low enough to step over
+    else if (kind < 0.6) { const s = 0.5 + r() * 0.45; put(r() < 0.5 ? bushM : bushL, new THREE.IcosahedronGeometry(s, 0), x, s * 0.55, z, r() * 6, [1.2, 0.75, 1.1]); }   // a bush, just for looks
+    else if (kind < 0.8) { for (let k = 0; k < 4; k++) put(up > 0.4 ? heath : flowerM, new THREE.IcosahedronGeometry(0.1, 0), x + (r() - 0.5), 0.12, z + (r() - 0.5)); }
+  }
+  // boulders on the hillsides, so the hills read as rocky
+  for (let i = 0; i < 160; i++) { const x = -118 + r() * 236, z = -20 - r() * 99, h = hillH(x, z); if (h < 0.8 || h > 12) continue; const s = 0.8 + r() * 1.6; put(stoneM, new THREE.DodecahedronGeometry(s, 0), x, h + s * 0.2, z, r() * 6, [1, 0.7, 1]); }
+  const g = new THREE.Group(); town.add(g);
+  for (const [m, geos] of bins) { const mesh = new THREE.Mesh(mergeGeometries(geos), m); mesh.castShadow = mesh.receiveShadow = true; g.add(mesh); }
+  // the trout pool: trees all round it, leaving the path side open, and two trout spots on its south-west bank
+  const P = NORTH.pool;
+  for (let a = 0; a < Math.PI * 2; a += 0.42) { if (a > 1.6 && a < 2.9) continue; const d = P.r + 4.5 + (Math.sin(a * 5) + 1) * 0.8, x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d * P.k;
+    if (!blocked(x, z) && !blocked(x + 1.2, z) && !blocked(x - 1.2, z) && waterSD(x, z) > 2) makeTree(x, z, 1.4); }
+  for (const a of [1.95, 2.55]) { const d = P.r - 1.1, x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d * P.k; addFishSpot(x, z, 'trout'); }
+  // copses across the meadow, and oaks further up
+  for (let i = 0; i < 70; i++) { const x = -92 + r() * 184, z = -26 - r() * 62, oak = r() < 0.3 + (-z - 26) / 120;
+    if (onPath(x, z) || northOut(x, z) > -3 || hillH(x, z) > 0 || waterSD(x, z) < 3 || Math.hypot(x + 49, z + 68) < 11 || Math.hypot(x - bx, z + 22) < 6) continue;
+    if (treeRecs.some(t => Math.hypot(t.x - x, t.z - z) < 6) || [-1.5, 0, 1.5].some(d => blocked(x + d, z) || blocked(x, z + d))) continue;
+    makeTree(x, z, oak ? 1.5 : 1.3, oak); }
+  // the iron rocks, at the foot of the knoll in the north-west
+  for (const [x, z] of [[-52, -63], [-47.5, -66.5], [-43, -62.5], [-50, -71.5], [-43.5, -70.5], [-55.5, -68]]) makeRock(x, z, 1, 'iron');
+}
 // the roof lifts while you stand at his counter, so you can see Jory under it
 function updateFishShack(){ if (!FISH_SHACK.roof || !hero) return; const x = hero.position.x - FISH_SHACK.x, z = hero.position.z - FISH_SHACK.z; FISH_SHACK.roof.visible = !(Math.abs(x) < 4.5 && z > -3.5 && z < 6); }
 // lift both roofs while you're in the barracks or the jail, so you can see inside
@@ -3641,7 +3762,7 @@ const TOWNSFOLK = [
       ["Fenwick says he caught a fish as long as a horse. He's been saying that since we were boys.", "It was a boot then, too."],
       ["Folk sell me their catch and I sell it on. A man's got to eat. And Wenna likes her ribbons."] ],
     asks: [
-      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Not for years."] },
+      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Over the bridge and up north, there's a pool in the trees. Mind the rats up there, mind. Big as cats."] },
       { q: 'How long have you and Wenna been married?', a: ["Forty-one years come spring. She'd say forty-two. She counts the courting.", "Asked her on that bench on the green. She said she'd think about it. Took her a week.", "Longest week of my life, that was."] } ],
     barks: ["Worms! Fresh worms! Well. Lively, anyway.", "Fresh fish on the slab! Fair prices, near enough.", "Nets, rods and bait. Everything but the patience."],
     choice: { question: 'What can I do for you?' } },
@@ -4716,6 +4837,9 @@ const MONSTER_TYPES = {
   chicken: { name: 'Chicken', level: 1, hp: 5, melee: 1, atk: 0, def: 0, maxHit: 1, speed: 2800, respawn: 20000, snd: 'chicken', coins: [0, 0], drops: [['Raw chicken', 1, 1], ['Feathers', 5, 15]] },
   cow: { name: 'Cow', level: 2, hp: 15, melee: 2, atk: 2, def: 1, maxHit: 1, speed: 3000, respawn: 30000, snd: 'cow', coins: [0, 0], drops: [['Raw beef', 1, 1]] },
   rat: { name: 'Giant Rat', level: 3, hp: 10, melee: 2, atk: 2, def: 2, maxHit: 2, speed: 2400, respawn: 25000, snd: 'rat', coins: [0, 0] },
+  // the north: bigger, bolder giant rats that come for you (aggro: they chase anyone whose combat level is at most twice theirs plus one, and leave stronger players alone)
+  hillRat: { name: 'Giant Rat', model: 'rat', level: 6, hp: 20, melee: 6, atk: 5, def: 5, maxHit: 2, speed: 2400, respawn: 30000, snd: 'rat', coins: [2, 8], aggro: true },
+  caveRat: { name: 'Giant Rat', model: 'rat', level: 9, hp: 28, melee: 9, atk: 8, def: 8, maxHit: 3, speed: 2300, respawn: 35000, snd: 'rat', coins: [4, 14], aggro: true, scale: 1.2 },
   farmer: { name: 'Angry Farmer', level: 10, hp: 25, melee: 10, atk: 10, def: 10, maxHit: 3, speed: 2400, respawn: 60000, snd: 'farmer', coins: [0, 0] },
 };
 // the classic accuracy roll: compare an attack roll against a defence roll
@@ -4727,7 +4851,7 @@ function playerRolls(){
 function monsterRolls(t){ const lv = t.melee + 8; return { att: lv * (t.atk + 64), def: lv * (t.def + 64), maxHit: t.maxHit }; }
 function spawnMonster(kind, x, z, rad = 3, box = null){
   const t = MONSTER_TYPES[kind];
-  const g = kind === 'goblin' ? makeGoblin({ skin: [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3] }) : makeFarmMonster(kind); g.position.set(x, 0, z); scene.add(g);
+  const g = kind === 'goblin' ? makeGoblin({ skin: [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3] }) : makeFarmMonster(t.model || kind); g.position.set(x, 0, z); if (t.scale) g.scale.multiplyScalar(t.scale); scene.add(g);
   const rec = { kind: 'monster', type: kind, t, name: `${t.name} (level ${t.level})`, x, z, s: 0.75, state: 'standing', hp: t.hp, home: [x, z], g };
   g.userData.action = 'Attack'; g.userData.name = rec.name; g.userData.rec = rec; trees.push(g);
   rec.bar = document.createElement('div'); rec.bar.className = 'hpBar'; rec.bar.innerHTML = '<i></i>'; rec.bar.style.display = 'none'; document.body.appendChild(rec.bar);
@@ -4764,7 +4888,7 @@ function startFight(rec){
 }
 function endFight(msg){
   if (!FIGHT) return;
-  const m = FIGHT.m; FIGHT = null;
+  const m = FIGHT.m; FIGHT = null; m.aggroAt = performance.now() + AGGRO_COOL;   /* got away: an aggressive one gives you a moment */
   if (m.state === 'engaged') m.state = 'standing';
   if (m.state !== 'dying' && m.state !== 'dead') mobRelease(m);
   if (ONLINE.act && ONLINE.act.k === 'fight') setAct(null);
@@ -5052,6 +5176,7 @@ function populateVillage(){
   roadPath([[14.5, 12], [22, 16], [26, 30], [26, 54], [30, 58], out(smithyHouse), D(smithyHouse)]);   // the smithy, out to the south-east
   roadPath([[26, 54], [23, 59], [QUARRY.x + 8.6, QUARRY.z - 9.6]]);   // south-west to the quarry gate
   roadPath([G, [-34, -2], [-36, -9.5]]);                               // north to the fishing bank
+  roadPath([[-28, 5], [-16, 0], [-10, -6], [-10, -10.4]]);              // north-east to the bridge over the river
   roadPath([[-58, 51], [-61, 60], [-66, 69], [-72.5, 78]]);            // south from the back lane to the pond
   roadPath([[-66, 69], [-57, 80], [-55.5, 90], [-56.5, 97.6], [-63, 97.6]]);   // round the east side of Jory's shack to his counter
   roadPath([[-46, 47], [-58, 51], out(store), D(store)]);
@@ -5088,6 +5213,7 @@ function populateVillage(){
   addFishSpot(-36, -13.4);
   for (const a of [-0.2, 0.4]) { const r = pondR(a) - 1.1; addFishSpot(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r * POND.k, 'bream'); }   // bream in the pond, off its east bank, near Jory's shack
   buildWaterside();
+  buildNorth();   // across the river: the bridge, the uplands, iron, trout and the rats' ground
   scatterOaks();
   paintPaths();
   setTimeout(buildGrass, 0);   // once the farm, props and paths are all placed
@@ -5699,7 +5825,7 @@ const MULBERRY_LEAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><pat
 const COCOON_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><ellipse cx="8" cy="8.5" rx="4" ry="6" fill="#f4f0e2" stroke="#a09878" stroke-width="0.7" transform="rotate(-25 8 8.5)"/><path d="M5 6 Q8 8 11 6 M4.6 9 Q8 11 11.4 9 M5.4 12 Q8 13.5 10.6 12" stroke="#d4ccb0" stroke-width="0.6" fill="none" transform="rotate(-25 8 8.5)"/></svg>`;
 const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4" y="2" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="4" y="12" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="5" y="4" width="6" height="8" fill="#f8f2e6" stroke="#c8bca0" stroke-width="0.5"/><path d="M5 5.5 L11 5.5 M5 7.5 L11 7.5 M5 9.5 L11 9.5 M11 10.5 Q13 12 12 14" stroke="#e0d6c0" stroke-width="0.6" fill="none"/></svg>`;
 const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
-const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON,
+const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron bar': IRON_BAR_ICON, 'Iron dagger': ITEMS['Iron dagger'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON, 'Raw bream': BREAM_ICON, 'Bream': COOKED_BREAM_ICON, 'Burnt bream': BURNT_BREAM_ICON, 'Worms': WORMS_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
@@ -6353,6 +6479,10 @@ function spawnFarmMonsters(){
   [[88, 21], [96, 23], [100, 28], [91, 28]].forEach(([x, z]) => spawnMonster('cow', x, z, 4, { x0: 85.5, x1: 102.5, z0: 18.5, z1: 31.5 }));
   [[68, 41], [80, 46], [96, 44], [104, 52], [72, 58], [90, 62], [100, 68], [71, 73]].forEach(([x, z]) => spawnMonster('rat', x, z, 5, { x0: 62, x1: 108, z0: 37, z1: 80 }));
   [[76, 50, 7], [96, 56, 7], [84, 59, 6]].forEach(([x, z, r]) => spawnMonster('farmer', x, z, r, { x0: 62, x1: 108, z0: 37, z1: 80 }));
+  // the north, after all the farm's (so their shared ids never move): the meadow's rats, and the bigger ones by the iron rocks and the trout pool
+  [[-25, -35], [-10, -45], [5, -31], [18, -48], [-28, -52], [26, -29]].forEach(([x, z]) => spawnMonster('hillRat', x, z, 5, { x0: -36, x1: 31, z0: -57, z1: -26 }));
+  [[-46, -77], [-37, -66], [-57, -59]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: -62, x1: -34, z0: -82, z1: -56 }));
+  [[38, -75], [64, -55], [60, -79]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: 33, x1: 72, z0: -86, z1: -50 }));
   MONSTERS.forEach((m, i) => { m.sid = i; });   /* shared with everyone: same id, same wandering path, one fight at a time */
 }
 function farmRoads(){
@@ -7335,6 +7465,31 @@ function mobPath(m, T){
     if (go <= l && l > 0) { const k = go / l; return { x: x0 + (x1 - x0) * k, z: z0 + (z1 - z0) * k, yaw: Math.atan2(x1 - x0, z1 - z0), moving: true }; } go -= l; }
   return { x: b[0], z: b[1], moving: false };
 }
+// an aggressive monster that has noticed you runs at you, and starts the fight itself when it gets there
+const AGGRO_RANGE = 6, AGGRO_COOL = 10000;   // how near before it notices you; how long after you get away before it tries again
+let CHASER = null;
+function aggroCheck(m, now){
+  if (!m.t.aggro || FIGHT || DELVE || CHASER || !hero || HP.cur <= 0 || m.state !== 'standing' || now < (m.aggroAt || 0)) return;
+  if (combatLevel() > m.t.level * 2 + 1 || mobLocked(m)) return;   /* anyone stronger than twice its level plus one, it leaves alone */
+  const hx = hero.position.x, hz = hero.position.z, b = m.box;
+  if (b && (hx < b.x0 - 3 || hx > b.x1 + 3 || hz < b.z0 - 3 || hz > b.z1 + 3)) return;   // it doesn't leave its ground for you
+  if (Math.hypot(hx - m.x, hz - m.z) < AGGRO_RANGE) { m.chase = true; CHASER = m; }
+}
+function chaseStep(m, now, dt){   // true while it's chasing (it moves itself), false to go back to its usual wandering
+  const hx = hero.position.x, hz = hero.position.z, dx = hx - m.g.position.x, dz = hz - m.g.position.z, d = Math.hypot(dx, dz);
+  const give = FIGHT || DELVE || HP.cur <= 0 || mobLocked(m) || mobDeadNow(m) || d > AGGRO_RANGE + 8 || Math.hypot(m.g.position.x - m.home[0], m.g.position.z - m.home[1]) > m.rad + 12;
+  if (give) { m.chase = false; if (CHASER === m) CHASER = null; m.aggroAt = now + 3000; return false; }
+  if (d > reachOf(m) + 0.1) { const step = Math.min(d - reachOf(m), 4.2 * dt), nx = m.g.position.x + dx / d * step, nz = m.g.position.z + dz / d * step;
+    if (!monsterHit(nx, nz)) { m.g.position.x = nx; m.g.position.z = nz; } else if (!monsterHit(nx, m.g.position.z)) m.g.position.x = nx; else if (!monsterHit(m.g.position.x, nz)) m.g.position.z = nz;
+    turnChibi(m.g, Math.atan2(dx, dz)); monsterPose(m, 'walk'); m.x = m.g.position.x; m.z = m.g.position.z; return true; }
+  // it has reached you: the fight is on, wherever you were going and whatever you were doing
+  m.chase = false; if (CHASER === m) CHASER = null;
+  cancelChop(); stopFishing(); walkTarget = null; walkThen = null; walkQueue = []; walkFinal = null; heroAnim.mode = 'idle';
+  m.state = 'engaged'; m.engagedAt = now;
+  FIGHT = { m, nextP: now + 900, nextM: now + 700, pAnim: null, mAnim: null };
+  mobClaim(m); heroAnim.yaw = yawTo(hx, hz, m.x, m.z); m.g.rotation.y = yawTo(m.x, m.z, hx, hz); setAct(fightAct(m));
+  return true;
+}
 function mobUpdate(m, now){
   const st = MOBST[m.sid], dt = Math.min(0.1, (now - (m.lastT || now)) / 1000); m.lastT = now;
   if (mobDeadNow(m)) { if (m.state === 'standing' || m.state === 'engaged') { m.state = 'dying'; m.dieT = now; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Die')); } m.foreign = false; return; }
@@ -7347,6 +7502,8 @@ function mobUpdate(m, now){
     if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur); else monsterPose(m, 'ready');
     m.x = m.g.position.x; m.z = m.g.position.z; return;
   }
+  if (m.chase && chaseStep(m, now, dt)) return;
+  if (m.state === 'standing') aggroCheck(m, now);
   if (m.state === 'engaged') { if (!walkTarget && now - (m.engagedAt || 0) > 1500) m.state = 'standing'; else { monsterPose(m, 'ready'); m.g.rotation.y = yawTo(m.x, m.z, hero.position.x, hero.position.z); return; } }
   // its health: hurt in a recent fight, otherwise back to full
   m.hp = st && typeof st.hp === 'number' && st.hp > 0 && SNOW() - (st.t || 0) < 60000 && !(st.dead && (st.t || 0) <= st.dead) ? st.hp : m.t.hp;   /* a killing blow that landed after the death note mustn't bring it back at 0 */
