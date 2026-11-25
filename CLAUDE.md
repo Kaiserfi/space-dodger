@@ -11,6 +11,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Ask only when the choice changes what gets built** (single or multi-combat, private or shared ground items). Otherwise pick the sensible default, say which, and go.
 - **"Show me" means a mock-up, not a change.** When the owner asks what something would look like, render it with test hooks and send pictures, without changing the game. Offer to build it afterwards.
 - **Search before adding a name.** The file is huge and shares one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once). `node --check` catches a clash at the same level, but not one hidden in an inner scope.
+- **Ask before placing a new building.** Show the owner a top-down map with the candidate spots marked first (render the whole map with an orthographic camera looking straight down, fog off, and draw a labelled grid on it with PIL), then a mock-up of the building, and only build once they've approved both.
 - **Read the owner's messages mid-task.** They often add a request while you work; fold it into the current change, or do it next and say so.
 
 ### Characters
@@ -55,6 +56,17 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Check everything on a phone-sized screen** (about 412 wide). Text boxes must wrap (no `white-space:nowrap` on messages) and stay inside the screen with a 16px margin.
 - Keep dialogue and warnings short. The owner prefers wording that matches the phone game (Idle Tap Adventure) where there is an equivalent, for example the delve warning.
 
+### Daily routines and chats
+
+- **Everyone who keeps a timetable is driven by the clock, not by local wandering:** guards (`GUARD_SHIFT`, `GUARD_EVENTS`, `guardState`) and villagers (`VILLAGER_DAY`, `villagerState`). An event is `[hour, where, what]`. Where they are comes from `hourNow()` plus the distance along a route at `GUARD_SPEED`, so every player sees the same thing without sending anything. Movement catches up with `dt`, and any real movement plays the walk (`step > 0.2 * dt`), or they glide.
+- **Routes are worked out once and kept** (`guardRoutes`, `villagerRoute`) with `findPath`. They must be the same for everyone, so compute them with every house door treated as open (doors are local, see below), never from anything a player can change.
+- **Quest givers and shopkeepers stay where players expect them** (Aldric, Brenna, Tilly, Mara, and Dunmore at the forge in the daytime).
+- **Poses for routines:** sitting reuses Wenna's legs (`legs.rotation.x = -1.45`) or `sitPoseAt` on a bonfire seat. A villager on a seat marks it in `VSEAT_TAKEN` so players can't sit on them. Chopping is `poseChibi(sp, 'swing', t, 'axe')`; fishing is `fishPose` (a rod in the right hand, the line kept vertical in world space).
+- **Lying down:** a chibi's head is far bigger than its body, so lying flat it is about 2.3 tall and the legs float. Tilt it (`rotation.x = -π/2 + 0.3`), then measure the visible parts only (`traverseVisible`, since the hidden tools hang lower and `Box3.setFromObject` counts invisible meshes) and set its height so the lowest point rests on the mattress. Guards sleep on the top bunks because there's no room under them. Shut the eyes (`eyes`: scale the white, hide the shine) and show the shared Zs (`zzzMat()`).
+- **Sleeping NPCs can't be talked to** (`rec.asleep`: "… is fast asleep.") and don't call out.
+- **Chats between NPCs sat together** (`tableTalk`, `TALK_AT`): each place (`rec.chatAt`: the mess table, the bonfire) runs its own exchange, line by line in their bubbles, and sitters don't call out. `TABLE_TALK` lines go to roles (0, 1) for any two guards; `BONFIRE_TALK` lines go to people by name and are only picked when they're all there. Write them in each character's voice.
+- **Doors are local to each player** (`toggleDoor`). Villagers open them quietly as they pass (`openDoorQuiet`). Syncing doors would need a new `live/doors` path and rule.
+
 ### Items, the bag and saves
 
 - **Saves must stay compatible.** New save fields get a default when missing (old saves load fine), and items that change shape are converted on load. Examples: food that used to stack is spread into slots, coins move from the bag into the purse (`co`), and plots without a crop load as wheat.
@@ -95,6 +107,9 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Party frames (`renderPartyFrames`) show each member's name, combat level and health; tapping a member with a bandage heals them.
 - **Party delve:** whoever opens the cellar with party members nearby leads it. The leader's game runs the waves, targets and movement and shares them in `dv` (`mons`, `wave`, `next` in server time); everyone else's game shows copies (`m.ghost`) and posts its blows to `hits` for the leader to count. Each player's own game rolls the blows of the creatures targeting them. If the leader falls or leaves, the next player still down takes over.
 - **Threat:** the leader counts each player's damage on each creature (`threat`, `m.dmgBy`), and a creature goes for whoever has hurt it most, turning only when someone overtakes its target (`topThreat`). Only that target's game rolls its blows; anyone else hitting it is safe.
+- **Leader handover:** the leader writes a heartbeat (`dv.hb`) with every share. If it goes quiet for 6 seconds (a hidden tab), the next player down takes over. The leader keeps its own wave and timer (`DELVE.hw`, `DELVE.hn`) and resends them with every share, so one lost write can't stall the waves. Everyone gets the wave messages.
+- **Every blow is shared** at `parties/<pid>/fx/<id>` (`partyFx`, `partyFxApply`): swings, hits, blocks and misses, theirs and the creatures'. Fight status for a cellar creature carries its spawn tag (`fightAct(m)`: `m` for a farm monster's `sid`, `d` for a party creature's `sp`).
+- Creatures face whoever they're after (`faceTargets`). Only party members who've unlocked the cellar are asked down (presence `dl`).
 - Creatures get `1 + 0.6 × (players - 1)` times their health (`m.maxHp`). No per-creature drops in a party; rewards come from the chest.
 - Anyone who falls or flees is out for good (their own 25% coins and delve XP penalty). **No carrying:** at the end, a survivor needs damage plus healing of at least half an even share of the party's total, or they get no reward.
 - Other players are only visible when you're in the same world (`sameWorld`): both up top, or both in the same party's cellar.
@@ -116,7 +131,9 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - **Guards:** Osric and Bertram keep the day watch, Edda and Godwin the night watch (`GUARD_SHIFT`, `GUARD_EVENTS`). They sleep on the top decks of the barracks bunks, eat at the mess table, and walk routes worked out once at start-up between their post and the barracks (`guardRoutes`). Sleeping guards can't be talked to ("… is fast asleep.") and don't call out.
 - **Villagers' days** (`VILLAGER_DAY`): Tobin chops in the woods, Ysolde fishes at the river (with a rod: `fishPose`) and visits the pond and the market, Dunmore works the forge all day; all three sit at the bonfire in the evening and sleep at home (in their bed if the house has one). Their routes are worked out once with every house door open (`villagerRoute`), and they open shut doors on their way (`openDoorQuiet`). Brenna and Mara stay home.
-- **The barracks** (`buildBarracks`), south-west of the bonfire, with the jail and Rennick in the middle cell. The cells are solid and can't be opened.
+- **The barracks** (`buildBarracks`, `BARRACKS`: x -50..-26, z 60..84, with the jail wing x -26..-12, z 64..82), south-west of the bonfire, with the jail and Rennick in the middle cell. The cells are solid and can't be opened. Its static parts are merged into one mesh per material (`put`/`box` into bins, then `mergeGeometries`), which is the pattern to copy for any big building. The ground under it is flattened in the terrain loop, and both roofs lift while you're inside (`updateBarracks`).
+- **ITAP has no houses, land or animal husbandry.** The owner wants anything like that to be ITAP-unique, not RuneScape's portals and instanced houses.
+- **Fishing:** shrimp with the net at the river, trout with the fly fishing rod (Mara) and a feather per catch at the pond (`FISHES`: `tool`, `bait`, Fishing 15 as in ITAP). Each fill of the bar is a roll: 47% at the fish's level, +2% a level, at most 90%. Misses are silent, as in RuneScape.
 - **Farming:** patches east of the farm, the seed menu (`SEEDS`, `CROPS`: wheat, aloe at Farming 3, mulberry at 5), the windmill (flour), the trough, and crafting bread dough.
 - **Silk:** the workshop next to Tilly's market holds the silkworm hutch (mulberry leaves to cocoons, with a ready bubble) and the spinning wheel (cocoons to silk thread). Silk thread and aloe make **bandages** (Crafting).
 - **Shops:** Mara (tools) and Tilly (seeds, farming tools, farm goods). The anvil makes 1 / 5 / X / All at a time.
@@ -125,11 +142,19 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 ### Shared monsters (multiplayer)
 
 - Farm monsters have a shared id (`m.sid`, in spawn order). Each game works out their wandering with `mobPath()` from a seeded random and the server clock (`SNOW()`). So spawn order, homes and everything solid near them must be identical for every player; nothing random or local may change them.
+- A kill sends the killing blow (`hp: 0`) and the death note (`hp: null, dead`) as two patches, and they can land in either order. So never trust a stored health of 0, or a blow timed before `dead` (`mobUpdate`), or monsters respawn at 0 health.
 - Only fights go through the database, at `adventure/live/mobs/<sid>`: the fighter (with a heartbeat), health, position, each blow, and dead-until. It is single combat ("Someone else is fighting that."). Anything shown to other players (fight status, poses) must carry the monster's `sid`.
 - **Database rules:** a new database path needs a rule in `database.rules.json`, and the owner has to paste the rules into the Firebase console and publish them. Say so whenever the rules change, and give the full rules to paste. Compare with the owner's current console rules first, so nothing of theirs is lost.
 - **When a missing rule is harmless:** a brand-new path with no rule just has its writes refused (the feature stays off) and nothing else breaks, so merging before the rule is published is fine. Moving existing data to new paths is not: publish rules with old and new sections first.
 - **Roll database changes out in the right order.** Rules with no entry for a path refuse every write to it. When code moves to new paths, give the owner rules that keep the old sections **and** add the new ones, wait until they say they've published, and only then merge. Old sections can be removed later, once everyone has refreshed.
 - **Watch for side effects of a rule.** Publishing a rule can switch on code that was quietly failing before (the heals stream only connected, and broke everything, once its rule existed). Test the code as it will run *with* the rules published.
+
+### Sign-in and database rules
+
+- **Every browser signs in anonymously** to Firebase Auth through the REST API (`signIn`, `FB_KEY` is the project's public web key). The refresh token is in `itapAuth` and renewed every 45 minutes, and the live stream reopens with the new token (also on `auth_revoked`). A `fetch` wrapper adds `?auth=` to every database request, and `ONLINE.id` is the account's uid.
+- **Old saves move once:** the first load claims `adventure/claimed/<old id>` (write-once) and copies `saves/<old id>` to `saves/<uid>`. If that fails, the player keeps the old id for that session and it tries again (`itapOld`).
+- **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. The console still has old top-level copies of players, nodes, event, graves and mobs, so keep them in any rules you hand over. `database.rules.next.json` is the strict step: only your own account writes your save, presence and grave; everything else needs a sign-in. It's not published yet; check with the owner before telling them to publish it.
+- Anything deeper (stopping players editing their own save or one-shotting monsters) needs a server: Cloud Functions on the Blaze plan, checking actions instead of trusting the browser. That's discussed but not started; shops and coins would go first.
 
 ### Healing other players
 
@@ -159,7 +184,13 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Headless runs at only a few frames per second.** Walking and wandering are slow there, so teleport the hero next to things for checks, and allow long waits.
 - **Render pictures with a separate camera** (`renderer.render(scene, cam)` then `toDataURL`) to look at an object up close; the game camera follows the hero.
 - Check the script parses before testing: extract the module script and run `node --check` on it.
+- **Tests fake the sign-in too:** `FakeDb.attach(page, uid)` signs that page in as `uid` (use fixed ids like `'id' + name`), and `offlineDb` signs in as `offlineTester`. Never let a test reach Google's real sign-in: it creates real accounts on the project.
+- **The local server stops when the session restarts.** If a test fails to load `localhost:8123`, start `python3 -m http.server 8123` again from the repo.
+- **Test scripts worth reusing** in `tools/tests/`: `party-delve-handoff.js` (`fight`, `threat` or the default leader-asleep run), `ground-drops.js` (`time` for real-time), `fly-fishing.js`, `guard-schedule.js <hour>`, `villager-day.js <hour>`, `barracks.js`, `guard-day.js <hour>`, `auth-migrate.js`, `bonfire-night.js`. Pass pictures to a scratch folder with `OUT=`; without it some scripts write into the repo folder.
 - **Testing traps that wasted time:**
+  - A `//` comment added in the middle of a long one-line statement silently comments out the rest of that line. Use `/* */` inside lines.
+  - `Box3.setFromObject` counts hidden meshes (the chibi's tools hang at the hands), so measure with `traverseVisible` when the answer matters.
+  - Strong test characters kill a creature in one blow, so test threat, targeting or fights by calling the logic directly.
   - Logout navigates to the arcade page, so check `page.url()` after waiting for the navigation, not for the name box.
   - Wrapping a game function from `page.evaluate` runs outside the game's scope, so game variables look "not defined" there; put the wrapper in the injected hook instead.
   - `Object.values(remote)[0]` isn't always the player you mean; look them up by name.
