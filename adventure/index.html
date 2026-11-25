@@ -3271,13 +3271,16 @@ const LOG_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
   <circle cx="12.5" cy="8" r="1" fill="none" stroke="#a9773f" stroke-width="0.6"/></svg>`;
 /* oak logs: darker, heavier bark and a richer heartwood */
 const OAK_LOG_ICON = LOG_ICON.replace('#8a5a2b', '#5e3c1c').replace('#a06d37', '#7a5228').replace('#6b4220', '#43290f').replace('#e0b97f', '#c8925a').replace('#a9773f', '#8a5a2b');
-const AXE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
-  <path d="M3.5 13.5 L10 5.5" stroke="#7a4d22" stroke-width="2" stroke-linecap="round"/>
-  <path d="M8.5 2.5 L13.5 2 L14 7 L10.5 7.5 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
-  <path d="M13.5 2 L14 7" stroke="#f2c28a" stroke-width="0.6"/></svg>`;
-const PICK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
-  <path d="M3.5 13.5 L10 5.5" stroke="#7a4d22" stroke-width="2" stroke-linecap="round"/>
-  <path d="M5 3 Q13 2 14 7 L11.5 6.5 Q10 4.5 5.5 4.5 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/></svg>`;
+const AXE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><g transform="translate(-0.8 0.9) rotate(35 8 8) scale(0.92)">
+  <rect x="7.1" y="4" width="1.8" height="11.5" rx="0.8" fill="#8a5a2a" stroke="#4a2e14" stroke-width="0.6"/>
+  <path d="M6.4 2.6 L9.4 2.6 Q11.2 2.2 13.6 0.9 Q14.6 4.6 13.6 8.4 Q11.4 6.9 9.4 6.6 L6.4 6.6 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M13.5 1.4 Q14.3 4.6 13.5 7.9" fill="none" stroke="#f2c28a" stroke-width="0.7"/>
+  <rect x="4.9" y="3.1" width="1.7" height="3" rx="0.3" fill="#a8682a" stroke="#5a3a1a" stroke-width="0.6"/></g></svg>`;   /* side on: a flared blade with a short butt behind the handle */
+const PICK_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><g transform="translate(-0.8 0.9) rotate(35 8 8) scale(0.92)">
+  <rect x="7.1" y="4.2" width="1.8" height="11.3" rx="0.8" fill="#8a5a2a" stroke="#4a2e14" stroke-width="0.6"/>
+  <path d="M0.6 7.4 Q3.5 2.6 8 2.4 Q12.5 2.6 15.4 7.4 Q12.3 4.9 8 4.9 Q3.7 4.9 0.6 7.4 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M2.3 5.6 Q5 3.3 8 3.2" fill="none" stroke="#f2c28a" stroke-width="0.6"/>
+  <rect x="6.6" y="2.2" width="2.8" height="3" rx="0.5" fill="#a8682a" stroke="#5a3a1a" stroke-width="0.6"/></g></svg>`;   /* a curved head, pointed at both ends */
 const ORE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M2.5 10 L4.5 5 L9.5 3.5 L13.5 6.5 L12.5 12 L6 13 Z" fill="#6e6a62" stroke="#3a3833" stroke-width="0.8"/>
   <rect x="6" y="7" width="2" height="2" fill="#d9773a"/><rect x="9" y="9" width="2" height="2" fill="#e8934f"/></svg>`;
@@ -3362,6 +3365,8 @@ const ITEMS = {
 function ironIcon(svg){ return svg.replace(/#([0-9a-f]{6})\b/gi, (_, h) => { const n = parseInt(h, 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
   if (Math.abs(r - g) < 12 && Math.abs(g - b) < 12) return '#' + h;   /* already grey (outlines, shine): leave it */
   const l = Math.round(0.3 * r + 0.55 * g + 0.15 * b), c = v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'); return '#' + c(l - 6) + c(l + 2) + c(l + 12); }); }
+// iron tools: only the metal head goes grey, the wooden handle stays wood
+const ironHead = svg => svg.replace(/#(cd7f32|5a3a1a|f2c28a|a8682a)\b/gi, m => ironIcon(m));
 const IRON_ORE_ICON = ironIcon(ORE_ICON).replace(/#c2652b|#d9773a/gi, '#8a5a42'), IRON_BAR_ICON = ironIcon(BAR_ICON);
 const RECIPES = [
   { name: 'Bronze dagger',     bars: 1, level: 1,  xp: 12 },
@@ -5964,7 +5969,7 @@ const MULBERRY_LEAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><pat
 const COCOON_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><ellipse cx="8" cy="8.5" rx="4" ry="6" fill="#f4f0e2" stroke="#a09878" stroke-width="0.7" transform="rotate(-25 8 8.5)"/><path d="M5 6 Q8 8 11 6 M4.6 9 Q8 11 11.4 9 M5.4 12 Q8 13.5 10.6 12" stroke="#d4ccb0" stroke-width="0.6" fill="none" transform="rotate(-25 8 8.5)"/></svg>`;
 const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4" y="2" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="4" y="12" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="5" y="4" width="6" height="8" fill="#f8f2e6" stroke="#c8bca0" stroke-width="0.5"/><path d="M5 5.5 L11 5.5 M5 7.5 L11 7.5 M5 9.5 L11 9.5 M11 10.5 Q13 12 12 14" stroke="#e0d6c0" stroke-width="0.6" fill="none"/></svg>`;
 const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
-const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironIcon(AXE_ICON), 'Iron pickaxe': ironIcon(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron dagger': ITEMS['Iron dagger'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
+const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironHead(AXE_ICON), 'Iron pickaxe': ironHead(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron dagger': ITEMS['Iron dagger'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
   'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON, 'Raw bream': BREAM_ICON, 'Bream': COOKED_BREAM_ICON, 'Burnt bream': BURNT_BREAM_ICON, 'Worms': WORMS_ICON, 'Tinderbox': TINDER_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
