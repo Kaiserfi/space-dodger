@@ -119,6 +119,12 @@
             ".write": "auth != null",
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200"
           }
+        },
+        "fires": {
+          "$key": {
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['x', 'z', 'until']) && newData.child('x').isNumber() && newData.child('z').isNumber() && newData.child('until').isNumber() && newData.child('until').val() <= now + 100000"
+          }
         }
       }
     }
