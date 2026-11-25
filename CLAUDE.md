@@ -174,6 +174,49 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Music levels: the battle theme plays at 30% of the music setting, the boss theme at 80%.
 - Headless tests have no audio, so say when a sound hasn't been heard.
 
+### Added in the north and fishing update (so you don't rebuild it)
+
+- **The north** (`NORTH`, across the river): reached only by the bridge at x -10. The river's solid strip has a gap there, and the whole river is now solid. It's a flat meadow at height 0 (everyone walks at 0) rising to solid hills on the north, west and east (`hillH`, `northOut`, strips of solid boxes), with solid knolls inside. A stream leaves the river at x 45 for a big lake (`NORTH.pool`, 56 by 32, with an island) that has trout spots on its south-west bank (`lakeShore`). Iron rocks sit in the north-west. The north has no grass blades: the grass mask and the path painter only cover the village, so its tracks are tinted into the ground's vertex colours (`NORTH_PATHS`). New monsters spawn **after** the farm's, so existing shared ids never move.
+- **Aggressive monsters** (`aggro: true`; the north's `hillRat`, level 6, and `caveRat`, level 9). They notice you within 6 units (`AGGRO_RANGE`), **but only if your combat level is at most twice their level plus one**; they ignore stronger players. They run at you (`chaseStep`) and start the fight themselves. They never leave their own ground, and once you run off they leave you alone for 10 s (`AGGRO_COOL`). A type can borrow another's model (`model: 'rat'`) and be scaled (`scale`).
+- **Fishing:**
+  - **Spots:** shrimp in the river (net), bream in the village pond (Fishing 10, rod and worms), trout at the north lake (Fishing 15, rod and feathers).
+  - **The rod:** the old fly fishing rod is now the "Fishing rod" (converted on load).
+  - **Poses:** players cast once when they start (`fishing.cast0`), then the line stays in the water. They hold the rod with both arms out and the left hand just under it (`fishPose(..., twoHands)`, `TWO_HAND`). Net fishing uses `netPose`. Each try's catch is rolled at its start (`fishRoll`), so a shrimp can show in the net. Ysolde keeps her own one-handed pose.
+  - **The pond:** it has benches and lamps for night fishing (`buildPondSide`).
+- **Jory's shack:**
+  - **Who and where:** Jory, Wenna's husband, keeps the fishing shack east of the pond (`FISH_SHACK`, x -63, z 92; talk only from the front, `talkAt`). Only he has ears, a nose and a beard (`seaDogFace`).
+  - **His shop:** he sells the net, the rod and worms, and buys fish (`FISH_GOODS`). Mara no longer sells fishing gear or buys fish.
+  - **Shared stock:** raw fish sold to Jory goes into a stock at `adventure/live/fishstock/<item>`, a number from 0 to 200 changed with an ETag loop (`changeFishStock`). Every player can buy from it at twice his price.
+- **Iron and tools:**
+  - **Mining and smelting:** iron rocks need Mining 15 (`ORES.iron`). The furnace smelts bronze while you have copper and tin, then iron at Smithing 15 (success 50%, rising to 100% at 45, as in ITAP).
+  - **Iron gear:** Smithing 15 to 25, and it needs Melee 10 to use.
+  - **Axes and pickaxes** are smithed at each tier's dagger level. Check for them with `hasAxe()` / `hasPick()`, never `hasTool(AXE_NAME)`. Iron ones work faster (`chopFrames`).
+  - **Icons:** iron tools use `ironHead` (only the head goes grey), iron armour uses `ironIcon`, and `iconOf(name)` finds the icon for things that aren't equipment.
+- **The smithing screen:**
+  - **Tabs:** one tab per metal (`smithTabs`, from each recipe's `bar`), opening on the best metal you have bars of.
+  - **Rows:** rows you can't make are greyed out. Each row shows only the name, the bars and the level (the owner wants no stat lines there).
+- **The level chop:** the axe chop is a level lumberjack swing (`axeChop`, impact at `AXE_HIT` with the chop sound). The back foot stays planted and the legs stay square while the upper body twists. The hero stands at 0.85 of the usual distance from trees. The pickaxe and hoe keep the overhead swing.
+- **Fires (Firemaking):** "Light a fire" on logs in the bag (Firemaking 1, or 15 for oak), with a tinderbox (Mara; toolbelt `tinder` slot).
+  - **Burning and cooking:** a fire burns for 90 s and can be cooked on (its rec is `kind: 'range'`).
+  - **Light and sharing:** it joins the shared night lights, and it's shared at `adventure/live/fires/<key>` through `liveFeed('fires')`.
+  - **Where you can't light one:** indoors, on roads, in water, on another fire or in the cellar (`noFireHere`).
+- **Eating:** 1.8 s between bites (`EAT_DELAY`), and eating in a fight pushes your next swing back. Food messages are plain: "You eat the shrimp." plus the health gained.
+- **Night lighting** is brighter up top: moonlight, a dark blue sky and fog, and wider lamp pools, all scaled by `nb = DELVE ? 0 : night`. The Root Cellar keeps the old darkness (`SKY.cellar`). To fix darkness, raise these levels; never add lights.
+- **The village dressing:** `buildGreen`, `buildRiverLife` (jetty, watermill, ducks, punt, stepping stones, mist), the farm and woods builders, and `buildScorchedYard`. They run on the first frame from `updateSilkworks()`, so NPC routes worked out at start-up don't know their solid boxes. Put props near NPC routes in at start-up instead.
+- **The toolbelt:** every key in `TOOLBELT_SLOTS` must also be in the `toolbelt` object, or that tool is dropped on the next load. A missing `rod` key once lost players' rods.
+- **Database paths added:** `live/fishstock` (published) and `live/fires` (given to the owner to publish; confirm it's in their console). When the owner pastes their console rules, compare them with `database.rules.json` and hand back the full set with only the new block added.
+
+### Lessons from these sessions
+
+- **Check placement against what's already there.** Before placing a prop or a villager stop, make sure it doesn't cover a fishing spot or a talk spot, and isn't inside a house. Fenwick's jetty once covered the shrimp spot, and Ysolde's river stop was inside the north house (she fished through the wall). Test with `houses.findIndex(h => Math.abs(x - h.x) < h.hw && Math.abs(z - h.z) < h.hd)` and `fishSpots` distances.
+- **No flat dark discs on the ground** for ash, puddles or shadows: from the game camera they read as round blobs. Tint the ground's vertex colours, with ragged edges, instead.
+- **Chibi arms are short.** They reach about 0.45 from the shoulder, and armour makes the chest about 0.44 deep, so two hands can't meet on one object in front of the body without clipping. Grid-search the arm angles in a test, and measure forearm and hand points against the torso box with armour on, before posing hands on anything.
+- **The owner's taste:**
+  - **Plain wording:** no flavour text, no stat lines in menus.
+  - **Real-looking shapes:** a proper axe head, a lake that is actually big.
+  - **ITAP's numbers** wherever ITAP has the feature.
+- **Mock-up rounds with several agents work well.** For "what could X look like" questions, run a workflow with one agent per area. Each makes a mock-up in a scratch test (never touching the game), with before/after renders, and you send the owner a gallery. Build the approved picks with one agent at a time (they all edit the same file), then have a fresh reviewer check roads, fishing spots, NPC spots, lights, `Math.random` and frame time. Look at the builders' pictures yourself before merging.
+
 ## Testing
 
 - **Never join the live game from a test.** ITAP Adventure and the arcade leaderboards talk to a real Firebase database that players use. Any headless-browser test must call `offlineDb(page)` from `tools/offline-db.js` before `page.goto`, so every database request is answered locally with an empty village. Don't test against the published site (kaiserfi.github.io) with a login either; serve the repo locally (`python3 -m http.server`) and use the helper.
@@ -197,6 +240,12 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
   - The first presence write can overwrite an early test change (for example a player hurt before joining finished); wait until the other player actually sees the change.
   - `FakeDb` leaves an empty `{}` behind after a delete; real Firebase removes empty nodes.
   - A headless walk of a couple of units takes several seconds, and clicks land on the canvas unless they hit a menu; check where `elementFromPoint` lands before blaming the code.
+- **More testing traps:**
+  - "Spam click" tests must dispatch the clicks inside one `page.evaluate` (`el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX, clientY }))`). Each separate click and evaluate can take over a second headless, so the clicks are never actually fast.
+  - A camera inside a roof or tree canopy renders a flat colour; move it rather than trusting the picture. A top-down orthographic render (fog and clouds off) is the quickest way to check placement.
+  - For two players, use `FakeDb` with fixed ids (`idAnna`, `idBen`), as the fish-stock and fire tests did.
+  - If the safety check refuses a long shell command that only writes and runs a test, write the test with the Write tool and run it with a plain `node file.js`.
+  - GitHub in these sessions goes through the MCP tools (load them with ToolSearch); `gh` is only for search.
 - When the owner says they'll test something themselves, stop your own test of it.
 
 ## Workflow
