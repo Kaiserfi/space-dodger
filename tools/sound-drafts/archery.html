@@ -1,0 +1,51 @@
+<!doctype html><meta charset=utf-8><title>Archery sounds</title>
+<!-- The owner's approved archery sounds (drafts for the bow, not yet in the game).
+     A shot is: draw (the creak, stretched to the pose), release (the "thwip"), then the hit about 0.35 s later.
+     The arrow's flight is silent. A hit is "thock", a miss is "ground".
+     Render to WAV: open this page in a browser (or Playwright) and call window.go(); each entry comes back as base64 WAV.
+     To put them in the game, port draw, thwip and IMPACT into the game's sfx code and play other players' shots through soundAt. -->
+<script>
+const SR = 44100;
+function noiseBuf(c, sec){ const b = c.createBuffer(1, Math.ceil(SR * sec), SR), d = b.getChannelData(0); let s = 12345; for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = s / 1073741823.5 - 1; } return b; }
+function nz(c, out, t, dur, type, f, q, gain, env){ const src = c.createBufferSource(); src.buffer = noiseBuf(c, dur + 0.05); const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = c.createGain(); g.gain.value = 0; src.connect(fl); fl.connect(g); g.connect(out); env(g.gain, fl.frequency, t); src.start(t); src.stop(t + dur + 0.05); }
+function draw(c, out, t, len = 0.55){
+  nz(c, out, t, len, 'bandpass', 420, 1.2, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(0.16, t0 + len * 0.7); g.linearRampToValueAtTime(0.0, t0 + len); f.setValueAtTime(380, t0); f.linearRampToValueAtTime(330, t0 + len); });
+  let s = 7; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 9; i++) { const at = t + 0.05 + (i / 9) * len * 0.85 + r() * 0.03; nz(c, out, at, 0.035, 'bandpass', 520 + r() * 260, 6, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(0.35 + 0.3 * (i / 9), t0 + 0.004); g.exponentialRampToValueAtTime(0.001, t0 + 0.035); }); }
+}
+function thwip(c, out, t, v = 'A', up = 1){
+  const P0 = { A: { f0: 1800, f1: 450, len: 0.09, q: 2.2, g: 2.2, knock: 0.05 }, B: { f0: 1500, f1: 380, len: 0.13, q: 1.6, g: 1.8, knock: 0.06 }, C: { f0: 2000, f1: 600, len: 0.07, q: 3, g: 2.6, knock: 0.03 } }[v];
+  const P = { ...P0, f0: P0.f0 * up, f1: P0.f1 * up };
+  nz(c, out, t, P.len + 0.02, 'bandpass', P.f0, P.q, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(P.g, t0 + 0.004); g.exponentialRampToValueAtTime(0.001, t0 + P.len); f.setValueAtTime(P.f0, t0); f.exponentialRampToValueAtTime(P.f1, t0 + P.len); });
+  /* a second, lower layer so it has some body, like the air the limbs push */
+  nz(c, out, t + 0.004, P.len + 0.03, 'lowpass', 600 * up, 0.7, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(P.g * 0.35, t0 + 0.006); g.exponentialRampToValueAtTime(0.001, t0 + P.len + 0.03); });
+  /* the bow limbs stopping: a tiny dull knock */
+  const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(110, t + 0.04); const og = c.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(P.knock, t + 0.003); og.gain.exponentialRampToValueAtTime(0.001, t + 0.05); o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.06);
+}
+function osc(c, out, t, type, f0, f1, glide, a, dec){ const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + glide); const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + dec); o.connect(g); g.connect(out); o.start(t); o.stop(t + dec + 0.02); }
+async function render(sec, build){
+  const c = new OfflineAudioContext(1, Math.ceil(SR * sec), SR), out = c.createGain(); out.gain.value = 0.8;
+  const comp = c.createDynamicsCompressor(); out.connect(comp); comp.connect(c.destination); build(c, out); const buf = await c.startRendering();
+  const d = buf.getChannelData(0), n = d.length, ab = new ArrayBuffer(44 + n * 2), v = new DataView(ab); let p = 0; const w = s => { for (const ch of s) v.setUint8(p++, ch.charCodeAt(0)); };
+  w('RIFF'); v.setUint32(p, 36 + n * 2, true); p += 4; w('WAVEfmt '); v.setUint32(p, 16, true); p += 4; v.setUint16(p, 1, true); p += 2; v.setUint16(p, 1, true); p += 2; v.setUint32(p, SR, true); p += 4; v.setUint32(p, SR * 2, true); p += 4; v.setUint16(p, 2, true); p += 2; v.setUint16(p, 16, true); p += 2; w('data'); v.setUint32(p, n * 2, true); p += 4;
+  let peak = 0; for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, d[i])); peak = Math.max(peak, Math.abs(s)); v.setInt16(p, s * 32767, true); p += 2; }
+  let bin = ''; const u = new Uint8Array(ab); for (let i = 0; i < u.length; i += 8192) bin += String.fromCharCode(...u.subarray(i, i + 8192)); return { b64: btoa(bin), peak };
+}
+/* the release is the "A" thwip raised 30% (the owner found the first one too low) */
+const release = (c, out, t) => thwip(c, out, t, 'A', 1.3);
+const IMPACT = {
+  /* a hit: a meaty thock, a low punch with a short muffled body */
+  thock: (c, out, t) => { osc(c, out, t, 'sine', 140, 60, 0.09, 0.5, 0.16); nz(c, out, t, 0.08, 'bandpass', 520, 1.4, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(0.5, t0 + 0.003); g.exponentialRampToValueAtTime(0.001, t0 + 0.08); f.setValueAtTime(700, t0); f.exponentialRampToValueAtTime(320, t0 + 0.08); }); },
+  /* a miss: a soft, low thud into the ground */
+  ground: (c, out, t) => { osc(c, out, t, 'sine', 95, 50, 0.1, 0.32, 0.15); nz(c, out, t, 0.09, 'lowpass', 500, 0.7, 0, (g, f, t0) => { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(0.25, t0 + 0.004); g.exponentialRampToValueAtTime(0.001, t0 + 0.09); }); },
+};
+window.SOUNDS = {
+  'draw': [0.8, (c, o) => draw(c, o, 0.05)],
+  'release': [0.4, (c, o) => release(c, o, 0.05)],
+  'hit-thock': [0.4, (c, o) => IMPACT.thock(c, o, 0.05)],
+  'miss-ground': [0.4, (c, o) => IMPACT.ground(c, o, 0.05)],
+  'full-shot-hit': [1.6, (c, o) => { draw(c, o, 0.05); release(c, o, 0.85); IMPACT.thock(c, o, 1.2); }],
+  'full-shot-miss': [1.6, (c, o) => { draw(c, o, 0.05); release(c, o, 0.85); IMPACT.ground(c, o, 1.2); }],
+};
+window.go = async () => { const r = {}; for (const [k, [s, f]] of Object.entries(SOUNDS)) r[k] = await render(s, f); return r; };
+</script>
