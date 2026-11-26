@@ -5,7 +5,7 @@ window.__t = { ready: () => ONLINE.ready };
     for (const n of [AXE_NAME, PICK_NAME, 'Hammer', 'Tinderbox', 'Small fishing net']) addItem(n, 1, ICON_FOR[n]); for (let i = 0; i < 4; i++) addItem('Shrimp', 1, ICON_FOR.Shrimp); renderBag(); renderStats(); return bag.map(b => b.name); };
   T.go = (x, z) => { hero.position.set(x, 0, z); heroShadow.position.set(x, 0.06, z); walkTarget = null; walkQueue = []; walkThen = null; target.set(x, 1, z); camEase = null; };
   T.mouth = () => { const s = caveExitSpot(); T.go(s.x + 0.5, s.z); return s; };
-  T.click = () => { caveWalkIn(askCave); return true; };   /* the cave mouth opens a menu now; this takes the first cave, as before */
+  T.click = () => { caveClick(); return true; };
   T.state = () => ({ cave: !!CAVE, room: CAVE && CAVE.room, P: JSON.parse(JSON.stringify(CAVE_P)), hero: [+hero.position.x.toFixed(2), +hero.position.z.toFixed(2)], heroY: hero.position.y, hp: HP.cur, fight: !!FIGHT, job: !!caveJob,
     mons: CAVE ? CAVE.mons.map(m => [m.type, m.croom, m.state, m.hp, +m.g.position.x.toFixed(1), +m.g.position.z.toFixed(1)]) : [], bag: bag.map(b => b.name + ' x' + b.qty), coins: COINS,
     toast: document.getElementById('toast').textContent, hud: document.getElementById('caveHud').hidden ? null : document.getElementById('caveHud').textContent });

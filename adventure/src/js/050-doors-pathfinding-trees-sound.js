@@ -70,7 +70,7 @@ let CAVE = null;   // the cave dungeon while you're in it (345-cave-dungeon)
 function findPath(fromV, toV){
   if (DELVE) { let x = toV.x - DELVE_C.x, z = toV.z - DELVE_C.z; const d = Math.hypot(x, z), m = DELVE_C.pit - 1.2; if (d > m) { x *= m / d; z *= m / d; } return [{ x: fromV.x, z: fromV.z }, { x: DELVE_C.x + x, z: DELVE_C.z + z }]; }
   if (fromV.z > 550 && !PATH.cave) { const keep = { X0: PATH.X0, Z0: PATH.Z0, NX: PATH.NX, NZ: PATH.NZ };   /* down in the cave: its own smaller grid */
-    Object.assign(PATH, fromV.z > 720 ? FABLE_GRID : CAVE_GRID, { cave: true });   /* Fable's cave lies further off, with a grid of its own */ try { return findPath(fromV, toV); } finally { Object.assign(PATH, keep, { cave: false }); } }
+    Object.assign(PATH, CAVE_GRID, { cave: true }); try { return findPath(fromV, toV); } finally { Object.assign(PATH, keep, { cave: false }); } }
   const { NX, NZ } = PATH;
   const sx = Math.round((fromV.x - PATH.X0) / PATH.C), sz = Math.round((fromV.z - PATH.Z0) / PATH.C);
   const gx = Math.min(NX - 1, Math.max(0, Math.round((toV.x - PATH.X0) / PATH.C)));

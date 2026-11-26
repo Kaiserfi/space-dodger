@@ -131,7 +131,7 @@ function playerRolls(){
 function monsterRolls(t){ const lv = t.melee + 8; return { att: lv * (t.atk + 64), def: lv * (t.def + 64), maxHit: t.maxHit }; }
 function spawnMonster(kind, x, z, rad = 3, box = null){
   const t = MONSTER_TYPES[kind];
-  const g = t.make ? t.make() : (t.model || kind) === 'goblin' ? makeGoblin({ skin: t.skin || [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3], shirt: t.shirt, pants: t.pants }) : makeFarmMonster(t.model || kind); g.position.set(x, 0, z); if (t.scale) g.scale.multiplyScalar(t.scale); scene.add(g);
+  const g = (t.model || kind) === 'goblin' ? makeGoblin({ skin: t.skin || [0x6a9a3a, 0x7aa848, 0x5a8a34][MONSTERS.length % 3], shirt: t.shirt, pants: t.pants }) : makeFarmMonster(t.model || kind); g.position.set(x, 0, z); if (t.scale) g.scale.multiplyScalar(t.scale); scene.add(g);
   const rec = { kind: 'monster', type: kind, t, name: `${t.name} (level ${t.level})`, x, z, s: 0.75, state: 'standing', hp: t.hp, home: [x, z], g };
   g.userData.action = 'Attack'; g.userData.name = rec.name; g.userData.rec = rec; trees.push(g);
   rec.bar = document.createElement('div'); rec.bar.className = 'hpBar'; rec.bar.innerHTML = '<i></i>'; rec.bar.style.display = 'none'; document.body.appendChild(rec.bar);
@@ -142,7 +142,7 @@ let FIGHT = null;
 // what others are told you're fighting: a farm monster by its shared id, a party cellar creature by its spawn tag
 const fightAct = m => ({ k: 'fight', n: m.name, t: Date.now(), m: m.sid, d: m.delve && DELVE && DELVE.party ? m.sp : undefined });
 /* how far apart you stand to fight: the farmer is a full-sized person, so he stands off further than a chicken */
-const reachOf = m => m.t && m.t.reach ? m.t.reach : m.type === 'farmer' ? 3.0 : m.type === 'cow' ? 2.8 : 2.3;
+const reachOf = m => m.t && m.t.reach || m.type === 'farmer' ? 3.0 : m.type === 'cow' ? 2.8 : 2.3;
 function startFight(rec){
   if (mobLocked(rec)) { showToast('Someone else is fighting that.'); return; }
   if (rec.state !== 'standing') return;
