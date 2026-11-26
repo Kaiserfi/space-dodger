@@ -261,6 +261,11 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
   - writing through a database trigger's own `ref` (in functions) opens a second connection, so use one `admin.database()`
 - **Testing:** serve the repo on 8123, then run `tools/tests/cave/run.js`, the whole dungeon end to end (about 10 minutes headless, pictures to `OUT`), and `tools/tests/cave/full-bag.js`. The hook in `tools/tests/cave/hook.js` teleports the hero, calls each puzzle's click function, kills a room's creatures through `killMonster`, renders room pictures, and runs `trollMath` (hit chances on both sides). Headless walking is slow, so the test teleports next to things before each step.
 
+### A second cave was tried and taken out
+
+- The owner asked for a menu at the cave mouth with a second dungeon beside this one ("Fable's cave", the Ember Deep: a mirror-and-beam puzzle and the Molten Hound as a boss you douse with sluice levers). It shipped in #206 and was reverted at the owner's request: it was much shorter than this cave (four rooms, a few minutes, nothing saved), so they rated this one higher. They did like the mirror puzzle and the lever boss fight; the code is in #206's history if either is wanted again.
+- **Lessons:** match the length and weight of what's already there before adding an alternative to it. And scale a boss to where this game's players are: the hound went in with ITAP's level 45 numbers, which a first-tier player can't beat and which barely hurt a strong one (max hit 5 against 37 health).
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
