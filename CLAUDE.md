@@ -24,7 +24,6 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Held gear is hidden while the hands are busy.** `poseChibi` hides arm gear (sword, shield, torch) for every pose except `idle`, `walk` and the fight poses, so new skilling or everyday poses are covered automatically. Keep it that way.
 - **Every job faces what it works on and has its own pose.** Use `farmAct(pt, ms, label, done, reach)` style: walk to a free side at the right distance (`reach`), turn to face it, play the pose for the job's length, then finish. Filling the can at the trough is an example.
 - **Don't change an animation the owner didn't ask about.** If fixing one thing (for example the sword tip) would change another (the swing), ask first or keep the original. The owner chose to keep the original sword swing.
-- **Looks:** the creator rows come from `LOOK`; a row with `only: 'female'` shows for that build, and `dress: true` rows only while an outfit is on (`lookRowShown`). Extra hair, the dresses (`outfit`, `dressCol`, `trimCol`) and the flower crown (`acc`) are built in `chibiExtras`. Hair styles in `CHIBI_SHELLS` are cut into a skull-shaped shell instead of the round cap. Hair gets painted strands and clothes get linen, twill or leather (`chibiTexMat`, one shared greyscale texture per kind, tinted by colour). Face options (`brows`, `eyeShape`, `mouth`, `nose`, `freckles`, cheeks `lines`) are flat shapes on the skin, drawn by `chibiFace`; Happy and Wink take eyes out of `c.eyes` so blinking can't bring them back. Everyone gets the soft face shading. Other players' looks are filled from `LOOK_PLAIN`, never from your own look, so a player whose game doesn't send a field shows plain.
 - **Monster models need visible faces.** Eyes and other face parts must sit on the surface of the head mesh, not inside it (the cow's eyes were hidden inside its head box).
 
 ### Buildings, stalls and props
@@ -93,17 +92,6 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Levels come from `levelOf(xp) = 1 + floor(sqrt(xp / 25))`. Hitpoints starts at level 10 (2025 XP). Combat level is `(Melee × 2 + Hitpoints) / 3`.
 - Farm monsters are passive and drop no coins (meat and feathers only). Their stats come from ITAP's farm biome (`MONSTER_TYPES`).
 - **Fighting distance depends on the monster's size** (`reachOf`: farmer 3.0, cow 2.8, others 2.3), so a full-sized foe never stands inside the hero's head.
-
-### Planned: Fletching and Archery (agreed with the owner, not built yet)
-
-- **Order:** Fletching first (bowstrings spun from silk thread, shafts from logs, arrowtips at the anvil, 15 per bar as in ITAP, a feather per arrow, bows from logs and oak logs), then Archery.
-- **Match ITAP:** an ammo slot, one arrow per shot ("You have run out of arrows!"), Accurate / Rapid / Longrange styles, ITAP's archery damage formula and bow bonuses, a two-handed bow (no shield). Combat level uses the higher of Melee and Archery.
-- **The shot:** a draw pose (bow in the left hand pointing at the target, the right hand pulled back under the chin, the string drawn from the bow tips to the hand), hit and damage rolled at release and applied when the arrow lands (flight about 0.35 s at 7 units). One pooled, merged arrow mesh flies a gentle arc, about 1.6x life size so it reads from the game camera. A hit sticks where the shot meets the body (raycast) and fades; a miss sticks in the ground beside it. About 80% of arrows drop at the monster's feet as a ground pile. The mock-ups are in the session history; check the arrow size from the real game camera.
-- **Sounds** are in `tools/sound-drafts/archery.html` (see Sound and music). The flight is silent.
-- **Range and line of sight:** shoot from about 7 units (10 on Longrange). Solid boxes have no height, so mark low ones (fences, troughs, hay bales, low rocks, pen walls) `low: true`: they block walking but not arrows. Tall ones (walls, trees, buildings, hills) block the shot, and the hero steps to the nearest spot with a clear line.
-- **Safespotting is allowed up top**, as in RuneScape: in a fight a monster walks straight at you (as `chaseStep` does) and only hits once it's within reach, so a fence can hold it off. Shooting into the farm pens is fine.
-- **Never in delves:** in the Root Cellar and any future challenge delve, nothing may stop a creature reaching its target. Creatures there route round obstacles (`findPath`), and delve arenas stay free of anything that makes a safespot.
-- **Party roles:** archers, melee and bandage healers should work together in a party delve. Keep the existing threat system and add: melee hits count 1.5x towards threat (so a fighter holds creatures), and healing adds 0.5 threat per point healed on each creature attacking the healed player. Tune both in play. Arrows, swings and heals all go through `partyFx`; the no-carrying rule already counts damage plus healing.
 
 ### The Root Cellar delve
 
@@ -183,7 +171,6 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Drafting a new sound:** build it with Web Audio in a blank page, render it with an `OfflineAudioContext` to a WAV, and send the file for the owner to listen to before putting it in the game (you can't hear it yourself). Keep it soft: no rising pitch into high frequencies, sparkles and chimes around 500 to 1300 Hz, quiet overall. Time it to the action it goes with (the bandage sound stretches to `BANDAGE_MS`), and make it stoppable when the action is cancelled.
 - Sound effects are made in code (`sfx`, `nz`, oscillators). An audio file the owner gives you for a sound effect is embedded as base64 and decoded once through Web Audio (see `EAT_MP3`); don't make the browser fetch it.
 - **Sounds from elsewhere fade with distance.** Any sound caused by another player or happening away from the hero (their rocks and trees, their fights, raid goblins) must be played through `soundAt(x, z, () => ...)`: full volume within 8 units, silent beyond 40. Only your own actions play at full volume everywhere.
-- **Approved drafts waiting for their feature** live in `tools/sound-drafts/`. `archery.html` holds the bow: the draw creak, the release "thwip" (raised 30%), a "thock" for a hit and a soft ground thud for a miss. The arrow's flight is silent (the owner removed the whistle).
 - Music levels: the battle theme plays at 30% of the music setting, the boss theme at 80%.
 - Headless tests have no audio, so say when a sound hasn't been heard.
 
@@ -221,7 +208,6 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 ### Lessons from these sessions
 
-- **Monster homes must be clear ground.** A home inside a tree, a hill or the lake leaves that monster stuck there for good (`mobSpot` finds no clear line out). The north's trees are scattered at random, so after moving trees or homes, check every home with `monsterHit(x, z)` and that `mobSpot` finds spots away from it.
 - **Check placement against what's already there.** Before placing a prop or a villager stop, make sure it doesn't cover a fishing spot or a talk spot, and isn't inside a house. Fenwick's jetty once covered the shrimp spot, and Ysolde's river stop was inside the north house (she fished through the wall). Test with `houses.findIndex(h => Math.abs(x - h.x) < h.hw && Math.abs(z - h.z) < h.hd)` and `fishSpots` distances.
 - **No flat dark discs on the ground** for ash, puddles or shadows: from the game camera they read as round blobs. Tint the ground's vertex colours, with ragged edges, instead.
 - **Chibi arms are short.** They reach about 0.45 from the shoulder, and armour makes the chest about 0.44 deep, so two hands can't meet on one object in front of the body without clipping. Grid-search the arm angles in a test, and measure forearm and hand points against the torso box with armour on, before posing hands on anything.
