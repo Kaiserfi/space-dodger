@@ -92,7 +92,7 @@ function spawnFarmMonsters(){
   [[-25, -35], [-10, -45], [5, -31], [18, -48], [-28, -52], [26, -29]].forEach(([x, z]) => spawnMonster('hillRat', x, z, 5, { x0: -36, x1: 31, z0: -57, z1: -26 }));
   /* homes must be clear ground: a tree on one (-57,-59 and 66,-46) or the lake (92,-66) left a rat stuck there for good */
   [[-46, -77], [-37, -66], [-53, -57]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: -62, x1: -34, z0: -82, z1: -56 }));
-  [[32, -58], [61, -49], [90, -60]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: 28, x1: 96, z0: -88, z1: -42 }));
+  [[32, -58], [61, -49], [88, -48]].forEach(([x, z]) => spawnMonster('caveRat', x, z, 5, { x0: 28, x1: 96, z0: -88, z1: -42 }));
   MONSTERS.forEach((m, i) => { m.sid = i; });   /* shared with everyone: same id, same wandering path, one fight at a time */
 }
 function farmRoads(){
