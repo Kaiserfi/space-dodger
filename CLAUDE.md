@@ -1,8 +1,63 @@
 # Project notes
 
-## ITAP Adventure (`adventure/index.html`)
+## ITAP Adventure (`adventure/src/`, built into `adventure/index.html`)
 
-The whole game is one file: a three.js module script inside `adventure/index.html`. Players share a live Firebase Realtime Database, so treat every change as going straight to real players.
+The game is one three.js module script, kept as **source pieces in `adventure/src/`** and joined by `node tools/build-adventure.js` into **`adventure/index.html`**, the page players load (GitHub Pages serves it straight from `main`). Players share a live Firebase Realtime Database, so treat every change as going straight to real players.
+
+### Editing the game: the source files and the build
+
+- **Edit `adventure/src/`, never `adventure/index.html`.** Then run `node tools/build-adventure.js` and commit both the source files and the rebuilt `index.html`. A check on every push and pull request (`.github/workflows/adventure-build.yml`, which runs `node tools/build-adventure.js --check`) fails if `index.html` doesn't match its sources.
+- **The pieces:**
+  - `adventure/src/page.html`: the page around the game (head, the panels' markup, the import map), with the marker lines `/*@@style.css@@*/` and `//@@js@@`.
+  - `adventure/src/style.css`: the page's styles.
+  - `adventure/src/js/NNN-name.js`: the game script, joined in file-name order.
+- **It is still one module with one shared scope.** A name defined in one file can be used in any other, and order matters exactly as before: start-up code runs file by file, so a builder can't use a `const`/`let` from a later file at start-up (temporal dead zone). The pieces were cut from the old single file without changing a byte, so the order is the old file's order.
+- **Every build checks** that the script parses (errors point at `adventure/src/js/<file>:<line>`) and that no top-level name is defined twice, in one file or across two. It doesn't see a clash hidden in an inner scope, or the second name in a comma list (`const a = 1, b = 2`), though a same-level clash still fails the parse check.
+- **A new piece** gets a number between its neighbours (for example `175-...` between `170` and `180`), at the point in the order where it must run.
+- **When git reports a conflict in `index.html`**, don't resolve it by hand: resolve the source files, then rebuild.
+- **Tests are unchanged:** they serve the built `adventure/index.html` and inject their hooks at `bootOnline();\nframe();` (the last lines of `990-join-and-boot.js`). Rebuild before running a test.
+- **Where things are** (each file is a stretch of the old file, so some hold more than their name says):
+
+| File | What's in it |
+|---|---|
+| `010-setup-looks-renderer` | imports, the creator's `LOOK` options, renderer, scene, camera, `LIGHT_SPOTS` |
+| `020-ground-river-north` | the ground, the river and stream, the north (`NORTH`, `hillH`, `northOut`) |
+| `030-buildings-nature-textures` | houses, nature props, textures drawn in code |
+| `040-hall-daynight-facelift` | the stone hall, day and night (`hourNow`, sky, lights), the hall's facelift |
+| `050-doors-pathfinding-trees-sound` | doors and walls, `findPath`, `walkStart`, `makeTree`, `sfx` and `soundAt` |
+| `060-skilling-chop-mine-smelt-cook` | skilling sounds, chopping, mining, smelting, cooking, eating (`EAT_MP3`) |
+| `070-smithing-mara-gear-tab` | the anvil, `SHOPS` and Mara's shop, Jory's fish stock, `equip`, the gear tab |
+| `080-music-talking-quests` | village music, the talk panel, quests (`QUEST`, `questTalk`) |
+| `090-conversations-chat-rock-smash` | the dialogue box, chat, the rock smash |
+| `100-ore-rocks-chibi-base` | ore rocks, `toonMat`, `chibiPart` |
+| `110-chibi-looks-faces-cape` | `chibiExtras`, `CHIBI_SHELLS`, `chibiTexMat`, `chibiFace`, `makeChibi`, the emblem and cape |
+| `120-chibi-gear-daggers-poses` | `dressChibi`, elbows and the pair of daggers, fight faces, `poseChibi` |
+| `130-creator-walking-camera-stats` | the character creator, walking and the click marker, camera, the Stats tab |
+| `140-bag-icons-items-toolbelt` | the bag (`addItem`), item icons, `ITEMS`, `RECIPES`, food, the toolbelt |
+| `150-barracks-fishing-shack-north-bridge` | the barracks and jail, Jory's shack, the north's bridge and trees |
+| `160-village` | the village layout, the villagers' lines, `FISHES` |
+| `170-paths-guards` | the paths, the guards' schedules |
+| `180-villagers-day` | `VILLAGER_DAY`, villager routes, `addNpc`, `fishPose` |
+| `190-farm-grass-combat-intro` | the farm, the grass (`grassMaskTexture`), the start of combat |
+| `200-monsters-fights-combat-sounds` | `MONSTER_TYPES`, animal models, `fightPose`, fights (`playerSwing`, `landBlow`, `hitsplat`), combat sounds |
+| `210-villager-chat-ruined-farm` | villagers' remarks and `tableTalk`, the ruined farm |
+| `220-root-cellar-delve` | the Root Cellar delve, `showRewardScroll` |
+| `230-bonfire-clearing-walls-fold` | the bonfire clearing, walls folding while inside, start |
+| `240-online-signin-presence-players` | sign-in (`signIn`), saves (`saveNow`, `applySave`), presence, other players |
+| `250-battery-saver-main-loop-torch-fires` | battery saver, the main loop (`frame`), the torch, fires |
+| `260-ground-items` | items on the ground (`GROUND`) |
+| `270-farming-pens-crops` | farming, the pens, crops |
+| `280-parties-party-delve` | parties, party frames, the party delve |
+| `290-market-silkworks` | Tilly's market, the silkworks |
+| `300-village-dressing` | the green, farm and woods dressing, river life |
+| `310-spinning-bandages-milling` | spinning, bandages, milling and dough |
+| `320-trading` | player menus and trading |
+| `330-bonfire-night-database-phrase` | the bonfire night's setup; **all the database code**: the one live feed (`startLive`, `liveFeed`), shared monsters (`mobPath`); the secret phrase |
+| `340-bonfire-night-people-fire-raid` | the night's villagers, the fire, sitting, goblins, graves, the host |
+| `350-bonfire-night-each-frame` | the bonfire night's each-frame update |
+| `990-join-and-boot` | the join button, `bootOnline(); frame();` |
+
+  Find a name with `grep -n "name" adventure/src/js/*.js`.
 
 It is a RuneScape-style village game based on the owner's phone game, **Idle Tap Adventure (ITAP)**. When a feature exists in ITAP (monsters, delves, warnings, balance), match it: its code is in the `Kaiserfi/idletapadventure` repo (for example `www/js/combat.js` for challenge-mode delves and their wording). When it doesn't, follow how RuneScape does it, adapted to our simpler skills.
 
@@ -10,7 +65,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - **Ask only when the choice changes what gets built** (single or multi-combat, private or shared ground items). Otherwise pick the sensible default, say which, and go.
 - **"Show me" means a mock-up, not a change.** When the owner asks what something would look like, render it with test hooks and send pictures, without changing the game. Offer to build it afterwards.
-- **Search before adding a name.** The file is huge and shares one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once). `node --check` catches a clash at the same level, but not one hidden in an inner scope.
+- **Search before adding a name.** All the pieces share one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once) with `grep -n "name" adventure/src/js/*.js`. The build catches a clash at the top level, but not one hidden in an inner scope.
 - **Ask before placing a new building.** Show the owner a top-down map with the candidate spots marked first (render the whole map with an orthographic camera looking straight down, fog off, and draw a labelled grid on it with PIL), then a mock-up of the building, and only build once they've approved both.
 - **Read the owner's messages mid-task.** They often add a request while you work; fold it into the current change, or do it next and say so.
 
@@ -264,7 +319,7 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - **Test hooks run inside the game module.** Game internals aren't on `window`, so put helper functions in code injected after `bootOnline();\nframe();` and call them through `window.__t`. Don't write a literal line break inside a string in injected code (it breaks the whole page), and don't give two helpers the same name (the later one silently wins).
 - **Headless runs at only a few frames per second.** Walking and wandering are slow there, so teleport the hero next to things for checks, and allow long waits.
 - **Render pictures with a separate camera** (`renderer.render(scene, cam)` then `toDataURL`) to look at an object up close; the game camera follows the hero.
-- Check the script parses before testing: extract the module script and run `node --check` on it.
+- Before testing, run `node tools/build-adventure.js`: it rebuilds the page the tests load, checks the script parses and checks for name clashes.
 - **Tests fake the sign-in too:** `FakeDb.attach(page, uid)` signs that page in as `uid` (use fixed ids like `'id' + name`), and `offlineDb` signs in as `offlineTester`. Never let a test reach Google's real sign-in: it creates real accounts on the project.
 - **The local server stops when the session restarts.** If a test fails to load `localhost:8123`, start `python3 -m http.server 8123` again from the repo.
 - **Test scripts worth reusing** in `tools/tests/`: `party-delve-handoff.js` (`fight`, `threat` or the default leader-asleep run), `ground-drops.js` (`time` for real-time), `fly-fishing.js`, `guard-schedule.js <hour>`, `villager-day.js <hour>`, `barracks.js`, `guard-day.js <hour>`, `auth-migrate.js`, `bonfire-night.js`. Pass pictures to a scratch folder with `OUT=`; without it some scripts write into the repo folder.

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITAP Adventure</title>
+<style>
+/*@@style.css@@*/
+</style>
+</head>
+<body>
+<div id="tip" style="position:fixed;display:none;pointer-events:none;background:rgba(0,0,0,.78);color:#fff;font:14px Georgia,serif;padding:3px 7px;border-radius:4px;z-index:7;white-space:nowrap"></div>
+<div id="tabbar">
+  <button class="tabIcon" id="tabStats" title="Stats"><svg viewBox="0 0 16 16"><rect x="2" y="9" width="3" height="5" fill="#d64b3c"/><rect x="6" y="5" width="3" height="9" fill="#4bc24b"/><rect x="10" y="2" width="3" height="12" fill="#3b7fd6"/><rect x="1" y="14" width="14" height="1" fill="#c9b27a"/></svg></button>
+  <button class="tabIcon" id="tabBag" title="Bag"><svg viewBox="0 0 16 16"><path d="M5 5 Q5 2 8 2 Q11 2 11 5" fill="none" stroke="#c9b27a" stroke-width="1.5"/><rect x="3" y="5" width="10" height="9" rx="2" fill="#9a6b3a"/><rect x="3" y="8" width="10" height="1" fill="#6b4524"/><rect x="7" y="7" width="2" height="2" fill="#f0c35a"/></svg></button>
+  <button class="tabIcon" id="tabGear" title="Gear"><svg viewBox="0 0 16 16"><path d="M3 9 Q3 3 8 3 Q13 3 13 9 L13 12 L3 12 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="3" y="9" width="10" height="1.5" fill="#434a53"/></svg></button>
+  <button class="tabIcon" id="tabBelt" title="Toolbelt"><svg viewBox="0 0 16 16"><rect x="1" y="6" width="14" height="3" rx="1" fill="#7a4d22" stroke="#3e2710" stroke-width="0.6"/><rect x="6.5" y="5.5" width="3" height="4" fill="none" stroke="#f0c35a" stroke-width="1"/><path d="M3.5 9 L3.5 14" stroke="#9a6b3a" stroke-width="1.3"/><path d="M2 10.5 L5.2 10.5 L4.6 12 L2.6 12 Z" fill="#c9ccd2"/><path d="M12 9 L12 14" stroke="#9a6b3a" stroke-width="1.3"/><path d="M10 10 Q12 9 14 10" fill="none" stroke="#c9ccd2" stroke-width="1.3"/></svg></button>
+  <button class="tabIcon" id="tabSettings" title="Settings"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.2" fill="none" stroke="#c9b27a" stroke-width="2"/><g stroke="#c9b27a" stroke-width="2.2"><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15M3 3l1.8 1.8M11.2 11.2L13 13M13 3l-1.8 1.8M4.8 11.2L3 13"/></g><circle cx="8" cy="8" r="1.4" fill="#c9b27a"/></svg></button>
+</div>
+<div id="statsPanel" hidden>
+  <div class="subTabs"><button class="on" data-sub="skills">Skills</button><button data-sub="quests">Quests</button></div>
+  <div class="statsBody" id="statsBody"></div>
+</div>
+<div id="bagPanel" hidden>
+  <div class="bagHead">Bag</div>
+  <div class="bagGrid" id="bagGrid"></div>
+  <div class="bagFoot" id="bagFoot"></div>
+</div>
+<div id="shopPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span id="shopTitle">Mara's shop</span><button id="shopClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
+  <div id="shopList" style="padding:6px 10px;max-height:62vh;overflow-y:auto;"></div>
+</div>
+<div id="setPanel" hidden>
+  <div class="bagHead">Settings</div>
+  <div class="setRow"><button class="muteBtn" id="muteMusic" title="Mute music"></button><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100"></div>
+  <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
+  <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
+  <div class="setRow"><label style="width:auto;flex:1">Battery saver</label><div class="grassOpts" id="saverOpts"><button data-s="off">Off</button><button data-s="on">On</button></div></div>
+  <div class="setRow"><label style="width:auto;flex:1">Grass</label><div class="grassOpts" id="grassOpts"><button data-g="off">Off</button><button data-g="low">Low</button><button data-g="high">High</button></div></div>
+</div>
+<div id="beltPanel" hidden>
+  <div class="bagHead">Toolbelt</div>
+  <div class="gearList" id="beltList"></div>
+</div>
+<div id="gearPanel" hidden>
+  <div class="bagHead">Gear</div>
+  <div class="gearList" id="gearList"></div>
+</div>
+<div id="smithPanel" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;max-width:calc(100vw - 32px);background:rgba(20,16,10,.96);border:2px solid #5b4324;border-radius:6px;z-index:10;font:14px Georgia,serif;color:#e8efe6;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid #5b4324;color:#f0c35a"><span>Anvil</span><button id="smithClose" style="background:none;border:0;color:#e8efe6;font-size:18px;cursor:pointer">&times;</button></div>
+  <div id="smithList" style="padding:6px 10px"></div>
+</div>
+<div id="dialog" hidden>
+  <div class="dHead" id="dHeadL"></div>
+  <div class="dMid"><div class="dName" id="dlgName"></div><div class="dText" id="dlgText"></div><div class="dOpts" id="dlgOpts"></div><div class="dCont" id="dlgCont">Click here to continue</div></div>
+  <div class="dHead" id="dHeadR"></div>
+</div>
+<div id="chatBox" style="position:fixed;left:12px;bottom:46px;width:min(320px,70vw);z-index:9;font:13px Georgia,serif;color:#e8efe6;">
+  <div id="chatLog" style="background:rgba(0,0,0,.55);border-radius:6px 6px 0 0;padding:6px 8px;height:110px;overflow-y:auto;"></div>
+  <input id="chatInput" maxlength="120" placeholder="Press Enter to chat" style="width:100%;box-sizing:border-box;font:13px Georgia,serif;background:rgba(20,16,10,.9);color:#e8efe6;border:1px solid #5b4324;border-radius:0 0 6px 6px;padding:6px 8px;outline:none;">
+</div>
+<div id="heroChat" class="chatBub" style="display:none"></div>
+<div id="online" style="position:fixed;inset:0;z-index:30;background:rgba(5,10,6,.88);display:flex;align-items:center;justify-content:center;">
+  <div style="background:rgba(30,24,16,.97);border:2px solid #f0c35a;border-radius:10px;padding:18px 20px;width:min(320px,88vw);text-align:center;color:#e8efe6;font:15px Georgia,serif;">
+    <div style="color:#f0c35a;font-size:18px;margin-bottom:8px">ITAP Adventure</div>
+    <div id="onlineStatus" style="min-height:20px;font-size:13px;color:#c9b27a;margin-bottom:10px">Connecting...</div>
+    <div id="nameBox" hidden>
+      <input id="nameInput" maxlength="12" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:7px;font:15px Georgia,serif;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;">
+      <button id="joinBtn" style="margin-top:10px;width:100%;font:15px Georgia,serif;padding:7px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Enter the village</button>
+    </div>
+    <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
+  </div>
+</div>
+<button id="logoutBtn" style="position:fixed;left:12px;top:12px;z-index:8;font:13px Georgia,serif;color:#e8efe6;background:rgba(0,0,0,.6);border:1px solid #5b4324;border-radius:6px;padding:6px 10px;cursor:pointer">Log out</button>
+<div id="hint">Tap to walk. Drag to turn, pinch to zoom. Mouse: middle-drag to turn, scroll to zoom.</div>
+<div id="camPad" hidden>
+  <button data-cam="left" title="Turn left">&#x27F2;</button><button data-cam="in" title="Zoom in">+</button>
+  <button data-cam="right" title="Turn right">&#x27F3;</button><button data-cam="out" title="Zoom out">&minus;</button>
+</div>
+<div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
+<div id="questTrack" hidden></div>
+<div id="waveHud" hidden></div>
+<div id="partyFrames" hidden></div>
+<div class="hpBar" id="heroHp" style="display:none"><i></i></div>
+<div id="questDone" hidden>
+  <div class="qScroll">
+    <div class="qBanner">Quest complete</div>
+    <h1>A Hearty Welcome</h1>
+    <div class="qSub">You have earned your place in the village.</div>
+    <canvas id="qEmblem" width="120" height="120"></canvas>
+    <div class="qCols">
+      <div class="qBox"><h3>Rewards</h3><div class="qr"><span class="qi">COIN</span>50 coins</div><div class="qr"><span class="qi">BREAD</span>3 Brenna's bread</div><div class="qr"><span class="qi">CLOAK</span>Villager's cloak</div><div class="qr"><span class="qi" style="color:#a07a2c">&#9733;</span>1 quest point</div></div>
+      <div class="qBox"><h3>Experience</h3><div class="qr">Woodcutting<b>+60</b></div><div class="qr">Fishing<b>+60</b></div><div class="qr">Cooking<b>+60</b></div><div class="qr">Mining<b>+60</b></div><div class="qr">Smithing<b>+80</b></div></div>
+    </div>
+    <div class="qQuote">&ldquo;There. Now you smell like woodsmoke and fish like the rest of us. Welcome home.&rdquo; &mdash; Brenna</div>
+    <button id="questDoneBtn">Continue</button>
+  </div>
+</div>
+<div id="toast" style="position:fixed;left:50%;bottom:48px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.75);color:#f0c35a;font:14px Georgia,serif;padding:6px 12px;border-radius:6px;z-index:9;white-space:normal;width:max-content;max-width:min(560px, calc(100vw - 32px));box-sizing:border-box;text-align:center;line-height:1.35"></div>
+<button id="lookBtn">Change look</button>
+<div id="creator" hidden>
+  <div class="crBox">
+    <h2>Create your adventurer</h2>
+    <div id="crRows"></div>
+    <button id="crRandom">Surprise me</button>
+    <button id="crStart">Start playing</button>
+  </div>
+</div>
+<script src="../word-filter.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+//@@js@@
+</script>
+<script src="../update-check.js"></script>
+</body>
+</html>
