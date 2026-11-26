@@ -113,6 +113,7 @@ function updateGround(){
 function dropItem(it, all){
   if (!it || !bag.includes(it)) return;
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  if (CAVE_ITEMS.has(it.name)) { showToast("You'd better hang on to that."); return; }   /* the cave's things can't be dropped (and lost) */
   const name = it.name, n = all ? countOf(name) : SINGLE.has(name) ? 1 : it.qty;
   const a = heroAnim.yaw || 0, x = hero.position.x + Math.sin(a) * 1.1, z = hero.position.z + Math.cos(a) * 1.1;
   if (all) for (const b of bag.filter(b => b.name === name)) bag.splice(bag.indexOf(b), 1);

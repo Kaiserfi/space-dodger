@@ -1801,6 +1801,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
+  if (it && caveItemClick(it, e.clientX + 6, e.clientY - 10)) return;   /* the cave's things: what they're for */
   if (it && it.name === 'Watering can') { openCanMenu(it, e.clientX + 6, e.clientY - 10); return; }   /* fill it at any water nearby, or hang it on the belt */
   if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
@@ -2014,7 +2015,7 @@ function updateFightMusic(){
   const st = typeof EV !== 'undefined' && EV.data && EV.data.raid && EV.data.raid.st;
   const raid = typeof evActive === 'function' && evActive() && (st === 'rush' || st === 'lost' || evPhase() === 'creep') && hero && Math.hypot(hero.position.x - BF.x, hero.position.z - BF.z) < 40;
   const delve = typeof DELVE !== 'undefined' && DELVE && !DELVE.done;   /* the whole delve, until the last wave falls */
-  const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)));   /* down in the cellar: never the ordinary battle theme */
+  const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)) || (CAVE && CAVE.room === 'boss'));   /* the cellar and the troll's den: never the ordinary battle theme, not even after the boss falls */   /* down in the cellar: never the ordinary battle theme */
   const troll = CAVE && CAVE.troll && CAVE.room === 'boss' && !CAVE.won;   /* the cave troll gets the boss theme; the rest of the cave the usual one */
   const want = raid || delve || troll ? 'boss_battle_theme' : below ? null : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
   const level = musicLevel(); FIGHT_MUSIC.want = want;
@@ -5954,8 +5955,9 @@ function delveWon(){
   spawnDelveChest();
 }
 // the reward chest: banded wood, a domed lid that swings open, and a golden glow inside
-function spawnDelveChest(){
-  const g = new THREE.Group(), cx = DELVE_C.x, cz = DELVE_C.z; g.position.set(cx, 0, cz); scene.add(g);
+// the reward chest itself (the cellar's and the cave's): banded wood, a domed lid hinged at the back, and treasure inside
+function buildRewardChest(cx, cz){
+  const g = new THREE.Group(); g.position.set(cx, 0, cz); scene.add(g);
   const wood = texMat(woodTex(), 1, 1, 0xc08850), band = mat(0x55555c), gold = mat(0xe2b84c);
   wood.emissive = new THREE.Color(0x2a1808); gold.emissive = new THREE.Color(0x5a3a08);   /* a little glow of its own, so it reads in the dark pit */
   const add = (geo, m, x, y, z, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
@@ -5984,8 +5986,12 @@ function spawnDelveChest(){
   add(new THREE.BoxGeometry(W - 0.04, 0.03, D - 0.04), inner, 0, 0.015, D / 2, lid);   // the underside, dark wood
   for (const x of [-0.55, 0.55]) add(new THREE.CylinderGeometry(D / 2 + 0.02, D / 2 + 0.02, 0.12, 14, 1, true, 0, Math.PI).rotateZ(Math.PI / 2), Object.assign(band.clone(), { side: THREE.DoubleSide }), x, 0, D / 2, lid);
   add(new THREE.BoxGeometry(0.2, 0.26, 0.05), gold, 0, 0.02, D + 0.03, lid);   // the clasp, hanging over the catch
-  g.rotation.y = Math.PI;   // facing the ladder, where you come from
   g.scale.setScalar(0.01);
+  return { g, lid, glow };
+}
+function spawnDelveChest(){
+  const cx = DELVE_C.x, cz = DELVE_C.z, { g, lid, glow } = buildRewardChest(cx, cz);
+  g.rotation.y = Math.PI;   // facing the ladder, where you come from
   const rec = { kind: 'chest', state: 'standing', x: cx, z: cz, s: 0.9, onClick: () => openDelveChest() };
   g.userData = { action: 'Open', name: 'Reward chest', rec }; trees.push(g);
   DELVE.chest = { g, lid, glow, born: performance.now(), opened: false, openAt: 0 };
@@ -6046,6 +6052,9 @@ function updateDelveChest(){
   const C = DELVE && DELVE.chest; if (!C) return;
   const now = performance.now(), k = Math.min(1, (now - C.born) / 900);
   C.g.scale.setScalar(1.5 * Math.max(0.01, 1 - Math.pow(1 - k, 3)));   // pops up out of the sand
+  animRewardChest(C, now);
+}
+function animRewardChest(C, now){
   if (C.opened) { const o = Math.min(1, (now - C.openAt) / 1300); const e = o < 0.25 ? o * 0.3 : 0.075 + (1 - Math.pow(1 - (o - 0.25) / 0.75, 2)) * 0.925;   // a stiff first lift, then it swings up
     C.lid.rotation.x = -1.9 * e; C.glow.visible = o > 0.2; }
 }
@@ -6394,7 +6403,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t, c: p.c || 'Wheat' })), hu: SILK.hutch, wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, cd: CAVE_P, pos: hero ? (CAVE || inCaveZone(hero.position.x, hero.position.z) ? caveExitSpot() : DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.filter(i => !CAVE_ITEMS.has(i.name)).map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t, c: p.c || 'Wheat' })), hu: SILK.hutch, wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, cd: caveSaveP(), pos: hero ? (CAVE || inCaveZone(hero.position.x, hero.position.z) ? caveExitSpot() : DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -6435,6 +6444,7 @@ function applySave(d){
     setTimeout(() => { addSystemLine(`You left the cellar mid-challenge, which counts as fleeing: -${lost.toLocaleString()} coins${lm ? ', -' + lm.toLocaleString() + ' Melee XP' : ''}${lh ? ', -' + lh.toLocaleString() + ' Hitpoints XP' : ''}.`); renderBag(); renderStats(); saveNow(false); }, 1500);
   }
   if (d && d.cd) caveLoadP(d.cd);   /* how far you got in the cave */
+  if (!CAVE && bag.some(i => CAVE_ITEMS.has(i.name))) caveStash();   /* the cave's things never come up top */
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
@@ -6925,6 +6935,7 @@ function updateGround(){
 function dropItem(it, all){
   if (!it || !bag.includes(it)) return;
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  if (CAVE_ITEMS.has(it.name)) { showToast("You'd better hang on to that."); return; }   /* the cave's things can't be dropped (and lost) */
   const name = it.name, n = all ? countOf(name) : SINGLE.has(name) ? 1 : it.qty;
   const a = heroAnim.yaw || 0, x = hero.position.x + Math.sin(a) * 1.1, z = hero.position.z + Math.cos(a) * 1.1;
   if (all) for (const b of bag.filter(b => b.name === name)) bag.splice(bag.indexOf(b), 1);
@@ -8955,10 +8966,11 @@ const CAVE_ROOMS = {
 };
 // the passages between the rooms, each 4.4 wide
 const CAVE_HALLS = [[-2.2, 2.2, 676, 680], [-2.2, 2.2, 654, 658], [-14, -10, 664.8, 669.2], [-15, -11, 640.8, 645.2], [-42, -38, 640.8, 645.2], [11, 15, 640.8, 645.2], [37, 41, 640.8, 645.2], [-2.2, 2.2, 628, 632]];
-const CHASM = { x0: -29, x1: -25, bz0: 640.6, bz1: 645.4 };   // the drop across the chasm room, and where the felled tree bridges it
+const CHASM = { x0: -29, x1: -25, bz0: 641.0, bz1: 645.0 };   // the gap is the trunk's width, so nobody walks on air beside it   // the drop across the chasm room, and where the felled tree bridges it
 const PLATES_AT = [0, 1, 2, 3, 4].map(i => { const a = i / 5 * Math.PI * 2; return [Math.sin(a) * 5, 643 + Math.cos(a) * 5]; });
 const BRAZIERS = [[-55.5, 637.5], [-46.5, 637.5], [-55.5, 648.5], [-46.5, 648.5]];
-const BRAZ_MS = 40000;   // how long a brazier burns once lit
+const BRAZ_MS = 60000;   // how long a brazier burns once lit
+const BRAZ_ORDER = [2, 0, 3, 1];   // which brazier to light first, second... (shown by the marks at their feet)
 const WEBS = [[-35.6, 673.6, -1], [-17, 675.6, 1], [-32.6, 658.4, 0]];   // [x, z, which wall: -1 west, 1 south, 0 north]
 const CV_AT = { arrive: [0, 688.5], rope: [0, 692.2], tree: [-22.8, 643], root: [-51, 651.4], altar: [-51, 635.2], wall: [39, 643], vein: [60.2, 637], furnace: [57.5, 650.5], anvil: [50.5, 650.5],
   pool: [-29.5, 671.5], fire: [-19.5, 671.5], hollis: [-34.2, 664.5], patch: [-21, 660.6], ledge: [-25.5, 658.4], bossChest: [0, 611], bossRope: [0, 602.5] };
@@ -8971,8 +8983,56 @@ Object.assign(MONSTER_TYPES, {   /* the forest's level 15 to 20 range, ITAP's go
 const CAVE_MONS = { gate: [['caveGoblin', -5, 664], ['caveGoblin', 5, 665]], chasm: [['caveGoblin', -34, 639]], mine: [['blindRat', 22, 639], ['blindRat', 31, 647]], forge: [['goblinSmith', 51, 644], ['caveGoblin', 56, 638]] };
 const caveRoomAt = (x, z) => Object.keys(CAVE_ROOMS).find(k => { const r = CAVE_ROOMS[k]; return x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1; }) || null;
 function caveExitSpot(){ return openSpotNear(NORTH.cave.x - 3.4, NORTH.cave.z + 0.5); }
-function caveLoadP(d){ CAVE_P = d && typeof d === 'object' && !Array.isArray(d) ? { ...d } : {}; if (!Array.isArray(CAVE_P.pl) || CAVE_P.pl.length !== 5) CAVE_P.pl = [0, 1, 0, 0, 0]; }
-caveLoadP(null);
+function caveLoadP(d){ CAVE_P = d && typeof d === 'object' && !Array.isArray(d) ? { ...d } : {}; if (!Array.isArray(CAVE_P.pl) || CAVE_P.pl.length !== 5) CAVE_P.pl = [0, 1, 0, 0, 0];
+  const P = CAVE_P, inv = P.inv = P.inv && typeof P.inv === 'object' ? { ...P.inv } : {}, add = (n, q = 1) => { inv[n] = (inv[n] || 0) + q; };
+  if (P.v !== 2) {   /* saves from the first version kept these as flags, not items */
+    if (P.fish) add('Raw cave fish'); if (P.cooked) add('Cave fish'); if (P.spores) { add('Glowcap spores'); P.fed = 1; }
+    if (P.webs && !P.rope && !P.tideDown) add('Cave web', [0, 1, 2].filter(k => P.webs & (1 << k)).length); if (P.rope && !P.tideDown) add('Web rope');
+    if (P.ironMade) P.iron = 1; if (P.tideDown) P.tide = 1; if (P.glow) P.fed = 1;
+    if (!P.door) for (const k in KEY_ITEM) if (P[k]) add(KEY_ITEM[k]);
+    delete P.fish; delete P.cooked; delete P.spores; delete P.rope; delete P.ironMade; delete P.tideDown; P.v = 2; } }
+caveLoadP({ v: 2 });
+// the things you find down here are real items in your bag, but they stay in the cave: leaving (or dying) puts them away in CAVE_P.inv, coming back hands them over again
+const CAVE_ITEMS = new Set(['Raw cave fish', 'Cave fish', 'Burnt cave fish', 'Glowcap spores', 'Cave web', 'Web rope', 'Ember key', 'Iron key', 'Tide key']);
+const KEY_ITEM = { ember: 'Ember key', iron: 'Iron key', tide: 'Tide key' };
+{ const svg = b => `<svg viewBox="0 0 16 16" width="26" height="26">${b}</svg>`;
+  const fish = (c, f) => svg(`<path d="M1.5 8 Q6 3 11 8 Q6 13 1.5 8 Z" fill="${c}" stroke="#2a2420" stroke-width="0.6"/><path d="M10.5 8 L15 4.8 L14 8 L15 11.2 Z" fill="${f}" stroke="#2a2420" stroke-width="0.6"/><circle cx="4.5" cy="7.4" r="0.6" fill="#2a2420"/>`);
+  const key = c => svg(`<circle cx="4.6" cy="8" r="2.8" fill="none" stroke="#2a2420" stroke-width="2.4"/><circle cx="4.6" cy="8" r="2.8" fill="none" stroke="${c}" stroke-width="1.4"/><path d="M7.2 7.2 H14.6 V8.8 H7.2 Z M11.4 8.8 H12.8 V11 H11.4 Z M13.2 8.8 H14.6 V10.4 H13.2 Z" fill="${c}" stroke="#2a2420" stroke-width="0.5"/>`);
+  let web = ''; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; web += `<line x1="8" y1="8" x2="${(8 + Math.cos(a) * 6.5).toFixed(1)}" y2="${(8 + Math.sin(a) * 6.5).toFixed(1)}"/>`; }
+  for (const r of [2.4, 4.4, 6.2]) web += `<polygon fill="none" points="${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i / 8 * Math.PI * 2; return (8 + Math.cos(a) * r).toFixed(1) + ',' + (8 + Math.sin(a) * r).toFixed(1); }).join(' ')}"/>`;
+  Object.assign(ICON_FOR, {
+    'Raw cave fish': fish('#e6e2dc', '#c8c0b8'), 'Cave fish': fish('#c88a48', '#9a6630'), 'Burnt cave fish': fish('#3a2c24', '#2a1c14'),
+    'Glowcap spores': svg('<path d="M4 6 Q8 3.5 12 6 L13 13 Q8 15 3 13 Z" fill="#7a6040" stroke="#3a2a1a" stroke-width="0.6"/><path d="M5 5.6 Q8 7.4 11 5.6" fill="none" stroke="#3a2a1a" stroke-width="0.6"/><circle cx="6.5" cy="9.6" r="1.1" fill="#60f0d0"/><circle cx="9.6" cy="11.2" r="1" fill="#60f0d0"/><circle cx="9.2" cy="8.4" r="0.8" fill="#b0fff0"/>'),
+    'Cave web': svg(`<g stroke="#e8e8f0" stroke-width="0.7">${web}</g>`),
+    'Web rope': svg('<g fill="none" stroke-width="1.6"><ellipse cx="8" cy="9" rx="6" ry="3.2" stroke="#2a2420" stroke-width="2.4"/><ellipse cx="8" cy="9" rx="6" ry="3.2" stroke="#e4e0d2"/><ellipse cx="8" cy="7.6" rx="4.4" ry="2.3" stroke="#2a2420" stroke-width="2.4"/><ellipse cx="8" cy="7.6" rx="4.4" ry="2.3" stroke="#d8d2c0"/></g><path d="M13 10 Q15 12 13.5 14" fill="none" stroke="#e4e0d2" stroke-width="1.2"/>'),
+    'Ember key': key('#ff8a40'), 'Iron key': key('#b0b6be'), 'Tide key': key('#50aaff') });
+}
+const CAVE_ITEM_TEXT = { 'Raw cave fish': "A pale, blind cave fish. Hollis wants it cooked.", 'Cave fish': "A cooked cave fish, for Hollis.", 'Burnt cave fish': "Charcoal. Hollis won't want this.",
+  'Glowcap spores': 'Plant them in the damp soil under the ledge in the grotto.', 'Cave web': 'Sticky and strong. Three of them twist into a rope.', 'Web rope': 'A rope of twisted web, for climbing up to the ledge in the grotto.',
+  'Ember key': 'An orange key, warm to the touch. It fits the great door in the rune hall.', 'Iron key': 'The iron key you smithed. It fits the great door in the rune hall.', 'Tide key': 'A sea-blue key from the ledge. It fits the great door in the rune hall.' };
+function caveItemClick(it, x, y){
+  if (!CAVE_ITEMS.has(it.name)) return false;
+  if (it.name === 'Cave web' && x !== undefined) {   /* three webs twist into a rope, right there in your hands */
+    itemMenu.innerHTML = `<div class="imHead">Cave web (${countOf('Cave web')}/3)</div><button data-o="r">Twist into a rope</button><button data-o="x">Cancel</button>`; itemMenu.hidden = false;
+    itemMenu.style.left = Math.min(innerWidth - 170, x) + 'px'; itemMenu.style.top = Math.min(innerHeight - itemMenu.offsetHeight - 8, y) + 'px';
+    itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true; if (b.dataset.o === 'r') twistRope(); };
+    return true; }
+  showToast(CAVE_ITEM_TEXT[it.name]); return true; }
+function twistRope(){
+  if (countOf('Cave web') < 3) { showToast(`You need 3 webs to twist into a rope. You have ${countOf('Cave web')}.`); return; }
+  if (!caveNeed('Crafting', 5, 'twist the webs into a rope')) return;
+  if (FIGHT) { showToast("You can't do that while you're fighting!"); return; }
+  if (!CAVE || caveJob) return;
+  cancelChop(); walkTarget = null; walkQueue = [];
+  const f = heroAnim.yaw; caveJob = { t0: performance.now(), ms: 3000, pose: 'work', x: hero.position.x + Math.sin(f), z: hero.position.z + Math.cos(f), beat: -1,
+    done: () => { if (countOf('Cave web') < 3) return; for (let i = 0; i < 3; i++) removeItem('Cave web'); addItem('Web rope', 1, ICON_FOR['Web rope']); addXp('Crafting', 60); craftSound(); showToast('You twist the webs into a sticky but sturdy rope.  +60 Crafting XP'); } };
+  document.getElementById('smeltLabel').textContent = 'Crafting...'; document.getElementById('smeltFill').style.width = '0%'; document.getElementById('smeltBar').style.display = 'block';
+}
+const caveInvNow = () => { const inv = { ...(CAVE ? {} : CAVE_P.inv || {}) }; if (CAVE) for (const it of bag) if (CAVE_ITEMS.has(it.name)) inv[it.name] = (inv[it.name] || 0) + it.qty; return inv; };
+function caveSaveP(){ return { ...CAVE_P, inv: caveInvNow() }; }
+// put the cave's things away (leaving, dying, or a save that somehow brought them up top)
+function caveStash(){ const inv = CAVE_P.inv || {}; for (const it of bag.slice()) if (CAVE_ITEMS.has(it.name)) { inv[it.name] = (inv[it.name] || 0) + it.qty; bag.splice(bag.indexOf(it), 1); } CAVE_P.inv = inv; renderBag(); }
+function caveUnstash(){ const inv = CAVE_P.inv || {}; CAVE_P.inv = {}; for (const n in inv) if (CAVE_ITEMS.has(n) && inv[n] > 0) caveGive(n, inv[n]); }
 
 // ----- building it, once, the first time anyone goes in -----
 const CV = {};   // the moving and clickable parts
@@ -9088,7 +9148,10 @@ function buildCave(){
       const fire = new THREE.Group(); fire.position.set(x, 2.1, z); scene.add(fire); fire.visible = false;
       for (let k = 0; k < 4; k++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.3 + R() * 0.12, 0.9 + R() * 0.5, 6), fireM); f.position.set((R() - 0.5) * 0.45, 0.4, (R() - 0.5) * 0.45); fire.add(f); }
       const hit = add(new THREE.CylinderGeometry(1, 1, 2.6, 8), new THREE.MeshBasicMaterial({ visible: false }), x, 1.3, z);
-      cvClick(hit, 'Light', 'Brazier', () => brazierClick(i), x, z); return { x, z, fire, spot: [x, 3, z] }; });
+      cvClick(hit, 'Light', 'Brazier', () => brazierClick(i), x, z);
+      const n = BRAZ_ORDER.indexOf(i) + 1, cx = -51 - x, cz = 643 - z, cl = Math.hypot(cx, cz), mk = new THREE.MeshStandardMaterial({ color: 0xd8c8a8, emissive: 0x6a3a10, emissiveIntensity: 0.6 });   /* its place in the order: that many marks scratched at its foot, on the side facing the altar */
+      for (let k = 0; k < n; k++) { const off = (k - (n - 1) / 2) * 0.32, px = x + cx / cl * 1.05 - cz / cl * off, pz = z + cz / cl * 1.05 + cx / cl * off; const m = add(new THREE.BoxGeometry(0.09, 0.05, 0.42), mk, px, 0.03, pz); m.rotation.y = Math.atan2(cx, cz); m.castShadow = false; }
+      return { x, z, fire, spot: [x, 3, z] }; });
     const [rx, rz] = CV_AT.root, root = new THREE.Group(); root.position.set(rx, 0, rz); scene.add(root);
     for (let i = 0; i < 5; i++) { const r = add(new THREE.CylinderGeometry(0.16, 0.34, 2.6, 6), 0x4a3a2c, 0, 0.5, 0, root); r.rotation.set(1.2, i * 1.25, 0); r.position.set(Math.sin(i * 1.25) * 0.9, 0.45, Math.cos(i * 1.25) * 0.9); }
     add(new THREE.SphereGeometry(0.9, 8, 6), 0x4a3a2c, 0, 0.5, 0, root).scale.set(1.2, 0.7, 1);
@@ -9116,12 +9179,14 @@ function buildCave(){
     add(new THREE.BoxGeometry(0.7, 0.9, 0.7), 0x3a2a1a, 0, 0.45, 0, A); add(new THREE.BoxGeometry(1.5, 0.35, 0.6), mat(0x3a3f46), 0, 1.05, 0, A); add(new THREE.ConeGeometry(0.3, 0.6, 4).rotateZ(Math.PI / 2), mat(0x3a3f46), 1.0, 1.05, 0, A);
     solidBoxes.push({ x0: ax - 0.8, x1: ax + 0.8, z0: az - 0.5, z1: az + 0.5 });
     cvClick(A, 'Smith', 'Goblin anvil', anvilClick, ax, az);
-    const [vx, vz] = CV_AT.vein, parts = [];
-    for (let i = 0; i < 5; i++) { const g = new THREE.IcosahedronGeometry(1, 0); g.scale(0.7, 0.7 + R() * 0.4, 0.9); g.translate(vx - 0.2, 0.6 + i * 0.4, vz - 1.2 + i * 0.6); parts.push(colour(g, 0x4e4840)); }
-    const vein = merged(parts); for (let i = 0; i < 7; i++) { const m = add(new THREE.OctahedronGeometry(0.16), new THREE.MeshStandardMaterial({ color: 0xa08a7a, emissive: 0x2a1a10, metalness: 0.7, roughness: 0.35 }), vx - 0.75 - R() * 0.2, 0.6 + R() * 1.8, vz - 1.2 + R() * 2.6); m.castShadow = false; }
-    solidBoxes.push({ x0: vx - 0.9, x1: vx + 0.9, z0: vz - 1.6, z1: vz + 1.6 });
+    const [vx, vz] = CV_AT.vein, parts = [];   /* a slab of the wall itself, sunk into the floor, with ore glinting on its face */
+    { const g = new THREE.IcosahedronGeometry(1, 1); g.scale(0.9, 1.7, 2.1); g.translate(vx + 0.35, 0.9, vz); parts.push(colour(g, 0x4e4840)); }
+    for (const [dz, y, sc] of [[-1.4, 0.3, 0.7], [1.5, 0.35, 0.65], [0.2, 2.3, 0.6]]) { const g = new THREE.IcosahedronGeometry(1, 0); g.scale(sc, sc * 0.8, sc); g.translate(vx + 0.2, y, vz + dz); parts.push(colour(g, 0x45403a)); }
+    const vein = merged(parts); CV.nuggets = [];
+    for (let i = 0; i < 9; i++) { const m = add(new THREE.OctahedronGeometry(0.15), new THREE.MeshStandardMaterial({ color: 0xa8907e, emissive: 0x3a2214, metalness: 0.7, roughness: 0.35 }), vx - 0.5 - R() * 0.15, 0.5 + R() * 1.7, vz - 1.2 + R() * 2.4); m.castShadow = false; CV.nuggets.push(m); }
+    solidBoxes.push({ x0: vx - 0.6, x1: vx + 1.2, z0: vz - 1.8, z1: vz + 1.8 });
     cvClick(vein, 'Mine', 'Iron seam', veinClick, vx, vz);
-    CV.ironKey = caveKey(0xa8aeb6, ax, 1.9, az, () => takeKey('iron')); }
+  }
   // ----- the grotto: a pool of blind fish, the prisoner's fire, a damp patch under a dark ledge, and webs -----
   { const [px, pz] = CV_AT.pool;
     const water = add(new THREE.CircleGeometry(3.1, 24).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x14303c, emissive: 0x0a2430, roughness: 0.15, metalness: 0.2 }), px, 0.03, pz); water.castShadow = false;
@@ -9153,7 +9218,13 @@ function buildCave(){
     const capM = new THREE.MeshStandardMaterial({ color: 0x60f0d0, emissive: 0x30d0b0, emissiveIntensity: 1.2 }), stemM = new THREE.MeshStandardMaterial({ color: 0xd8e8d0, emissive: 0x304a40 });
     add(new THREE.CylinderGeometry(0.22, 0.38, 3.6, 10).translate(0, 1.8, 0), stemM, 0, 0, 0, cap);
     add(new THREE.SphereGeometry(1.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), capM, 0, 3.5, 0, cap).scale.set(1, 0.55, 1);
-    for (let i = 0; i < 5; i++) { const s = add(new THREE.SphereGeometry(0.12, 8, 6), capM, Math.cos(i * 1.3) * 0.7, 0.1, Math.sin(i * 1.3) * 0.7, cap); s.scale.set(1, 0.6, 1); }
+    { const gillM = new THREE.MeshStandardMaterial({ color: 0x1e5a50, emissive: 0x0e4038, side: THREE.DoubleSide }), dotM = new THREE.MeshStandardMaterial({ color: 0xe8fff8, emissive: 0xb0fff0, emissiveIntensity: 1.4 });
+      const gills = add(new THREE.RingGeometry(0.28, 1.28, 24, 1).rotateX(Math.PI / 2), gillM, 0, 3.5, 0, cap); gills.castShadow = false;   /* the gills under the cap */
+      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, l = add(new THREE.BoxGeometry(0.02, 0.02, 0.95), gillM, Math.cos(a) * 0.78, 3.49, Math.sin(a) * 0.78, cap); l.rotation.y = -a + Math.PI / 2; }
+      add(new THREE.CylinderGeometry(0.42, 0.3, 0.12, 12, 1, true), Object.assign(stemM.clone(), { side: THREE.DoubleSide }), 0, 2.7, 0, cap);   /* a little skirt on the stem */
+      for (let i = 0; i < 14; i++) { const th = 0.25 + (i % 4) * 0.33, ph = i * 2.4; const d = add(new THREE.SphereGeometry(0.1 + (i % 3) * 0.03, 8, 5), dotM, Math.sin(th) * Math.cos(ph) * 1.27, 3.5 + Math.cos(th) * 0.7, Math.sin(th) * Math.sin(ph) * 1.27, cap); d.scale.set(1.3, 0.5, 1.3); d.rotation.set(Math.sin(th) * Math.sin(ph) * 0.9, 0, -Math.sin(th) * Math.cos(ph) * 0.9); }   /* pale spots */
+      for (const [dx, dz, s2] of [[0.9, 0.5, 0.32], [-0.8, 0.7, 0.26], [0.4, -0.95, 0.22], [-0.6, -0.7, 0.3], [1.15, -0.3, 0.2]]) { const b = new THREE.Group(); b.position.set(dx, 0, dz); b.scale.setScalar(s2); cap.add(b);   /* small ones round its foot */
+        add(new THREE.CylinderGeometry(0.22, 0.32, 1.6, 8).translate(0, 0.8, 0), stemM, 0, 0, 0, b); add(new THREE.SphereGeometry(0.9, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), capM, 0, 1.55, 0, b).scale.set(1, 0.6, 1); } }
     CV.cap = cap; CV.capSpot = [mx, 3.2, mz]; CV.capBox = { x0: mx - 0.5, x1: mx + 0.5, z0: mz - 0.5, z1: mz + 0.5 };
     // the webs, strung in corners of the walls
     const webM = new THREE.MeshBasicMaterial({ color: 0xe8e8f0, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
@@ -9166,21 +9237,16 @@ function buildCave(){
     // the ledge, high on the north wall, with a small chest on it
     const [lx, lz] = CV_AT.ledge; add(new THREE.BoxGeometry(3.6, 0.5, 1.6), 0x5a544c, lx, 3.4, lz + 0.4);
     const chest = new THREE.Group(); chest.position.set(lx, 3.65, lz + 0.4); scene.add(chest);
-    add(new THREE.BoxGeometry(0.9, 0.5, 0.55), texMat(woodTex(), 1, 1, 0xa07040), 0, 0.25, 0, chest); add(new THREE.BoxGeometry(0.94, 0.12, 0.6), mat(0x55555c), 0, 0.5, 0, chest);
+    add(new THREE.BoxGeometry(0.9, 0.5, 0.55), texMat(woodTex(), 1, 1, 0xa07040), 0, 0.25, 0, chest);
+    const lid = new THREE.Group(); lid.position.set(0, 0.5, -0.28); chest.add(lid); add(new THREE.BoxGeometry(0.94, 0.14, 0.6), mat(0x6a4a2c), 0, 0.07, 0.29, lid); add(new THREE.BoxGeometry(0.16, 0.12, 0.04), mat(0xe2b84c), 0, -0.02, 0.6, lid); CV.ledgeLid = lid;
+    const rope = add(new THREE.CylinderGeometry(0.06, 0.06, 3.5, 6), 0xe0dccc, lx + 0.6, 1.85, lz + 1.15); rope.visible = false; CV.ledgeRope = rope;   /* the web rope, hooked over the edge */
     const lh = add(new THREE.BoxGeometry(3.6, 3.8, 1.8), new THREE.MeshBasicMaterial({ visible: false }), lx, 1.9, lz + 0.5);
     cvClick(lh, 'Climb', 'Ledge', ledgeClick, lx, lz + 1);
-    CV.ledgeChest = chest; CV.tideKey = caveKey(0x40a0ff, lx, 1.8, lz + 2.6, () => takeKey('tide')); }
+    CV.ledgeChest = chest; }
   // ----- the troll's den: bones, and later a chest and a way out -----
   { const bones = []; for (let i = 0; i < 26; i++) { const g = new THREE.CylinderGeometry(0.06, 0.08, 0.5 + R() * 0.5, 5); g.rotateZ(Math.PI / 2); g.rotateY(R() * 6); g.translate(-12 + R() * 24, 0.08, 602 + R() * 24); bones.push(colour(g, 0xe0d8c0, 0.05)); }
     for (let i = 0; i < 6; i++) { const g = new THREE.SphereGeometry(0.24, 8, 6); g.scale(1, 0.85, 1.2); g.translate(-12 + R() * 24, 0.2, 602 + R() * 24); bones.push(colour(g, 0xe8e0c8, 0.03)); }
     merged(bones);
-    const [cx, cz] = CV_AT.bossChest, chest = new THREE.Group(); chest.position.set(cx, 0, cz); scene.add(chest); chest.visible = false;
-    const wood = texMat(woodTex(), 1, 1, 0xc08850); wood.emissive = new THREE.Color(0x2a1808); const gold = mat(0xe2b84c); gold.emissive = new THREE.Color(0x5a3a08);
-    add(new THREE.BoxGeometry(1.6, 0.9, 1.0), wood, 0, 0.45, 0, chest);
-    const lid = new THREE.Group(); lid.position.set(0, 0.9, -0.5); chest.add(lid); add(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), wood, 0, 0, 0.5, lid);
-    for (const x of [-0.55, 0.55]) add(new THREE.BoxGeometry(0.12, 0.92, 1.04), mat(0x55555c), x, 0.45, 0, chest);
-    add(new THREE.BoxGeometry(0.22, 0.14, 0.05), gold, 0, 0.8, 0.52, chest);
-    cvClick(chest, 'Open', 'Reward chest', bossChestClick, cx, cz); CV.bossChest = { g: chest, lid };
     const [rx, rz] = CV_AT.bossRope, exitG = new THREE.Group(); exitG.position.set(rx, 0, rz); scene.add(exitG); exitG.visible = false;
     add(new THREE.CylinderGeometry(0.07, 0.07, 9, 6), 0xa08850, 0, 4.5, 0, exitG);
     const shaft = add(new THREE.CylinderGeometry(1.6, 2.4, 10, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }), 0, 5, 0, exitG); shaft.castShadow = false;
@@ -9227,7 +9293,7 @@ function caveWork(x, z, reach, ms, label, pose, done){
     document.getElementById('smeltLabel').textContent = label; document.getElementById('smeltFill').style.width = '0%'; document.getElementById('smeltBar').style.display = 'block';
   });
 }
-function stopCaveJob(msg){ if (!caveJob) return; caveJob = null; document.getElementById('smeltBar').style.display = 'none'; if (msg) showToast(msg); }
+function stopCaveJob(msg){ if (!caveJob) return; if (caveJob.pose === 'climb' && hero) { hero.position.y = 0; if (!CAVE_P.tide) { CV.ledgeRope.visible = false; CV.ledgeLid.rotation.x = 0; } } caveJob = null; document.getElementById('smeltBar').style.display = 'none'; if (msg) showToast(msg); }
 function caveJobStep(now){
   const J = caveJob; if (!J) return;
   if (FIGHT) { stopCaveJob(); return; }
@@ -9237,10 +9303,15 @@ function caveJobStep(now){
   if (J.pose === 'axe' || J.pose === 'pick') { const ph = (since / 1100) % 1, beat = Math.floor(since / 1100 + 0.5); poseChibi(hero, 'swing', ph, J.pose); if (beat !== J.beat && ph > 0.45) { J.beat = beat; J.pose === 'axe' ? chopSound() : mineSound(); } }
   else if (J.pose === 'rod') fishPose(hero, now / 1000, since < 900 ? since / 900 : 0, true);
   else if (J.pose === 'net') netPose(hero, (since / J.ms) % 1, false);
+  else if (J.pose === 'climb') {   /* up the rope hand over hand, a look in the chest, and back down */
+    const k2 = Math.min(1, since / J.ms), up = k2 < 0.4 ? k2 / 0.4 : k2 < 0.7 ? 1 : 1 - (k2 - 0.7) / 0.3, c = hero.userData.chibi, sw = Math.sin(since / 140);
+    hero.position.x = CV_AT.ledge[0] + 0.6; hero.position.z = CV_AT.ledge[1] + 1.55; hero.position.y = 1.4 * (up * up * (3 - 2 * up)); turnChibi(hero, Math.PI);
+    poseChibi(hero, 'idle', 0); if (c) { const climbing = k2 < 0.4 || k2 > 0.7; c.arms[0].rotation.set(-2.7 + (climbing ? sw * 0.35 : 0.6), 0, -0.15); c.arms[1].rotation.set(-2.7 - (climbing ? sw * 0.35 : -0.6), 0, 0.15); c.legs[0].rotation.x = climbing ? sw * 0.5 : -0.3; c.legs[1].rotation.x = climbing ? -sw * 0.5 : -0.3; }
+    CV.ledgeRope.visible = true; CV.ledgeLid.rotation.x = -1.7 * Math.min(1, Math.max(0, (k2 - 0.45) / 0.12)); }
   else if (J.pose === 'anvil') { poseChibi(hero, 'work', 0); const beat = Math.floor(since / 800); if (beat !== J.beat && (since / 800) % 1 > 0.5) { J.beat = beat; anvilSound(); } }
   else poseChibi(hero, J.pose, 0);
   if (k < 1) return;
-  caveJob = null; document.getElementById('smeltBar').style.display = 'none'; poseChibi(hero, 'idle', 0); J.done(); saveNow(false);
+  caveJob = null; document.getElementById('smeltBar').style.display = 'none'; hero.position.y = 0; poseChibi(hero, 'idle', 0); J.done(); saveNow(false);
 }
 const caveNeed = (skill, lvl, what) => { if (levelOf(SKILL_XP[skill]) >= lvl) return true; showToast(`You need ${skill} ${lvl} to ${what}.`); return false; };
 // give something, or drop it at your feet if the bag is full
@@ -9258,6 +9329,7 @@ function plateClick(i){
     for (const j of [i - 1, i, i + 1]) { const k = (j + 5) % 5; CAVE_P.pl[k] = CAVE_P.pl[k] ? 0 : 1; }
     sfx((ctx, t, out) => { out.gain.value = 0.4; nz(ctx, out, t, 0.25, 'lowpass', 400, 200, 1, 0.8, 0.005, 0.2); });
     caveSync();
+    const lit = CAVE_P.pl.filter(v => v).length; if (lit < 5) showToast(`${lit} of 5 stones lit.`);
     if (CAVE_P.pl.every(v => v)) { CAVE_P.seal = 1; caveChime(); setTimeout(caveRumble, 400); CV.seal.set(true); showToast('All five stones blaze with light. The seal on the east passage fades away.'); saveNow(false); }
   });
 }
@@ -9280,20 +9352,23 @@ function rootClick(){
 }
 function brazierClick(i){
   const B = CV.braz[i];
-  if (CAVE_P.ember || B.lit && B.lit > performance.now()) { showToast('It\'s burning nicely.'); return; }
+  if (CAVE_P.ember || CAVE_P.k_braz || B.lit && B.lit > performance.now()) { showToast('It\'s burning nicely.'); return; }
   if (!hasTool('Tinderbox')) { showToast('You need a tinderbox to light it.'); return; }
   if (!caveNeed('Firemaking', 10, 'light the braziers')) return;
   const log = hasItem('Logs') ? 'Logs' : hasItem('Oak logs') ? 'Oak logs' : null;
   if (!log) { showToast('You need some logs to burn in it.'); return; }
   caveWork(B.x, B.z, 2.1, 1500, 'Lighting...', 'plant', () => {
     if (!removeItem(log)) return;
-    B.lit = performance.now() + BRAZ_MS; addXp('Firemaking', 30); sfx((ctx, t, out) => { out.gain.value = 0.5; nz(ctx, out, t, 0.8, 'bandpass', 900, 500, 0.8, 0.6, 0.02, 0.7); });
+    sfx((ctx, t, out) => { out.gain.value = 0.5; nz(ctx, out, t, 0.8, 'bandpass', 900, 500, 0.8, 0.6, 0.02, 0.7); });
+    if (BRAZ_ORDER[CAVE.brazStep || 0] !== i) { brazierOut(); showToast('The fire flares up, then every brazier gutters out at once. Maybe the marks at their feet mean something.'); return; }
+    CAVE.brazStep = (CAVE.brazStep || 0) + 1; B.lit = performance.now() + BRAZ_MS; addXp('Firemaking', 30);
     if (!LIGHT_SPOTS.includes(B.spot)) LIGHT_SPOTS.push(B.spot); updateDayNight.next = 0;
-    const n = CV.braz.filter(b => b.lit > performance.now()).length;
+    const n = CAVE.brazStep;
     showToast(n < 4 ? `The brazier roars into life. (${n} of 4 burning)  +30 Firemaking XP` : 'All four braziers blaze at once! Something scrabbles in the dark...');
     if (n === 4) brazierAmbush();
   });
 }
+function brazierOut(){ CAVE.brazStep = 0; for (const b of CV.braz) { b.lit = 0; const i = LIGHT_SPOTS.indexOf(b.spot); if (i >= 0) LIGHT_SPOTS.splice(i, 1); } updateDayNight.next = 0; }
 function brazierAmbush(){
   if (CAVE.ambush) return; CAVE.ambush = true;
   for (const b of CV.braz) b.lit = Infinity;
@@ -9310,40 +9385,42 @@ function wallClick(){
   });
 }
 function veinClick(){
+  if (performance.now() < (CAVE.veinAt || 0)) { showToast('The seam is mined out for now. Give it a little while.'); return; }
   if (!hasPick()) { showToast('You need a pickaxe to mine this seam.'); return; }
   if (!caveNeed('Mining', 15, 'mine this iron')) return;
   if (bag.length >= BAG_SIZE && !hasItem('Iron ore')) { showToast('Your bag is full.'); return; }
-  caveWork(...CV_AT.vein, 2.3, 3200, 'Mining...', 'pick', () => { caveGive('Iron ore', 1); addXp('Mining', 35); showToast('You mine some iron ore.  +35 Mining XP'); });
+  caveWork(...CV_AT.vein, 2.3, 3200, 'Mining...', 'pick', () => { caveGive('Iron ore', 1); addXp('Mining', 35); CAVE.veinAt = performance.now() + 20000; showToast('You mine some iron ore. The seam needs a little while before there\'s more.  +35 Mining XP'); });
 }
 function anvilClick(){
-  if (CAVE_P.iron) { showToast("You've already made the key."); return; }
+  if (CAVE_P.iron) { showToast("You've already made the iron key."); return; }
   if (CAVE.mons.some(m => m.croom === 'forge' && m.state !== 'dying' && m.state !== 'dead')) { showToast("The goblins won't let you near their anvil!"); return; }
   if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (!caveNeed('Smithing', 15, 'forge this key')) return;
-  if (!hasItem('Iron bar')) { showToast('A key mould sits on the anvil, shaped for an iron key. You need an iron bar.'); return; }
+  if (!hasItem('Iron bar')) { showToast('A key mould sits on the anvil. An iron key takes 1 iron bar: smelt the ore in their furnace.'); return; }
   caveWork(...CV_AT.anvil, 2.2, 3600, 'Smithing...', 'anvil', () => {
     if (!removeItem('Iron bar')) return;
-    addXp('Smithing', 60); CAVE_P.ironMade = 1; CV.ironKey.visible = true; showToast('You hammer the bar into the mould and knock out an iron key.  +60 Smithing XP');
+    addXp('Smithing', 60); CAVE_P.iron = 1; addItem('Iron key', 1, ICON_FOR['Iron key']); caveChime(); showToast('You hammer the iron bar into the mould and knock out an iron key.  +60 Smithing XP');
   });
 }
 function poolClick(){
   if (!caveNeed('Fishing', 10, 'catch the fish here')) return;
   const tool = hasTool('Fishing rod') ? 'rod' : hasTool('Small fishing net') ? 'net' : null;
   if (!tool) { showToast('You need a fishing net or a rod to fish here.'); return; }
-  if (CAVE_P.fish || CAVE_P.cooked) { showToast("You've got one already. One's plenty."); return; }
+  if (hasItem('Raw cave fish') || hasItem('Cave fish') || CAVE_P.fed) { showToast(CAVE_P.fed ? "Hollis has had his fish." : "You've got one already. One's plenty."); return; }
+  if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
   caveWork(...CV_AT.pool, 3.9, 4000, 'Fishing...', tool, () => {
     splashSound();
-    if (Math.random() < Math.min(0.9, 0.55 + (levelOf(SKILL_XP.Fishing) - 10) * 0.03)) { CAVE_P.fish = 1; addXp('Fishing', 40); showToast('You catch a pale, blind cave fish.  +40 Fishing XP'); }
+    if (Math.random() < Math.min(0.9, 0.55 + (levelOf(SKILL_XP.Fishing) - 10) * 0.03)) { addItem('Raw cave fish', 1, ICON_FOR['Raw cave fish']); addXp('Fishing', 40); showToast('You catch a pale, blind cave fish.  +40 Fishing XP'); }
     else showToast('Something brushes past, but it gets away.');
   });
 }
 function fireClick(){
-  if (!CAVE_P.fish) { showToast(CAVE_P.cooked ? "That fish is cooked already." : 'You have nothing to cook on it.'); return; }
+  if (!hasItem('Raw cave fish')) { showToast(hasItem('Cave fish') ? "That fish is cooked already." : 'You have nothing to cook on it.'); return; }
   if (!caveNeed('Cooking', 10, 'cook the cave fish')) return;
   caveWork(...CV_AT.fire, 2.1, 2200, 'Cooking...', 'work', () => {
-    CAVE_P.fish = 0;
-    if (Math.random() < Math.max(0.05, 0.3 - (levelOf(SKILL_XP.Cooking) - 10) * 0.025)) { sizzleSound(true); showToast("Oops. You burn the cave fish. It's charcoal now."); }
-    else { CAVE_P.cooked = 1; addXp('Cooking', 40); sizzleSound(false); showToast('You cook the cave fish.  +40 Cooking XP'); }
+    if (!removeItem('Raw cave fish')) return;
+    if (Math.random() < Math.max(0.05, 0.3 - (levelOf(SKILL_XP.Cooking) - 10) * 0.025)) { addItem('Burnt cave fish', 1, ICON_FOR['Burnt cave fish']); sizzleSound(true); showToast("Oops. You burn the cave fish. It's charcoal now."); }
+    else { addItem('Cave fish', 1, ICON_FOR['Cave fish']); addXp('Cooking', 40); sizzleSound(false); showToast('You cook the cave fish.  +40 Cooking XP'); }
   });
 }
 function hollisClick(){
@@ -9354,10 +9431,14 @@ function hollisClick(){
     let script;
     if (!P.met) script = [me('Hello? Are you alright?'), "Oh thank goodness, a person! I came down after glowcaps and the goblins grabbed me.", "They've had me chained up for days. I'm so hungry I could eat my own boots.",
       "There's fish in that pool, if you've got the gear. Blind as moles, but they taste alright cooked.", me("I'll see what I can do."), run(() => { P.met = 1; })];
-    else if (P.spores || P.glow) script = P.tide ? ["Got the key? Good. Now go and give that troll a headache for me.", "I'll find my own way out once these goblins are gone. Probably."]
-      : ["The ledge up there is where they hid their key. Get that glowcap growing so you can see what you're grabbing.", "And you'll want a rope. Those webs are good and strong, if you don't mind the spiders."];
-    else if (P.cooked) script = [me('Here, I cooked you a fish.'), run(() => { P.cooked = 0; P.spores = 1; eatSound(); }), "Oh, you beauty. That's the best thing I've ever eaten, and I've had Brenna's pies.",
+    else if (P.fed && !P.glow && !hasItem('Glowcap spores')) script = bag.length >= BAG_SIZE ? ["Lost those spores? I've a few more, but your pack's stuffed full. Make some room."]
+      : ["Lost the spores already? Good thing I picked plenty.", run(() => addItem('Glowcap spores', 1, ICON_FOR['Glowcap spores'])), "Plant them in the damp under the ledge. Go on."];
+    else if (P.fed) script = P.tide ? ["Got the key? Good. Now go and give that troll a headache for me.", "I'll find my own way out once these goblins are gone. Probably."]
+      : ["The goblins hid their key on that ledge, up in the dark. Grow the glowcap so you can see what you're grabbing.", "And you'll want a rope. Those webs are good and strong, if you don't mind the spiders."];
+    else if (hasItem('Cave fish')) script = [me('Here, I cooked you a fish.'), run(() => { removeItem('Cave fish'); P.fed = 1; addItem('Glowcap spores', 1, ICON_FOR['Glowcap spores']); eatSound(); }), "Oh, you beauty. That's the best thing I've ever eaten, and I've had Brenna's pies.",
       "Here, take these. Glowcap spores, the whole reason I came down. Plant them in the damp under that ledge.", "They grow fast and glow bright. The goblins keep their key up there in the dark.", "And bring a rope. Those webs are good and strong if you twist them together."];
+    else if (hasItem('Raw cave fish')) script = [me('I caught you a fish.'), "Raw? I'm starving, but I'm not a heron. Cook it on the fire there, would you?"];
+    else if (hasItem('Burnt cave fish')) script = [me('Here, I... cooked it.'), "That's charcoal, that is. I'm hungry, not desperate. Have another go."];
     else script = ["Any luck with that fish? I'd settle for one that's only a bit raw.", "Don't bring it to me burnt, mind. I've had enough charcoal for one week."];
     CAVE.hollisSay = script; openDialog(npc);
   });
@@ -9365,54 +9446,51 @@ function hollisClick(){
 function hollisTalk(){ const s = CAVE && CAVE.hollisSay; if (CAVE) CAVE.hollisSay = null; return s || null; }
 function capPatchClick(){
   if (CAVE_P.glow) { showToast('The glowcap is growing nicely.'); return; }
-  if (!CAVE_P.spores) { showToast("It's soft and damp, but you've nothing to plant in it."); return; }
+  if (!hasItem('Glowcap spores')) { showToast("It's soft and damp, but you've nothing to plant in it."); return; }
   if (!caveNeed('Farming', 5, 'grow these spores')) return;
   caveWork(...CV_AT.patch, 2.2, 2200, 'Planting...', 'plant', () => {
-    CAVE_P.spores = 0; CAVE_P.glow = Date.now(); if (!solidBoxes.includes(CV.capBox)) solidBoxes.push(CV.capBox); addXp('Farming', 50); farmSound('plant');
+    if (!removeItem('Glowcap spores')) return; CAVE_P.glow = Date.now(); if (!solidBoxes.includes(CV.capBox)) solidBoxes.push(CV.capBox); addXp('Farming', 50); farmSound('plant');
     showToast('You press the spores into the damp soil. Almost at once, something pale pushes up.  +50 Farming XP');
   });
 }
 function webClick(i){
   if ((CAVE_P.webs || 0) & (1 << i)) return;
+  if (bag.length >= BAG_SIZE && !hasItem('Cave web')) { showToast('Your bag is full.'); return; }
   const [x, z] = WEBS[i];
   caveWork(x, z, 2.2, 1600, 'Gathering...', 'work', () => {
-    CAVE_P.webs = (CAVE_P.webs || 0) | (1 << i); caveSync(); silkSound('spin');
-    const n = [0, 1, 2].filter(k => CAVE_P.webs & (1 << k)).length;
-    showToast(n < 3 ? `You pull down a sticky web. (${n} of 3)` : 'You pull down the last of the webs. That should be enough for a rope.');
+    CAVE_P.webs = (CAVE_P.webs || 0) | (1 << i); addItem('Cave web', 1, ICON_FOR['Cave web']); caveSync(); silkSound('spin');
+    const n = countOf('Cave web');
+    showToast(n < 3 ? `You pull down a sticky web. (${n} of 3)` : 'You pull down another web. Three should twist into a rope: click one in your bag.');
   });
 }
 function ledgeClick(){
-  if (CAVE_P.tide || CAVE_P.tideDown) { showToast("There's nothing else up there."); return; }
+  if (CAVE_P.tide) { showToast("There's nothing else up there."); return; }
   const lit = CAVE_P.glow && Date.now() - CAVE_P.glow > 12000;
   if (!lit) { showToast(CAVE_P.glow ? "Give the glowcap a moment to grow. It's still too dark up there." : "It's pitch black up there. You can't see a thing to grab onto."); return; }
-  if (!CAVE_P.rope) {
-    const webs = [0, 1, 2].filter(k => (CAVE_P.webs || 0) & (1 << k)).length;
-    if (webs < 3) { showToast("It's too high to climb bare-handed. A rope would do it."); return; }
-    if (!caveNeed('Crafting', 5, 'twist the webs into a rope')) return;
-    caveWork(CV_AT.ledge[0], CV_AT.ledge[1] + 1, 2.6, 3200, 'Crafting...', 'work', () => { CAVE_P.rope = 1; addXp('Crafting', 60); craftSound(); showToast('You twist the webs into a sticky but sturdy rope.  +60 Crafting XP'); });
-    return;
-  }
-  caveWork(CV_AT.ledge[0], CV_AT.ledge[1] + 1, 2.6, 2400, 'Climbing...', 'work', () => {
-    creak(true); CAVE_P.tideDown = 1; CV.tideKey.visible = true;
-    showToast('You hook the rope over a rock and climb up. The chest holds a blue key, which you toss down.');
+  if (!hasItem('Web rope')) { showToast(countOf('Cave web') >= 3 ? "It's too high to climb bare-handed. Those webs in your bag would twist into a rope." : "It's too high to climb bare-handed. A rope would do it."); return; }
+  caveWork(CV_AT.ledge[0], CV_AT.ledge[1] + 1, 1.6, 4200, 'Climbing...', 'climb', () => {
+    creak(true); removeItem('Web rope'); CAVE_P.tide = 1; addItem('Tide key', 1, ICON_FOR['Tide key']); caveChime(); caveSync(); saveNow(false);
+    const left = ['ember', 'iron', 'tide'].filter(q => !CAVE_P[q]).length;
+    showToast(`You climb up the rope and open the little chest. Inside is a sea-blue key: the tide key. ${left ? `${left} more to find.` : "That's all three. The great door in the rune hall awaits."}`);
   });
 }
 function takeKey(k){
   if (CAVE_P[k]) return;
-  CAVE_P[k] = 1; caveChime(); caveSync(); saveNow(false);
+  if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
+  CAVE_P[k] = 1; addItem(KEY_ITEM[k], 1, ICON_FOR[KEY_ITEM[k]]); caveChime(); caveSync(); saveNow(false);
   const left = ['ember', 'iron', 'tide'].filter(q => !CAVE_P[q]).length;
   showToast(`You take the ${k} key. ${left ? `${left} more to find.` : 'That\'s all three. The great door in the rune hall awaits.'}`);
 }
 function bossDoorClick(){
   if (CAVE_P.door) return;
-  const have = ['ember', 'iron', 'tide'].filter(k => CAVE_P[k]);
+  const have = ['ember', 'iron', 'tide'].filter(k => hasItem(KEY_ITEM[k]));
   if (have.length < 3) { showToast(`The great door has three locks: one orange, one iron grey, one sea blue. You have ${have.length ? have.length + ' of the keys' : 'none of the keys'}.`); return; }
-  CAVE_P.door = 1; creak(true); setTimeout(caveRumble, 300); CV.door.set(true); CV.doorOpenAt = performance.now(); saveNow(false);
+  for (const k in KEY_ITEM) removeItem(KEY_ITEM[k]); CAVE_P.door = 1; creak(true); setTimeout(caveRumble, 300); CV.door.set(true); CV.doorOpenAt = performance.now(); saveNow(false);
   showToast('The three keys turn with a heavy clunk. The great door swings open, and something huge grunts in the dark beyond.');
 }
 function bossChestClick(){
   if (!CAVE || !CAVE.won || CAVE.opened || CAVE_P.done) return;
-  caveGo(...CV_AT.bossChest, 2.0, () => { if (CAVE.opened) return; CAVE.opened = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1500); });
+  caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
 }
 function grantCaveRewards(){
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1)), coins = r(400, 700), rows = [];
@@ -9441,7 +9519,7 @@ function askCave(){
   if (DELVE || CAVE) return;
   startCave();   /* no warning: the owner wants people to just go in and explore */
 }
-function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1 }); }
+function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1, v: 2 }); }
 function startCave(){
   caveFresh(); buildCave(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
@@ -9449,18 +9527,17 @@ function startCave(){
   hero.position.set(CV_AT.arrive[0], 0, CV_AT.arrive[1]); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = Math.PI;
   for (const k in CAVE_MONS) if (!CAVE_P['k_' + k]) for (const [t, x, z] of CAVE_MONS[k]) caveSpawn(t, x, z, k);
   for (const b of CV.braz) b.lit = 0;
-  caveSync(true);
-  showToast('You climb down the rope into the dark. Somewhere ahead, goblins are arguing.');
+  caveUnstash(); caveSync(true);
   addSystemLine('The Cave: find the three keys to the great door. The rope behind you leads back up.');
   writePresence(true); updateDayNight.next = 0;
 }
-/* in each room they come at you one after another (order): the next waits by the wall until the one before it falls */
-function caveSpawn(kind, x, z, room, order){ const m = spawnMonster(kind, x, z, 0); m.delve = true; m.cave = true; m.croom = room; m.order = order !== undefined ? order : CAVE.mons.filter(o => o.croom === room).length; CAVE.mons.push(m); return m; }
+/* multi-combat: everything in the room comes for you at once */
+function caveSpawn(kind, x, z, room){ const m = spawnMonster(kind, x, z, 0); m.delve = true; m.cave = true; m.croom = room; CAVE.mons.push(m); return m; }
 function clearCaveMonsters(){
   for (const m of CAVE ? CAVE.mons : []) { scene.remove(m.g); const i = trees.indexOf(m.g); if (i >= 0) trees.splice(i, 1); m.bar.remove(); const j = MONSTERS.indexOf(m); if (j >= 0) MONSTERS.splice(j, 1); }
 }
 function leaveCave(msg, dead){
-  stopCaveJob(); if (FIGHT) endFight(); clearCaveMonsters(); CAVE = null; caveFresh();
+  stopCaveJob(); if (FIGHT) endFight(); caveStash(); clearCaveMonsters(); CAVE = null; caveFresh();
   for (const b of CV.braz || []) { b.lit = 0; const i = LIGHT_SPOTS.indexOf(b.spot); if (i >= 0) LIGHT_SPOTS.splice(i, 1); }
   const sp = caveExitSpot(); walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); heroAnim.yaw = -Math.PI / 2;
@@ -9485,11 +9562,13 @@ function caveSync(entering){
   CV.plates.forEach((p, i) => { p.glow.emissiveIntensity = P.seal || P.pl[i] ? 2.2 : 0; });
   CV.sealM.opacity = 0.85;
   CV.emberKey.visible = !!P.k_braz && !P.ember;
-  CV.ironKey.visible = !!P.ironMade && !P.iron;
-  CV.tideKey.visible = !!P.tideDown && !P.tide;
+  if (CAVE) for (const k in KEY_ITEM) if (P[k] && !P.door && !hasItem(KEY_ITEM[k]) && !GROUND.some(g => g.name === KEY_ITEM[k])) P[k] = 0;   /* a key gone missing goes back where it came from */
+  if (CAVE && P.webs === 7 && !P.tide && !hasItem('Web rope') && countOf('Cave web') < 3) P.webs = 0;   /* and so do the webs, if the rope can't be made any more */
+  CV.emberKey.visible = !!P.k_braz && !P.ember;
+  CV.ledgeRope.visible = !!P.tide; CV.ledgeLid.rotation.x = P.tide ? -1.7 : 0;
   if (P.glow && !solidBoxes.includes(CV.capBox)) solidBoxes.push(CV.capBox);
   if (P.door) { const i = trees.indexOf(CV.doorHit); if (i >= 0) trees.splice(i, 1); }
-  if (entering) { CV.bossChest.g.visible = false; CV.bossChest.lid.rotation.x = 0; CV.bossRope.visible = false; const i = solidBoxes.indexOf(CV.chestBox); if (i >= 0) solidBoxes.splice(i, 1); }
+  if (entering) { if (CV.bossChest) { scene.remove(CV.bossChest.g); const j = trees.indexOf(CV.bossChest.g); if (j >= 0) trees.splice(j, 1); CV.bossChest = null; } CV.bossRope.visible = false; const i = solidBoxes.indexOf(CV.chestBox); if (i >= 0) solidBoxes.splice(i, 1); }
   if (P.k_braz) for (const b of CV.braz) { b.lit = Infinity; if (!LIGHT_SPOTS.includes(b.spot)) LIGHT_SPOTS.push(b.spot); }
   CV.webs.forEach((w, i) => { w.visible = !((P.webs || 0) & (1 << i)); });
   CV.ledgeChest.visible = true;
@@ -9498,12 +9577,10 @@ function caveSync(entering){
 function updateCaveHud(){
   const el = document.getElementById('caveHud'); if (!el) return;
   if (!CAVE) { if (!el.hidden) { el.hidden = true; CAVE_HUD_KEY = ''; } return; }
-  const P = CAVE_P, keys = ['ember', 'iron', 'tide'].map(k => `<i class="ck ${k}${P[k] ? ' got' : ''}"></i>`).join('');
-  const webs = [0, 1, 2].filter(k => (P.webs || 0) & (1 << k)).length;
-  const bits = [P.fish && 'Cave fish', P.cooked && 'Cooked cave fish', P.spores && 'Glowcap spores', !P.rope && webs && `Webs ${webs}/3`, P.rope && !P.tide && 'Silk rope'].filter(Boolean);
+  const P = CAVE_P, keys = ['ember', 'iron', 'tide'].map(k => `<i class="ck ${k}${P.door || hasItem(KEY_ITEM[k]) ? ' got' : ''}"></i>`).join('');
   const room = CAVE_ROOMS[CAVE.room] ? CAVE_ROOMS[CAVE.room].name : '';
   const burning = !P.ember && CAVE.room === 'braz' ? CV.braz.filter(b => b.lit > performance.now()) : [];
-  const sub = burning.length && burning.length < 4 ? `Braziers burning: ${burning.length} of 4, ${Math.max(0, Math.ceil(Math.min(...burning.map(b => b.lit)) / 1000 - performance.now() / 1000))}s` : bits.join(' · ');
+  const sub = burning.length && burning.length < 4 ? `Braziers burning: ${burning.length} of 4, ${Math.max(0, Math.ceil(Math.min(...burning.map(b => b.lit)) / 1000 - performance.now() / 1000))}s` : '';
   const key = room + keys + sub; if (key === CAVE_HUD_KEY) return; CAVE_HUD_KEY = key;
   el.innerHTML = `<div class="wTitle">${room}</div><div class="cKeys">${keys}</div>${sub ? `<div class="wSub">${sub}</div>` : ''}`; el.hidden = false;
 }
@@ -9522,19 +9599,19 @@ function updateCave(){
   { const T = CV.tree; if (T.fallAt) { const k = Math.min(1, (now - T.fallAt) / 1300); T.trunk.rotation.z = (Math.PI / 2 - 0.02) * k * k; T.trunk.position.y = -0.72 * Math.min(1, k * k); if (k >= 1) { const i = trees.indexOf(T.hit); if (i >= 0) trees.splice(i, 1); } } }
   { const a = CV.doorOpenAt ? Math.min(1, (now - CV.doorOpenAt) / 1800) : 0; CV.doorL.rotation.y = 1.6 * a; CV.doorR.rotation.y = -1.6 * a; CV.locks.forEach(L => { L.m.emissiveIntensity = CAVE_P[L.k] ? 0.9 : 0.15; L.l.visible = a < 0.05; }); }
   for (const b of CV.braz) { const on = b.lit > now; b.fire.visible = on; if (on) b.fire.children.forEach((f, i) => { f.scale.y = 0.85 + 0.2 * Math.sin(now / 90 + i * 2); });
-    if (!on && b.lit) { b.lit = 0; const i = LIGHT_SPOTS.indexOf(b.spot); if (i >= 0) LIGHT_SPOTS.splice(i, 1); updateDayNight.next = 0; if (CAVE.room === 'braz') showToast('A brazier gutters and goes out.'); } }
-  if (CAVE_P.glow) { const k = Math.min(1, (Date.now() - CAVE_P.glow) / 12000); CV.cap.scale.setScalar(Math.max(0.01, k)); if (k > 0.3 && !LIGHT_SPOTS.includes(CV.capSpot)) { LIGHT_SPOTS.push(CV.capSpot); updateDayNight.next = 0; } } else CV.cap.scale.setScalar(0.01);
-  CV.fishGlints.forEach((f, i) => { const a = now / (1400 + i * 300) + i * 2; f.position.set(CV_AT.pool[0] + Math.cos(a) * (1.2 + i * 0.5), 0.05, CV_AT.pool[1] + Math.sin(a) * (1.2 + i * 0.5)); f.rotation.y = -a; f.visible = !CAVE_P.fish && !CAVE_P.cooked || i > 0; });
-  for (const k of [CV.emberKey, CV.ironKey, CV.tideKey]) if (k.visible) { k.rotation.y = now / 600; k.position.y = k.baseY + Math.sin(now / 400) * 0.12; }
-  if (CAVE.won && CV.bossChest.g.visible) { const a = CAVE.opened ? Math.min(1, (now - CAVE.opened) / 1200) : 0; CV.bossChest.lid.rotation.x = -1.8 * a; const k = Math.min(1, (now - CAVE.wonAt) / 900); CV.bossChest.g.scale.setScalar(1.3 * Math.max(0.01, 1 - Math.pow(1 - k, 3))); }
+    if (!on && b.lit) { brazierOut(); if (CAVE.room === 'braz') showToast('A brazier burns out, and the others die with it.'); } }
+  if (CAVE_P.glow) { const k = Math.min(1, (Date.now() - CAVE_P.glow) / 12000); CV.cap.scale.setScalar(Math.max(0.01, k)); if (k >= 1 && !CAVE.capTold && CAVE.room === 'grotto') { CAVE.capTold = true; if (!CAVE_P.tide) showToast('The glowcap is fully grown. Its light reaches the ledge above, where a little chest sits.'); } if (k > 0.3 && !LIGHT_SPOTS.includes(CV.capSpot)) { LIGHT_SPOTS.push(CV.capSpot); updateDayNight.next = 0; } } else CV.cap.scale.setScalar(0.01);
+  CV.fishGlints.forEach((f, i) => { const a = now / (1400 + i * 300) + i * 2; f.position.set(CV_AT.pool[0] + Math.cos(a) * (1.2 + i * 0.5), 0.05, CV_AT.pool[1] + Math.sin(a) * (1.2 + i * 0.5)); f.rotation.y = -a; f.visible = !CAVE_P.fed || i > 0; });
+  for (const k of [CV.emberKey]) if (k.visible) { k.rotation.y = now / 600; k.position.y = k.baseY + Math.sin(now / 400) * 0.12; }
+  if (CV.bossChest) { const C = CV.bossChest, k = Math.min(1, (now - C.born) / 900); C.g.scale.setScalar(1.5 * Math.max(0.01, 1 - Math.pow(1 - k, 3))); animRewardChest(C, now); }   /* the cellar's chest: pops up, then the lid swings open */
   caveMobs(now, dt);
 }
 function caveEnterRoom(rm){
   if (CAVE.seen[rm]) return; CAVE.seen[rm] = true;
   const P = CAVE_P;
-  if (rm === 'hub' && !P.seal) showToast('Five stones are set in the floor, carved with runes. Some of them glow. The way east is sealed with the same runes.');
+  if (rm === 'hub' && !P.seal) showToast('Five rune stones are set in the floor. Step on one and it flips, along with the stones either side of it. Light all five to break the seal on the way east.');
   if (rm === 'chasm' && !P.bridge) showToast('A deep crack splits the cave in two. A dead tree leans at the edge.');
-  if (rm === 'braz' && !P.ember) showToast('Four cold braziers stand round an empty altar.');
+  if (rm === 'braz' && !P.k_braz) showToast('Four cold braziers stand round an empty altar, each with marks scratched at its foot.');
   if (rm === 'mine' && !P.wall) showToast('An old mine. Light glints through a crack in the far wall.');
   if (rm === 'grotto' && !P.met) showToast('Someone groans by the far wall. A man, chained to a rock!');
   if (rm === 'boss' && !P.k_boss) { setTimeout(() => { if (CAVE && CAVE.room === 'boss' && !CAVE.troll) { CAVE.troll = caveSpawn('caveTroll', 0, 609, 'boss'); combatSound('goblinAttack'); showToast('A cave troll heaves itself up from a pile of bones!'); } }, 600); }
@@ -9553,15 +9630,14 @@ function caveMobs(now, dt){
     if (k === 'boss') caveWon();
   }
   // the troll calls for help when it's hurt
-  const T = CAVE.troll; if (T && !CAVE.helped && T.state !== 'dying' && T.state !== 'dead' && T.hp <= T.t.hp / 2) { CAVE.helped = true; showToast('The troll bellows, and a blind rat scuttles out of a crack!'); caveSpawn('blindRat', -11, 604, 'boss', 0); }
+  const T = CAVE.troll; if (T && !CAVE.helped && T.state !== 'dying' && T.state !== 'dead' && T.hp <= T.t.hp / 2) { CAVE.helped = true; showToast('The troll bellows, and a blind rat scuttles out of a crack!'); caveSpawn('blindRat', -11, 604, 'boss'); }
   const here = alive.filter(m => m.croom === CAVE.room);
   const lead = FIGHT && here.includes(FIGHT.m) ? FIGHT.m : null;
   const leadA = lead ? Math.atan2(lead.g.position.x - hero.position.x, lead.g.position.z - hero.position.z) : 0;
   alive.forEach((m, i) => {
     if (m.anim && now - m.anim.t0 < m.anim.dur) monsterPose(m, m.anim.kind, (now - m.anim.t0) / m.anim.dur);
     if (lead === m) return;
-    const waiting = alive.some(o => o !== m && o.croom === m.croom && o.order < m.order);
-    if (m.croom !== CAVE.room || HP.cur <= 0 || waiting) { if (waiting && m.croom === CAVE.room && !caveStep(m, m.home[0], m.home[1], 0.2, now, dt)) { m.g.rotation.y = yawTo(m.g.position.x, m.g.position.z, hero.position.x, hero.position.z); if (!m.anim || now - m.anim.t0 >= m.anim.dur) monsterPose(m, 'ready'); m.x = m.g.position.x; m.z = m.g.position.z; return; } if (!caveStep(m, m.home[0], m.home[1], 0.2, now, dt) && (!m.anim || now - m.anim.t0 >= m.anim.dur)) monsterPose(m, 'idle'); m.x = m.g.position.x; m.z = m.g.position.z; return; }
+    if (m.croom !== CAVE.room || HP.cur <= 0) { if (!caveStep(m, m.home[0], m.home[1], 0.2, now, dt) && (!m.anim || now - m.anim.t0 >= m.anim.dur)) monsterPose(m, 'idle'); m.x = m.g.position.x; m.z = m.g.position.z; return; }
     const reach = reachOf(m);
     let tx = hero.position.x, tz = hero.position.z, want = reach;
     if (lead) { const a = leadA + (i % 2 ? 1 : -1) * Math.PI * 0.6; tx += Math.sin(a) * reach; tz += Math.cos(a) * reach; want = 0.15; if (monsterHit(tx, tz)) { tx = hero.position.x; tz = hero.position.z; want = reach; } }
@@ -9595,7 +9671,8 @@ function caveStep(m, tx, tz, want, now, dt){
   return true;
 }
 function caveWon(){
-  CAVE.won = true; CAVE.wonAt = performance.now(); CV.bossChest.g.visible = true; CV.bossChest.g.scale.setScalar(0.01); CV.bossRope.visible = true;
+  CAVE.won = true; CAVE.wonAt = performance.now(); CV.bossRope.visible = true;
+  { const [cx, cz] = CV_AT.bossChest, C = buildRewardChest(cx, cz); C.g.userData = { action: 'Open', name: 'Reward chest', rec: { kind: 'chest', state: 'standing', x: cx, z: cz, onClick: bossChestClick } }; trees.push(C.g); CV.bossChest = { ...C, born: performance.now(), opened: false, openAt: 0 }; }
   CV.chestBox = CV.chestBox || { x0: CV_AT.bossChest[0] - 0.9, x1: CV_AT.bossChest[0] + 0.9, z0: CV_AT.bossChest[1] - 0.6, z1: CV_AT.bossChest[1] + 0.6 }; if (!solidBoxes.includes(CV.chestBox)) solidBoxes.push(CV.chestBox);
   if (!LIGHT_SPOTS.some(p => p[0] === CV_AT.bossChest[0] && p[2] === CV_AT.bossChest[1])) LIGHT_SPOTS.push([CV_AT.bossChest[0], 2.5, CV_AT.bossChest[1]]);
   updateDayNight.next = 0;

@@ -129,7 +129,7 @@ async function cleanStalePlayers(){
   } catch (e) {}
 }
 // your progress, as saved online
-function currentSave(){ return { v: 2, q: QUEST, bag: bag.map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t, c: p.c || 'Wheat' })), hu: SILK.hutch, wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, cd: CAVE_P, pos: hero ? (CAVE || inCaveZone(hero.position.x, hero.position.z) ? caveExitSpot() : DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
+function currentSave(){ return { v: 2, q: QUEST, bag: bag.filter(i => !CAVE_ITEMS.has(i.name)).map(i => ({ name: i.name, qty: i.qty, s: i.slot })), co: COINS, eq: equipped, xp: SKILL_XP, look, dm: DEMAND, kc: KILLS, farm: FARM_PLOTS.map(p => ({ s: p.s, g: p.g, w: p.w ? 1 : 0, t: p.t, c: p.c || 'Wheat' })), hu: SILK.hutch, wc: FARM_CAN.n, tb: toolbelt, dv: DELVE && !DELVE.done ? DELVE.startXp : null, cd: caveSaveP(), pos: hero ? (CAVE || inCaveZone(hero.position.x, hero.position.z) ? caveExitSpot() : DELVE || inDelveZone(hero.position.x, hero.position.z) ? delveExitSpot() : { x: +hero.position.x.toFixed(1), z: +hero.position.z.toFixed(1) }) : null }; }
 // the nearest spot the body fits in, so a saved position is never inside a wall or a building
 function openSpotNear(x, z){
   if (!blocked(x, z) && !hardHit(x, z)) return { x, z };
@@ -170,6 +170,7 @@ function applySave(d){
     setTimeout(() => { addSystemLine(`You left the cellar mid-challenge, which counts as fleeing: -${lost.toLocaleString()} coins${lm ? ', -' + lm.toLocaleString() + ' Melee XP' : ''}${lh ? ', -' + lh.toLocaleString() + ' Hitpoints XP' : ''}.`); renderBag(); renderStats(); saveNow(false); }, 1500);
   }
   if (d && d.cd) caveLoadP(d.cd);   /* how far you got in the cave */
+  if (!CAVE && bag.some(i => CAVE_ITEMS.has(i.name))) caveStash();   /* the cave's things never come up top */
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }

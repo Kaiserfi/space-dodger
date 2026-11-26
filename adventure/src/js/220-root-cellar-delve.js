@@ -165,8 +165,9 @@ function delveWon(){
   spawnDelveChest();
 }
 // the reward chest: banded wood, a domed lid that swings open, and a golden glow inside
-function spawnDelveChest(){
-  const g = new THREE.Group(), cx = DELVE_C.x, cz = DELVE_C.z; g.position.set(cx, 0, cz); scene.add(g);
+// the reward chest itself (the cellar's and the cave's): banded wood, a domed lid hinged at the back, and treasure inside
+function buildRewardChest(cx, cz){
+  const g = new THREE.Group(); g.position.set(cx, 0, cz); scene.add(g);
   const wood = texMat(woodTex(), 1, 1, 0xc08850), band = mat(0x55555c), gold = mat(0xe2b84c);
   wood.emissive = new THREE.Color(0x2a1808); gold.emissive = new THREE.Color(0x5a3a08);   /* a little glow of its own, so it reads in the dark pit */
   const add = (geo, m, x, y, z, parent = g) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
@@ -195,8 +196,12 @@ function spawnDelveChest(){
   add(new THREE.BoxGeometry(W - 0.04, 0.03, D - 0.04), inner, 0, 0.015, D / 2, lid);   // the underside, dark wood
   for (const x of [-0.55, 0.55]) add(new THREE.CylinderGeometry(D / 2 + 0.02, D / 2 + 0.02, 0.12, 14, 1, true, 0, Math.PI).rotateZ(Math.PI / 2), Object.assign(band.clone(), { side: THREE.DoubleSide }), x, 0, D / 2, lid);
   add(new THREE.BoxGeometry(0.2, 0.26, 0.05), gold, 0, 0.02, D + 0.03, lid);   // the clasp, hanging over the catch
-  g.rotation.y = Math.PI;   // facing the ladder, where you come from
   g.scale.setScalar(0.01);
+  return { g, lid, glow };
+}
+function spawnDelveChest(){
+  const cx = DELVE_C.x, cz = DELVE_C.z, { g, lid, glow } = buildRewardChest(cx, cz);
+  g.rotation.y = Math.PI;   // facing the ladder, where you come from
   const rec = { kind: 'chest', state: 'standing', x: cx, z: cz, s: 0.9, onClick: () => openDelveChest() };
   g.userData = { action: 'Open', name: 'Reward chest', rec }; trees.push(g);
   DELVE.chest = { g, lid, glow, born: performance.now(), opened: false, openAt: 0 };
@@ -257,6 +262,9 @@ function updateDelveChest(){
   const C = DELVE && DELVE.chest; if (!C) return;
   const now = performance.now(), k = Math.min(1, (now - C.born) / 900);
   C.g.scale.setScalar(1.5 * Math.max(0.01, 1 - Math.pow(1 - k, 3)));   // pops up out of the sand
+  animRewardChest(C, now);
+}
+function animRewardChest(C, now){
   if (C.opened) { const o = Math.min(1, (now - C.openAt) / 1300); const e = o < 0.25 ? o * 0.3 : 0.075 + (1 - Math.pow(1 - (o - 0.25) / 0.75, 2)) * 0.925;   // a stiff first lift, then it swings up
     C.lid.rotation.x = -1.9 * e; C.glow.visible = o > 0.2; }
 }
