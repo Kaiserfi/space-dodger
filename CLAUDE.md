@@ -266,6 +266,11 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - Develop on the session's branch, then open a pull request and squash-merge it into `main` without asking. Say what changed in the PR, and note anything the owner must do by hand, such as publishing database rules.
 - After a squash merge the branch's remote copy still holds the old commits. Merge it with `-s ours` (your copy already contains them) before pushing, rather than force-pushing.
+- **Never overwrite other sessions' work on `main`.** Other sessions merge into `main` too. A branch that is behind `main` and then squash-merged writes its older copy of the whole file over theirs. This happened once: a one-line shield fix (#173) undid #165 to #171 (oak logs, the XP curve, hairstyles, face options, a rat fix, archery sounds).
+  - **Before you start any change:** `git fetch origin main` and merge it into your branch for real (`git merge origin/main`, never `-s ours`).
+  - **The `-s ours` merge is only safe straight after your own PR has merged**, when `main` holds nothing your branch lacks. Check first with `git log HEAD..origin/main`: if it lists any commit that isn't your own just-merged PR, do a real merge instead.
+  - **Before every PR merge, check the diff against the latest `main`** (`git fetch origin main && git diff origin/main --stat`). It must touch only the files and roughly the number of lines you meant to change. A small fix showing hundreds of lines, or files you never edited, means you're about to revert someone else's work: stop and merge `main` in properly.
+  - **If it happens anyway:** restore the files from the last good commit (`git checkout <good commit> -- .`), reapply only your own change, check `git diff <good commit>` shows just that, and merge it as a fix straight away. Tell the owner exactly what was undone and for how long.
 - Report honestly what was tested and what wasn't (sounds, timers skipped in tests, untested paths).
 - **Don't merge anything that breaks the live game.** If a merge depends on the owner doing something first (publishing rules), say so and wait for them.
 - When the owner reports a live bug, stop other work, find the cause, and fix it first; hold back unrelated changes until the fix is in.
