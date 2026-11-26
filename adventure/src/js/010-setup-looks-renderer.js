@@ -91,17 +91,49 @@ sun.position.set(12, 22, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
-Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 90 });
+Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 90 });   // shadows fall within 30 units of the player (24 on battery saver, see applyPower): everything in this box is drawn a second time for them
 scene.add(sun, sun.target);
 // keep the shadow area centred on the player and give new meshes shadows
 const SUN_OFF = new THREE.Vector3(18, 33, 12);   // moved round by the day and night cycle
 let shadowScan = 0;
+// Far things are skipped when drawing. Past the end of the fog a thing is only a fog-coloured shape, and small parts and outlines are lost in it sooner,
+// yet with the camera low they were all still drawn. A skipped mesh just has its layer mask cleared, so nothing else about it changes (its own `visible`
+// stays the game's to use). The list is rebuilt with the shadow scan and checked before every drawn frame (`farSweep`). The hero is never skipped.
+const FARCULL = { list: [], r: [], lim: [] };
+function worldRadius(o){
+  const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere();
+  const e = o.matrixWorld.elements, bs = g.boundingSphere;
+  return (bs.center.length() + bs.radius) * Math.max(Math.hypot(e[0], e[1], e[2]), Math.hypot(e[4], e[5], e[6]), Math.hypot(e[8], e[9], e[10]));
+}
+function farWalk(o, far){
+  if (o === hero) far = false;
+  if (o.isMesh) {
+    let r = -1;
+    if (!o.userData.shadowSet && o !== sky && o.parent !== clouds) {
+      o.userData.shadowSet = true; r = worldRadius(o);
+      o.castShadow = o !== groundMesh && o !== river && r >= 0.22;   /* tiny things (eyes, buttons, pebbles) cast no shadow worth a draw */
+      o.receiveShadow = true; }
+    const m = o.material;
+    if (far && m && !o.isInstancedMesh && o.frustumCulled && o.layers.mask === 1 && !Array.isArray(m) && m.fog !== false && o !== groundMesh && o !== river) {
+      if (r < 0) r = worldRadius(o);
+      FARCULL.list.push(o); FARCULL.r.push(r); FARCULL.lim.push(m === outlineMat ? 80 : r < 0.2 ? 95 : r < 0.5 ? 112 : 1e9); }
+  }
+  const ch = o.children; for (let i = 0; i < ch.length; i++) farWalk(ch[i], far);
+}
+function farSweep(){
+  const L = FARCULL.list, R = FARCULL.r, LIM = FARCULL.lim, cp = camera.position, end = scene.fog.far + 4;
+  let dx = target.x - cp.x, dy = target.y - cp.y, dz = target.z - cp.z; const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
+  for (let i = 0; i < L.length; i++) { const o = L[i], e = o.matrixWorld.elements;
+    const on = (e[12] - cp.x) * dx + (e[13] - cp.y) * dy + (e[14] - cp.z) * dz - R[i] <= Math.min(LIM[i], end) ? 1 : 0;
+    if (o.layers.mask !== on) o.layers.mask = on; }
+}
 function updateSun(){
   sun.position.copy(target).add(SUN_OFF); sun.target.position.copy(target);
   if (performance.now() > shadowScan) {
     shadowScan = performance.now() + 1500;
-    scene.traverse(o => { if (o.isMesh && !o.userData.shadowSet && o !== sky && o.parent !== clouds) {
-      o.userData.shadowSet = true; o.castShadow = o !== groundMesh && o !== river; o.receiveShadow = true; } });
+    for (const o of FARCULL.list) o.layers.mask = 1;   /* anything that has left the scene comes back whole */
+    FARCULL.list.length = FARCULL.r.length = FARCULL.lim.length = 0;
+    scene.updateMatrixWorld(); farWalk(scene, true);
   }
 }
 
