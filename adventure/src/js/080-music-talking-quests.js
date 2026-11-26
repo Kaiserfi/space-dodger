@@ -63,7 +63,8 @@ function updateFightMusic(){
   const raid = typeof evActive === 'function' && evActive() && (st === 'rush' || st === 'lost' || evPhase() === 'creep') && hero && Math.hypot(hero.position.x - BF.x, hero.position.z - BF.z) < 40;
   const delve = typeof DELVE !== 'undefined' && DELVE && !DELVE.done;   /* the whole delve, until the last wave falls */
   const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)));   /* down in the cellar: never the ordinary battle theme */
-  const want = raid || delve ? 'boss_battle_theme' : below ? null : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
+  const troll = CAVE && CAVE.troll && CAVE.room === 'boss' && !CAVE.won;   /* the cave troll gets the boss theme; the rest of the cave the usual one */
+  const want = raid || delve || troll ? 'boss_battle_theme' : below ? null : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
   const level = musicLevel(); FIGHT_MUSIC.want = want;
   for (const name of ['battle_theme', 'boss_battle_theme']) {
     const on = want === name, a = on ? fightTrack(name) : FIGHT_MUSIC.el[name]; if (!a) continue;
@@ -72,7 +73,7 @@ function updateFightMusic(){
     if (on && a.paused) { if (now - (a.stoppedAt || 0) > 30000) a.currentTime = 0; a.play().catch(() => {}); }   // back after a long break: start from the top
     if (!on && !a.paused && a.volume <= 0.001) { a.pause(); a.stoppedAt = now; }
   }
-  if (MUSIC.master) { const g = MUSIC.master.gain, t = want ? 0 : level; g.value = g.value + (t - g.value) * 0.05; }   // the village music ducks out of the way
+  if (MUSIC.master) { const g = MUSIC.master.gain, t = want || CAVE ? 0 : level;   /* the village tune isn't heard down in the cave, which has its own ambience */ g.value = g.value + (t - g.value) * 0.05; }   // the village music ducks out of the way
 }
 const SPEAKER = muted => `<svg viewBox="0 0 16 16"><path d="M2 6h3l4-3v10l-4-3H2z" fill="#c9b27a"/>${muted
   ? '<path d="M11 5.5l4 5M15 5.5l-4 5" stroke="#d64b3c" stroke-width="1.6"/>'
@@ -167,6 +168,7 @@ function completeRootsAndThreads(){
   renderStats(); saveNow(false);
 }
 function questTalk(name){
+  if (name === 'Hollis') return hollisTalk();   /* the prisoner in the cave */
   if (name === 'Tilly') { const r = rtTalk(); if (r) return r; }
   const s = QUEST.hw, me = t => ({ me: t }), run = f => ({ run: f });
   if (s >= HW_STEPS) return null;

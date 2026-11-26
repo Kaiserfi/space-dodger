@@ -85,7 +85,7 @@ function levelUpSound(){
   }
 }
 function cancelChop(){
-  stopSmelting(); stopCooking(); stopSmithing(); stopFishing();
+  stopSmelting(); stopCooking(); stopSmithing(); stopFishing(); stopCaveJob();
   if (chop.rec && chop.rec.state === 'standing') chop.rec.g.rotation.z = 0;
   if (chop.rec && ONLINE.act) setAct(null);
   chop.rec = null;
@@ -102,7 +102,7 @@ function clickNode(rec){
   if (rec.kind === 'furnace' && smelting) return;   // already smelting: extra clicks do nothing
   cancelChop();
   if (rec.kind === 'anvil' && !hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
-  if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec && !(rec.delve && DELVE)) { showToast("You're already in combat!"); return; } startFight(rec); return; }   /* the cellar is multi-combat: clicking another creature switches to it */
+  if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec && !(rec.delve && (DELVE || CAVE))) { showToast("You're already in combat!"); return; } startFight(rec); return; }   /* the cellar is multi-combat: clicking another creature switches to it */
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && levelOf(SKILL_XP.Fishing) < FISHES[rec.fish].lvl) { showToast(`You need Fishing ${FISHES[rec.fish].lvl} to catch ${FISHES[rec.fish].word} here.`); return; }
   if (rec.kind === 'fish' && !hasTool(FISHES[rec.fish].tool)) { showToast(`You need ${FISHES[rec.fish].need} to fish here. Jory sells them, at his shack by the pond.`); return; }

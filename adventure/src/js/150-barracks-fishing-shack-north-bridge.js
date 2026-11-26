@@ -205,7 +205,7 @@ function buildCaveMouth(){
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colr, side: THREE.DoubleSide })); g.add(m); return m; };
   mouth(1.1, 0.04, 0x231b14);   // a slightly lighter lip round the edge
   const dark = mouth(1.0, 0.08, 0x0b0806);
-  dark.userData = { action: 'Enter', name: 'Cave', rec: { kind: 'cave', onClick: () => showToast('Coming soon....') } }; trees.push(dark);
+  dark.userData = { action: 'Enter', name: 'Cave', rec: { kind: 'cave', onClick: () => caveClick() } }; trees.push(dark);
   const fern = mat(0x3f7a2e); fern.side = THREE.DoubleSide;
   for (const [x, z, s2] of [[col - 0.2, MZ - 4.6, 1], [col - 0.1, MZ + 4.5, 0.9], [col - 1.1, MZ + 2.4, 0.6], [col - 1.0, MZ - 2.6, 0.55]]) {
     const f = new THREE.Group(); f.position.set(x, 0.02, z); g.add(f);

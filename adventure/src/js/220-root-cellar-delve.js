@@ -2,7 +2,7 @@
 const DELVE_C = { x: 0, z: 400, pit: 14 };
 const DELVE_WAVES = [['chicken'], ['rat'], ['cow'], ['farmer'], 'r2', 'r2', 'r2', ['farmer', 'farmer']];
 let DELVE = null, delveBuilt = false;
-const inDelveZone = (x, z) => z > 300;
+const inDelveZone = (x, z) => z > 300 && z <= 550;   /* the cellar; the cave is further out (inCaveZone) */
 function buildDelveArena(){
   if (delveBuilt) return; delveBuilt = true;
   const CX = DELVE_C.x, CZ = DELVE_C.z, PIT = DELVE_C.pit;
@@ -136,7 +136,7 @@ function delveLadder(){
 function sideSwing(m){
   m.anim = { kind: 'swing', t0: performance.now(), dur: 900 }; combatSound((m.t.snd || 'goblin') + 'Attack'); mobHit(m, 'ms', 0, '');
   setTimeout(() => {
-    if (!DELVE || m.state === 'dying' || m.state === 'dead' || HP.cur <= 0) return;
+    if ((!DELVE && !CAVE) || m.state === 'dying' || m.state === 'dead' || HP.cur <= 0) return;
     const hp0 = HP.cur;
     const me = playerRolls(), it = monsterRolls(m.t);
     if (Math.random() < hitChance(it.att, me.def)) {

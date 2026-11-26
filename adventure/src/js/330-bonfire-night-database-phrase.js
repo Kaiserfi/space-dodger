@@ -102,7 +102,7 @@ function mobPath(m, T){
 const AGGRO_RANGE = 6, AGGRO_COOL = 10000;   // how near before it notices you; how long after you get away before it tries again
 let CHASER = null;
 function aggroCheck(m, now){
-  if (!m.t.aggro || FIGHT || DELVE || CHASER || !hero || HP.cur <= 0 || m.state !== 'standing' || now < (m.aggroAt || 0)) return;
+  if (!m.t.aggro || FIGHT || DELVE || CAVE || CHASER || !hero || HP.cur <= 0 || m.state !== 'standing' || now < (m.aggroAt || 0)) return;
   if (combatLevel() > m.t.level * 2 + 1 || mobLocked(m)) return;   /* anyone stronger than twice its level plus one, it leaves alone */
   const hx = hero.position.x, hz = hero.position.z, b = m.box;
   if (b && (hx < b.x0 - 3 || hx > b.x1 + 3 || hz < b.z0 - 3 || hz > b.z1 + 3)) return;   // it doesn't leave its ground for you
@@ -110,7 +110,7 @@ function aggroCheck(m, now){
 }
 function chaseStep(m, now, dt){   // true while it's chasing (it moves itself), false to go back to its usual wandering
   const hx = hero.position.x, hz = hero.position.z, dx = hx - m.g.position.x, dz = hz - m.g.position.z, d = Math.hypot(dx, dz);
-  const give = FIGHT || DELVE || HP.cur <= 0 || mobLocked(m) || mobDeadNow(m) || d > AGGRO_RANGE + 8 || Math.hypot(m.g.position.x - m.home[0], m.g.position.z - m.home[1]) > m.rad + 12;
+  const give = FIGHT || DELVE || CAVE || HP.cur <= 0 || mobLocked(m) || mobDeadNow(m) || d > AGGRO_RANGE + 8 || Math.hypot(m.g.position.x - m.home[0], m.g.position.z - m.home[1]) > m.rad + 12;
   if (give) { m.chase = false; if (CHASER === m) CHASER = null; m.aggroAt = now + 3000; return false; }
   if (d > reachOf(m) + 0.1) { const step = Math.min(d - reachOf(m), 4.2 * dt), nx = m.g.position.x + dx / d * step, nz = m.g.position.z + dz / d * step;
     if (!monsterHit(nx, nz)) { m.g.position.x = nx; m.g.position.z = nz; } else if (!monsterHit(nx, m.g.position.z)) m.g.position.x = nx; else if (!monsterHit(m.g.position.x, nz)) m.g.position.z = nz;

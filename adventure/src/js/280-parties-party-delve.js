@@ -5,7 +5,8 @@ const partyPath = (pid, sub = '') => `${DB}/adventure/live/parties/${pid}${sub}.
 const pput = (url, body, method = 'PUT') => fetch(url, { method, body: JSON.stringify(body) }).catch(() => {});
 function treeSet(root, parts, v){ if (!parts.length) return v === undefined ? null : v; root = root && typeof root === 'object' ? root : {}; const [k, ...rest] = parts; const nv = treeSet(root[k], rest, v); if (nv === null) delete root[k]; else root[k] = nv; return root; }
 // whether another player is in the same world as you: both up top, or both in the same party's cellar
-function sameWorld(r){ const down = inDelveZone(r.tx, r.tz); return down ? !!(DELVE && DELVE.party && r.pt === DELVE.party) : !DELVE; }
+function sameWorld(r){ if (CAVE || inCaveZone(r.tx, r.tz)) return false;   /* the cave is solo */
+  const down = inDelveZone(r.tx, r.tz); return down ? !!(DELVE && DELVE.party && r.pt === DELVE.party) : !DELVE; }
 function startPartyFeed(){
   const f = liveFeed('parties');
   f.addEventListener('put', e => { const d = JSON.parse(e.data); PT = treeSet(PT, d.path.split('/').filter(Boolean), d.data) || {}; onParties(); });
@@ -27,7 +28,7 @@ function onParties(){
   }
   // my party is going down the cellar, and I've been asked along
   const dv = PARTY.d && PARTY.d.dv;
-  if (dv && dv.ask && dv.ask[me] && !DELVE && dv.on !== dvAskSeen && SNOW() - dv.on < 25000 && !(dv.who && dv.who[me])) {
+  if (dv && dv.ask && dv.ask[me] && !DELVE && !CAVE && dv.on !== dvAskSeen && SNOW() - dv.on < 25000 && !(dv.who && dv.who[me])) {
     dvAskSeen = dv.on;
     if (!cellarOpen()) { showToast("Your party is heading down into the cellar, but you haven't unlocked it yet."); return; } const lead = remote[dv.host] ? remote[dv.host].name : 'Your party leader';
     delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; CELLAR CHALLENGE &#9888;&#65039;</div><div style="text-align:center">${escapeHtml(lead)} is leading your party down into the cellar.<br><br>Anyone who falls is out, and only those who pull their weight share the reward.<br><br>If defeated, you lose 25% of your coins and all delve XP.<br><br>Will you go with them?</div>`, 'Accept', () => {
