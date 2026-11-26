@@ -63,6 +63,7 @@ function frame(){
   riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
   clouds.rotation.y = now * 0.000006;
   sky.position.copy(camera.position);
+  updateMap(now);
   if (shouldDraw(now)) { farSweep(); if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
   requestAnimationFrame(frame);
 }

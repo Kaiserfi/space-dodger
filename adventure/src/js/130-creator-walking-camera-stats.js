@@ -302,7 +302,7 @@ function renderStats(){
 // Only one side panel is open at a time; each tab button toggles its own panel.
 function togglePanel(panelId, btnId) {
   const open = document.getElementById(panelId).hidden;
-  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#beltPanel,#setPanel').forEach(p => p.hidden = true);
+  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#beltPanel,#setPanel,#mapPanel').forEach(p => p.hidden = true);
   document.querySelectorAll('.tabIcon').forEach(b => b.classList.remove('on'));
   if (open) { document.getElementById(panelId).hidden = false; document.getElementById(btnId).classList.add('on'); }
 }
