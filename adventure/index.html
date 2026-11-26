@@ -8336,8 +8336,7 @@ function sitPoseAt(g, st, t, seed, child){
   const c = g.userData.chibi, [AL, AR] = c.arms, cold = 1 - fuelNow();
   c.legs.forEach((l, i) => l.rotation.x = -1.45 + (child ? Math.sin(t * 4 + i * Math.PI) * 0.25 : 0));
   c.body.position.y = 0.02 + Math.sin(t * 1.6 + seed) * 0.01; c.body.rotation.x = 0.08 + cold * 0.15; c.body.rotation.z = Math.sin(t * 0.8 + seed) * 0.03;
-  const rub = Math.sin(t * (3 + cold * 6) + seed) * (0.08 + cold * 0.08);   // warming their hands, faster as the fire dies
-  AL.rotation.set(-1.15, 0, -0.1 - rub); AR.rotation.set(-1.15, 0, 0.1 + rub);
+  AL.rotation.set(-1.15, 0, -0.1); AR.rotation.set(-1.15, 0, 0.1);   // hands held still, out towards the fire
   c.head.rotation.y = Math.sin(t * 0.35 + seed * 2) * 0.45;
 }
 // who comes to the fire, when they set off after Aldric does, and where they sit (players get every other seat)
