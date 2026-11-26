@@ -4902,10 +4902,10 @@ function buildFarm(){
   chibiPart(fork, new THREE.CylinderGeometry(0.035, 0.035, 2.2, 6), 0x7a4d22, 0, 0.4, 0.06); chibiPart(fork, new THREE.BoxGeometry(0.42, 0.06, 0.06), 0x9aa0a8, 0, 1.52, 0.06);
   for (const dx of [-0.18, 0, 0.18]) chibiPart(fork, new THREE.CylinderGeometry(0.03, 0.015, 0.55, 5), 0x9aa0a8, dx, 1.8, 0.06, false);
   const hilde = addWorldNpc(44, 5.6, FARMERS[1]);
-  chibiPart(hilde.userData.chibi.body, new THREE.BoxGeometry(0.52, 0.5, 0.05), 0xf0ece0, 0, 0.82, 0.42);
-  const bask = new THREE.Group(); bask.position.set(0, 0.92, 0.7); hilde.userData.chibi.body.add(bask);
-  chibiPart(bask, new THREE.CylinderGeometry(0.3, 0.24, 0.26, 12), 0x9a7040, 0, 0, 0);
-  for (let i = 0; i < 5; i++) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), toonMat(0xf6eee0)); e.scale.y = 1.25; e.position.set(Math.cos(i * 1.3) * 0.14, 0.15, Math.sin(i * 1.3) * 0.14); bask.add(e); }
+  const bask = new THREE.Group(); bask.position.set(0.02, -0.55, 0.12); bask.rotation.x = 0.35; hilde.userData.chibi.arms[1].add(bask);   /* hanging level from her right hand by its handle */
+  chibiPart(bask, new THREE.CylinderGeometry(0.26, 0.2, 0.24, 12), 0x9a7040, 0, -0.36, 0);
+  chibiPart(bask, new THREE.TorusGeometry(0.22, 0.025, 6, 14, Math.PI), 0x7a5430, 0, -0.24, 0, false);
+  for (let i = 0; i < 5; i++) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), toonMat(0xf6eee0)); e.scale.y = 1.25; e.position.set(Math.cos(i * 1.3) * 0.12, -0.22, Math.sin(i * 1.3) * 0.12); bask.add(e); }
   NPC_SPOTS.push([BX, BZ], [39, -4], [53, 7.5], [44, 3]);
 }
 const FARMERS = [
@@ -4917,8 +4917,8 @@ const FARMERS = [
       ["Woolsley's been giving me funny looks. Reckon he knows I sold his winter coat to Mara."],
       ["Hobb says there's goblins out west. If they come for my cabbages, they'll meet my pitchfork."] ],
     barks: ["Come on, girls, dinner time!", "Look at these cabbages. Best crop I've had in years.", "Who left the paddock gate open? Truffle's out again!"] },
-  { name: 'Hilde', title: 'the farmer\'s wife', rad: 1.6, hat: 'straw', look: { gender: 'female', skin: 0xf0c8a0, hair: 'long', hairCol: 0xd8b058, shirt: 0xe8e0d0, pants: 0x5a7a40 },
-    after: (sp) => { const a = sp.userData.chibi.arms; a[0].rotation.x = -0.9; a[1].rotation.x = -0.9; },
+  { name: 'Hilde', title: 'the farmer\'s wife', rad: 1.6, hat: 'straw', look: { gender: 'female', skin: 0xf0c8a0, hair: 'lowbun', hairCol: 0xd8b058, eye: 0x5a3418, brows: 'soft', cheeks: 'rosy', shirt: 0xe8e0d0, pants: 0x5a7a40, outfit: 'bodice', dressCol: 0x8a5a3a, trimCol: 0xf0e8d8 },
+    after: (sp) => { sp.userData.chibi.arms[1].rotation.set(-0.35, 0, 0.45); },   /* the egg basket held steady at her side by its handle; the other arm swings as she walks */
     talks: [
       ["Mind the chickens — they bite. Well, peck. Same thing, if you ask Pecks.", "I'm Hilde. I run this farm. Bram thinks he runs it, which is sweet.", "Four hens: Henrietta, Pecks, Dot and Ginger. Ginger thinks she's a rooster. We let her."],
       ["Eggs every morning, rain or shine. More reliable than Bram, and they don't talk to the cabbages."],
