@@ -225,7 +225,6 @@
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
   <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
   <div class="setRow"><label style="width:auto;flex:1">Battery saver</label><div class="grassOpts" id="saverOpts"><button data-s="off">Off</button><button data-s="on">On</button></div></div>
-  <div class="setRow"><label style="width:auto;flex:1">Grass</label><div class="grassOpts" id="grassOpts"><button data-g="off">Off</button><button data-g="low">Low</button><button data-g="high">High</button></div></div>
 </div>
 <div id="beltPanel" hidden>
   <div class="bagHead">Toolbelt</div>
@@ -1007,7 +1006,6 @@ function updateDayNight(){
   skyMat.uniforms.sunDir.value.copy(dir); skyMat.uniforms.sunCol.value.setRGB(1, 0.85, 0.6).multiplyScalar(up ? 1 : 0.15);
   scene.fog.color.copy(c(2)); scene.background.copy(c(2));
   clouds.traverse(o => { if (o.isMesh) { o.material.emissiveIntensity = 0.05 + 0.3 * light; o.material.color.setScalar(0.35 + 0.65 * light); } });
-  if (grass) grass.uni.lightK.value = 0.1 + 0.9 * Math.pow(light, 1.3) + night * 0.5 * Math.max(0, bk) + 0.18 * nb;   // the grass darkens with the ground
   // stars and the moon
   if (!stars) {
     const pos = []; for (let i = 0; i < 700; i++) { const a = Math.random() * Math.PI * 2, y = 0.1 + Math.random() * 0.9, r = Math.sqrt(1 - y * y); pos.push(Math.cos(a) * r * 170, y * 170, Math.sin(a) * r * 170); }
@@ -1920,8 +1918,9 @@ document.getElementById('tabBelt').addEventListener('click', () => { togglePanel
 // ----- village music: a soft loop made from synthesised notes (no sound files) -----
 const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
 // the volume settings, saved in this browser
-const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false, grass: (matchMedia('(pointer: coarse)').matches ? 'low' : 'high') };
+const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
+delete SETTINGS.grass;   /* the old grass setting (off, low, high) is gone: the grass is painted on now */
 if (typeof SETTINGS.bright !== 'number') SETTINGS.bright = 50;
 if (typeof SETTINGS.saver !== 'boolean') SETTINGS.saver = matchMedia('(pointer: coarse)').matches;   /* battery saver: on by default on phones and tablets */   // brightness: 50 is as designed; higher lifts the night for dim screens
 document.getElementById('volBright').addEventListener('input', e => { SETTINGS.bright = +e.target.value; applySettings(); });
@@ -2003,14 +2002,12 @@ function applySettings(){
     b.innerHTML = SPEAKER(m); b.classList.toggle('muted', m); b.title = m ? 'Unmute' : 'Mute';
     document.getElementById('vol' + id).value = SETTINGS[k];
   }
-  document.querySelectorAll('#grassOpts button').forEach(b => b.classList.toggle('on', b.dataset.g === SETTINGS.grass));
   document.querySelectorAll('#saverOpts button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'on') === SETTINGS.saver));
   if (window.__powerReady) applyPower();   /* not before the renderer's effects are set up */
   document.getElementById('volBright').value = SETTINGS.bright;
   try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
 document.getElementById('saverOpts').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; SETTINGS.saver = b.dataset.s === 'on'; applySettings(); });
-document.getElementById('grassOpts').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; SETTINGS.grass = b.dataset.g; applySettings(); if (window.buildGrass) buildGrass(); });
 for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
   document.getElementById('vol' + id).addEventListener('input', e => { SETTINGS[k] = +e.target.value; SETTINGS[k + 'Mute'] = false; applySettings(); });
   document.getElementById('mute' + id).addEventListener('click', () => { SETTINGS[k + 'Mute'] = !SETTINGS[k + 'Mute']; applySettings(); });
@@ -4987,11 +4984,10 @@ function animalSound(kind, vol = 1){
   if (kind === 'pig') { voice(0, 0.2, 150, 120, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); voice(0.3, 0.26, 130, 105, [[380, 3, 1.5], [900, 4, 0.6]], 0, 1.2, 0.3); }
   if (kind === 'chicken') { [0, 0.17, 0.36, 0.5].forEach((s0, i) => voice(s0, 0.07, 600 + i * 20, 760, [[1100, 6, 1.4], [2300, 7, 0.5]])); voice(0.78, 0.38, 520, 880, [[900, 5, 1.3], [1900, 6, 0.7]]); }
 }
-// ----- real grass: instanced blades that sway in the wind and bend away from anyone walking through -----
+// ----- the grass, painted onto the ground -----
 // A fixed set of blades always surrounds the camera: each blade wraps round the square it lives in, so the field never ends.
 // A mask painted over the map keeps grass off paths, floors, the green, the river and the farm field, and shortens it round the village.
 let grass = null;
-const GRASS_Q = { low: { n: 16000, r: 20 }, high: { n: 48000, r: 30 } };
 const GM = { x0: -124, x1: 110, z0: -112, z1: 96, ppu: 2 };   /* z0 reaches the north's hills, so its lake and stream can be kept clear */
 let grassMask = null;
 const WOODS_PATH = [[-84, 6], [-88, 7.2], [-91.5, 11.5], [-94, 16], [-97.2, 19.4], [-101, 17.6], [-104.4, 19.4]];   // the worn footpath in the western woods, out to the stream's stepping stones
@@ -5021,78 +5017,44 @@ function grassMaskTexture(){
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   for (let pz = -20; pz < 98; pz += 0.5) for (let px = pz > -9 ? -118 : GM.x0; px < (pz > -9 ? -64 : GM.x1); px += 0.5) {   // the water and its muddy banks
     if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1); }
-  /* the north: its grass is what it always was (the mask used to stop at z -20, so the north grew in strips copied from that edge row);
-     that row is still copied north, but now the lake, the stream and their muddy banks are cut out, as the river and pond are */
-  g.drawImage(cv, 0, Z(-20), W, 1, 0, 0, W, Z(-20));
-  for (let pz = GM.z0; pz < -20; pz += 0.5) for (let px = 28; px < 94; px += 0.5) if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1);
+  /* the north, across the river: grass everywhere but its lake, stream and their banks, and its dirt tracks */
+  g.fillStyle = 'rgb(255,255,0)'; g.fillRect(0, 0, W, Z(-20.5)); g.fillStyle = '#000';
+  for (let pz = GM.z0; pz < -20; pz += 0.5) for (let px = GM.x0; px < GM.x1; px += 0.5) if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1);
+  g.strokeStyle = '#000'; g.lineWidth = 2.8 * GM.ppu; for (const pts of NORTH_PATHS) { g.beginPath(); pts.forEach(([x, z], i) => i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))); g.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return grassMask = t;
 }
+/* the grass is painted onto the ground: a second copy of the ground, just above it, coloured with brush-stroke clumps in the
+   ground's own greens and a soft light wave rolling across, and see-through wherever the mask keeps grass away (paths, floors,
+   fields, water). There are no blades, so nothing follows the player round and it costs almost nothing to draw. */
+const GRASS_T = { value: 0 };
 function buildGrass(){
-  if (grass) { scene.remove(grass.mesh); grass.mesh.geometry.dispose(); grass.mesh.material.dispose(); grass = null; }
-  const q = GRASS_Q[SETTINGS.grass]; if (!q) return;
-  const N = q.n, R = q.r;
-  const blade = [-0.05,0,0, 0.05,0,0, -0.04,0.33,0, 0.04,0.33,0, -0.025,0.66,0, 0.025,0.66,0, 0,1,0];
-  const geo = new THREE.InstancedBufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(blade, 3)); geo.setIndex([0,1,2, 2,1,3, 2,3,4, 4,3,5, 4,5,6]);
-  const off = new Float32Array(N * 4);
-  for (let i = 0; i < N; i++) off.set([(Math.random() * 2 - 1) * R, (Math.random() * 2 - 1) * R, 0.75 + Math.random() * 0.5, Math.random() * 6.283], i * 4);
-  geo.setAttribute('off', new THREE.InstancedBufferAttribute(off, 4)); geo.instanceCount = N;
-  const pushers = []; for (let i = 0; i < 12; i++) pushers.push(new THREE.Vector3(9999, 0, 9999));
-  const uni = { lightK: { value: 1 }, time: { value: 0 }, center: { value: new THREE.Vector2() }, R: { value: R }, mask: { value: grassMaskTexture() },
-    mBox: { value: new THREE.Vector4(GM.x0, GM.z0, GM.x1 - GM.x0, GM.z1 - GM.z0) }, push: { value: pushers },
-    sun: { value: new THREE.Vector3(0.5, 0.75, 0.35).normalize() } };
-  const mat2 = new THREE.ShaderMaterial({ uniforms: uni, side: THREE.DoubleSide, fog: false, vertexShader: `
-    attribute vec4 off; uniform float time, R; uniform vec2 center; uniform sampler2D mask; uniform vec4 mBox; uniform vec3 push[12];
-    varying vec3 vCol; varying float vFog;
-    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-    void main(){
-      vec2 rel = mod(off.xy - center + R, 2.0 * R) - R;   // wrap round the camera
-      vec2 root = center + rel;
-      vec2 cell = floor(root * 3.0);   // jitter by world position, so blades do not visibly slide as the square moves
-      root += (vec2(hash(cell), hash(cell + 7.1)) - 0.5) * 0.25;
-      vec4 m = texture2D(mask, (root - mBox.xy) / mBox.zw);
-      float allow = smoothstep(0.35, 0.75, m.r);
-      if (abs(root.y + 14.0) < 2.8) allow = 0.0;
-      if (abs(root.x) > 119.5 || abs(root.y) > 119.5) allow = 0.0;   // nothing grows past the edge of the map
-      float fade = smoothstep(R, R * 0.72, length(rel));
-      float tall = mix(0.38, 0.62, m.g) * off.z * allow * fade;
-      float h = position.y;
-      float ca = cos(off.w), sa = sin(off.w);
-      vec3 p = vec3(position.x * ca, h * tall, position.x * sa);
-      float gust = sin(root.x * 0.15 + time * 1.3) * 0.5 + sin(root.y * 0.2 + time * 0.9) * 0.3 + sin((root.x + root.y) * 0.6 + time * 3.0) * 0.12;
-      vec2 bend = vec2(0.9, 0.4) * gust * 0.3;
-      for (int i = 0; i < 12; i++) { vec2 aw = root - push[i].xz; float dd = length(aw); bend += normalize(aw + 0.0001) * smoothstep(1.2, 0.15, dd) * 0.9; }
-      float k = h * h;
-      p.xz += bend * k * tall; p.y -= min(length(bend), 1.2) * k * tall * 0.45;
-      float n = sin(root.x * 0.11 + cos(root.y * 0.07) * 2.0) * 0.5 + sin(root.y * 0.13 - root.x * 0.05) * 0.5;
-      vec3 base = mix(vec3(0.31, 0.6, 0.24), n > 0.0 ? vec3(0.5, 0.68, 0.27) : vec3(0.24, 0.48, 0.2), abs(n) * 0.7) * (0.85 + hash(cell + 3.3) * 0.25);
-      vCol = pow(base * (0.5 + 0.55 * h), vec3(2.2));   // to linear light, like the rest of the scene
-      vec4 wp = vec4(p + vec3(root.x, 0.0, root.y), 1.0);
-      vec4 mv = viewMatrix * wp; vFog = smoothstep(50.0, 120.0, -mv.z);
-      gl_Position = projectionMatrix * mv;
-    }`, fragmentShader: `uniform float lightK; varying vec3 vCol; varying float vFog; void main(){ gl_FragColor = vec4(mix(vCol, pow(vec3(0.81, 0.9, 0.92), vec3(2.2)), vFog), 1.0); gl_FragColor.rgb *= lightK;
-#include <colorspace_fragment>
-}` });
-  const mesh = new THREE.Mesh(geo, mat2); mesh.frustumCulled = false; mesh.userData.shadowSet = true; scene.add(mesh);
-  grass = { mesh, uni, t0: performance.now() };
+  if (grass) return;
+  const mat2 = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const mask = grassMaskTexture(), box = new THREE.Vector4(GM.x0, GM.z0, GM.x1 - GM.x0, GM.z1 - GM.z0);
+  mat2.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { gTime: GRASS_T, gMask: { value: mask }, gBox: { value: box } });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGXZ;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvGXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec2 vGXZ; uniform float gTime; uniform sampler2D gMask; uniform vec4 gBox;
+      float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float gn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }
+      float gf(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * gn(p); p = p * 2.03 + 1.7; a *= 0.5; } return v; }`).replace('#include <color_fragment>', `#include <color_fragment>
+      float allow = smoothstep(0.35, 0.75, texture2D(gMask, (vGXZ - gBox.xy) / gBox.zw).r);
+      if (abs(vGXZ.x) > 119.5 || abs(vGXZ.y) > 119.5) allow = 0.0;   /* nothing past the edge of the map */
+      vec2 q = vec2(vGXZ.x * 0.9 + vGXZ.y * 0.4, vGXZ.y * 0.9 - vGXZ.x * 0.4);   /* strokes stretched along the wind */
+      float clump = gf(q * vec2(0.9, 2.6)), fine = gn(q * vec2(4.0, 11.0)), big = gf(vGXZ * 0.06);
+      vec3 col = mix(vec3(0.045, 0.195, 0.034), vec3(0.078, 0.323, 0.045), smoothstep(0.3, 0.75, clump));   /* the ground's own greens, in linear light */
+      col = mix(col, vec3(0.04, 0.17, 0.03), big * 0.5);
+      col = mix(col, vec3(0.212, 0.423, 0.062), smoothstep(0.82, 0.95, fine) * 0.6);
+      col += vec3(0.02, 0.05, 0.01) * smoothstep(0.65, 1.0, sin(dot(vGXZ, vec2(0.13, 0.08)) - gTime * 0.9) * 0.5 + 0.5);   /* the wind's light wave */
+      diffuseColor = vec4(col, allow);`);
+  };
+  const mesh = new THREE.Mesh(groundGeo, mat2); mesh.position.copy(groundMesh.position); mesh.position.y += 0.005; mesh.receiveShadow = true; mesh.userData.shadowSet = true; scene.add(mesh);
+  grass = { mesh };
 }
 window.buildGrass = buildGrass;
-const grassV = new THREE.Vector3();
-function updateGrass(){
-  if (!grass) return;
-  const u = grass.uni; u.time.value = (performance.now() - grass.t0) / 1000;
-  u.center.value.set(target.x, target.z);
-  // who pushes the grass aside: you, the nearest other players, villagers and animals
-  const list = [];
-  if (hero) list.push(hero.position);
-  for (const id in remote) list.push(remote[id].sprite.position);
-  for (const b of BARKERS) list.push(b.sp.getWorldPosition(new THREE.Vector3()));
-  for (const a of ANIMALS) list.push(a.g.position);
-  const c = hero ? hero.position : target;
-  list.sort((a, b) => a.distanceToSquared(c) - b.distanceToSquared(c));
-  for (let i = 0; i < 12; i++) { const v = list[i]; if (v) u.push.value[i].set(v.x, 0, v.z); else u.push.value[i].set(9999, 0, 9999); }
-}
+function updateGrass(){ GRASS_T.value = performance.now() / 1000; }
 // ----- melee combat: turn based, like the classic MMOs. You and the monster lock in place and take turns swinging -----
 // One Melee skill covers attacking, strength and defending; Hitpoints levels alongside it.
 const HAIRLESS = 0x10fe01;   // a marker colour: the hair pieces made in it are removed, goblins are bald
