@@ -578,10 +578,9 @@ function grantCaveRewards(){
 
 // ----- going in and coming out -----
 let CAVE_HUD_KEY = '';
-function caveClick(){ caveMenu(); }   /* two caves behind the one mouth: this one (Opus's) and the Ember Deep (Fable's, 346-fable-cave) */
-function caveWalkIn(then){
+function caveClick(){
   const sp = caveExitSpot();
-  const ask = () => { if (!hero) return; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, NORTH.cave.x, NORTH.cave.z); then(); };
+  const ask = () => { if (!hero) return; heroAnim.yaw = yawTo(hero.position.x, hero.position.z, NORTH.cave.x, NORTH.cave.z); askCave(); };
   if (Math.hypot(hero.position.x - sp.x, hero.position.z - sp.z) < 3.5) { walkTarget = null; walkQueue = []; ask(); return; }
   walkStart(new THREE.Vector3(sp.x, 0, sp.z), ask);
 }
@@ -592,7 +591,7 @@ function askCave(){
   if (!bagRoomFor(kept)) { showToast(`Your bag is full. You need ${slotsFor(kept)} free spaces for the things you left in the cave.`); return; }   /* the things you left down there come back with you, so there must be room */
   startCave();   /* no warning: the owner wants people to just go in and explore */
 }
-function caveFresh(){ if (CAVE_P.done) caveLoadP(Object.assign({ runs: CAVE_P.runs || 1, v: 2 }, CAVE_P.fb ? { fb: CAVE_P.fb } : {}));   /* keeps the count of Fable's cave beaten */ }
+function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1, v: 2 }); }
 function startCave(){
   caveFresh(); buildCave(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
@@ -651,7 +650,6 @@ function caveSync(entering){
 function updateCaveHud(){
   const el = document.getElementById('caveHud'); if (!el) return;
   if (!CAVE) { if (!el.hidden) { el.hidden = true; CAVE_HUD_KEY = ''; } return; }
-  if (CAVE.fable) { fableHud(el); return; }
   const P = CAVE_P, keys = ['ember', 'iron', 'tide'].map(k => `<i class="ck ${k}${P.door || hasItem(KEY_ITEM[k]) ? ' got' : ''}"></i>`).join('');
   const room = CAVE_ROOMS[CAVE.room] ? CAVE_ROOMS[CAVE.room].name : '';
   const key = room + keys; if (key === CAVE_HUD_KEY) return; CAVE_HUD_KEY = key;   /* just the room and the three keys: the owner wants as few words as possible */
@@ -662,7 +660,6 @@ function updateCaveHud(){
 function updateCave(){
   updateCaveHud(); caveAmbience(!!CAVE);
   if (!CAVE || !hero) return;
-  if (CAVE.fable) { updateFable(); return; }
   const now = performance.now(), dt = Math.min(0.25, (now - CAVE.last) / 1000); CAVE.last = now;
   const rm = caveRoomAt(hero.position.x, hero.position.z); if (rm && rm !== CAVE.room) { CAVE.room = rm; caveEnterRoom(rm); }
   caveJobStep(now);

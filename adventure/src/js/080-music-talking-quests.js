@@ -62,8 +62,8 @@ function updateFightMusic(){
   const st = typeof EV !== 'undefined' && EV.data && EV.data.raid && EV.data.raid.st;
   const raid = typeof evActive === 'function' && evActive() && (st === 'rush' || st === 'lost' || evPhase() === 'creep') && hero && Math.hypot(hero.position.x - BF.x, hero.position.z - BF.z) < 40;
   const delve = typeof DELVE !== 'undefined' && DELVE && !DELVE.done;   /* the whole delve, until the last wave falls */
-  const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)) || (CAVE && (CAVE.room === 'boss' || CAVE.room === 'furnace')));   /* the cellar and the troll's den: never the ordinary battle theme, not even after the boss falls */   /* down in the cellar: never the ordinary battle theme */
-  const troll = CAVE && (CAVE.troll && CAVE.room === 'boss' || CAVE.fable && CAVE.room === 'furnace') && !CAVE.won;   /* the cave troll gets the boss theme; the rest of the cave the usual one */
+  const below = typeof DELVE !== 'undefined' && (DELVE || (hero && inDelveZone(hero.position.x, hero.position.z)) || (CAVE && CAVE.room === 'boss'));   /* the cellar and the troll's den: never the ordinary battle theme, not even after the boss falls */   /* down in the cellar: never the ordinary battle theme */
+  const troll = CAVE && CAVE.troll && CAVE.room === 'boss' && !CAVE.won;   /* the cave troll gets the boss theme; the rest of the cave the usual one */
   const want = raid || delve || troll ? 'boss_battle_theme' : below ? null : (FIGHT || now - FIGHT_MUSIC.lastFight < 5000) ? 'battle_theme' : null;
   const level = musicLevel(); FIGHT_MUSIC.want = want;
   for (const name of ['battle_theme', 'boss_battle_theme']) {

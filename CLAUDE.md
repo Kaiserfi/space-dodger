@@ -57,7 +57,6 @@ The game is one three.js module script, kept as **source pieces in `adventure/sr
 | `330-bonfire-night-database-phrase` | the bonfire night's setup; **all the database code**: the one live feed (`startLive`, `liveFeed`), shared monsters (`mobPath`); the secret phrase |
 | `340-bonfire-night-people-fire-raid` | the night's villagers, the fire, sitting, goblins, graves, the host |
 | `345-cave-dungeon` | the cave dungeon (`CAVE`, `CAVE_P`, rooms, puzzles, its creatures, its ambience) |
-| `346-fable-cave` | Fable's cave, the Ember Deep (`FB`, `FBS`, the mirrors, the Molten Hound and its model) |
 | `350-bonfire-night-each-frame` | the bonfire night's each-frame update |
 | `990-join-and-boot` | the join button, `bootOnline(); frame();` |
 
@@ -179,7 +178,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Never in delves:** in the Root Cellar and any future challenge delve, nothing may stop a creature reaching its target. Creatures there route round obstacles (`findPath`), and delve arenas stay free of anything that makes a safespot.
 - **Party roles:** archers, melee and bandage healers should work together in a party delve. Keep the existing threat system and add: melee hits count 1.5x towards threat (so a fighter holds creatures), and healing adds 0.5 threat per point healed on each creature attacking the healed player. Tune both in play. Arrows, swings and heals all go through `partyFx`; the no-carrying rule already counts damage plus healing.
 
-### The Molten Hound's model (now the boss of Fable's cave, see below)
+### Planned: the Molten Hound (mock-up approved by the owner, not in the game yet)
 
 A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/molten-hound.jpg`. The code is a test hook, not game code:
 
@@ -262,25 +261,10 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
   - writing through a database trigger's own `ref` (in functions) opens a second connection, so use one `admin.database()`
 - **Testing:** serve the repo on 8123, then run `tools/tests/cave/run.js`, the whole dungeon end to end (about 10 minutes headless, pictures to `OUT`), and `tools/tests/cave/full-bag.js`. The hook in `tools/tests/cave/hook.js` teleports the hero, calls each puzzle's click function, kills a room's creatures through `killMonster`, renders room pictures, and runs `trollMath` (hit chances on both sides). Headless walking is slow, so the test teleports next to things before each step.
 
-### Fable's cave: the Ember Deep (`346-fable-cave.js`)
+### A second cave was tried and taken out
 
-- **The way in:** clicking the cave mouth opens a menu (`caveMenu`): "Opus's cave" (the dungeon above, `caveWalkIn(askCave)`) or "Fable's cave" (`askFable`). The owner asked for the two side by side, and for this one to be a surprise.
-- **It rides on the first cave's switch.** `askFable` sets `CAVE = { fable: true, ... }`, so everything that checks `CAVE` already applies: the darkness, no village music, solo, multi-combat, dying (`caveDied`, gravestone at the mouth), saving at the mouth, and `leaveCave`. `updateCave` and `updateCaveHud` hand over to `updateFable` and `fableHud` when `CAVE.fable` is set. Creatures are moved by the first cave's `caveMobs`, so its room names must never be reused here (`gate`, `chasm`, `mine`, `forge`, `braz`, `boss`).
-- **Where:** x -17..17, z 744..856, with its own walking grid (`FABLE_GRID`, picked in `findPath` for walks starting at z > 720). Rooms are `FB_ROOMS`, joined by three 4.4-wide passages straight north (`FB_HALLS`), each shut by a slab (`FB.gates`, `fbGate`). Walls, floor and lava are three merged, vertex-coloured meshes. Walls stay under about 2.2 high so the camera sees over the near one, and the rock and floor glow a little of their own (`emissive`): the cave's darkness alone left them black.
-- **Rooms:**
-  - The Scorched Stair: two magma rats (cave rats recoloured by `fbMagma`); the slab sinks when they're down.
-  - The Mirror Gallery: a beam leaves the west wall and four mirrors can be turned (`fbMirrorClick`, `FBS.mir`: 0 is "/", 1 is "\\" seen from above). `fbBeam` traces it; when it reaches the crystal by the door the slab sinks and the mirrors lock. One mirror is a decoy.
-  - The Cinder Pit: two ash goblins and a magma rat round a lava pit, and a cold spring that heals you fully once a trip (`fbSpringClick`).
-  - The Hound's Furnace: the Molten Hound, then the cellar's reward chest and a rope out.
-- **The Molten Hound** (`MONSTER_TYPES.moltenHound`, ITAP's numbers: 100 hit points, attack 45, defence 25, max hit 5) uses the approved model (`makeMoltenHound`, copied from `tools/mockups/molten-hound-hook.js`; a type can now bring its own model with `make`). `heat` scales its fire.
-  - **Flares** (`fbHound`): at 70%, 40% and 15% health it blazes (`fbFlareStart`): the fight ends, it can't be hurt (its type is swapped for one with defence 9999), and it stands at home for 14 s.
-  - **Dousing:** pulling one of the three sluice levers (`fbLeverClick`, each works once) ends the flare in steam and leaves it with no defence and unable to strike back for 7 s (`FBS.cool`).
-  - **Eruption:** if the 14 s run out it erupts for 5 to 9 damage and the fight goes on (`fbFlareEnd`). Leaving the room cancels a flare, and it flares again.
-  - The furnace plays the boss theme (`updateFightMusic`).
-- **Nothing is saved between trips** except the number of times beaten (`CAVE_P.fb`, kept through `caveFresh`). Leaving, dying or reloading starts it again. The reward is coins, +800 Melee and Hitpoints and +300 Firemaking, every time.
-- **`reachOf` now honours a type's `reach`** (it used to give 3.0 for any type that set one, so the cave troll stood at 3.0, not its 3.3).
-- **Not done:** the hound is still about 250 separate meshes (the furnace is about 420 draw calls with it); it has no sounds of its own (it uses the goblin's); ITAP's molten ash drop isn't in.
-- **Testing:** `tools/tests/fable/run.js` plays it end to end (about 4 minutes headless, pictures to `OUT`).
+- The owner asked for a menu at the cave mouth with a second dungeon beside this one ("Fable's cave", the Ember Deep: a mirror-and-beam puzzle and the Molten Hound as a boss you douse with sluice levers). It shipped in #206 and was reverted at the owner's request: it was much shorter than this cave (four rooms, a few minutes, nothing saved), so they rated this one higher. They did like the mirror puzzle and the lever boss fight; the code is in #206's history if either is wanted again.
+- **Lessons:** match the length and weight of what's already there before adding an alternative to it. And scale a boss to where this game's players are: the hound went in with ITAP's level 45 numbers, which a first-tier player can't beat and which barely hurt a strong one (max hit 5 against 37 health).
 
 ### The Root Cellar delve
 
@@ -392,7 +376,7 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 ### Added in the north and fishing update (so you don't rebuild it)
 
 - **The north** (`NORTH`, across the river): reached only by the bridge at x -10. The river's solid strip has a gap there, and the whole river is now solid. It's a flat meadow at height 0 (everyone walks at 0) rising to solid hills on the north, west and east (`hillH`, `northOut`, strips of solid boxes), with solid knolls inside. A stream leaves the river at x 45 for a big lake (`NORTH.pool`, 56 by 32, with an island) that has trout spots on its south-west bank (`lakeShore`). Iron rocks sit in the north-west. The path painter only covers the village, so the north's tracks are tinted into the ground's vertex colours (`NORTH_PATHS`). The grass mask (`GM`) reaches z -112: in the north it allows grass on the meadow, thinning towards the hills, and none on the hills and knolls (`hillH`, so their bare rock shows), round the iron rocks, on the lake, stream and banks, or on `NORTH_PATHS`. The painted grass covers the ground's own colours, so anywhere the ground is meant to look different (rock, gravel, dirt) must be cut out of the mask. Anything new in the north that grass shouldn't cover needs painting into the mask too. New monsters spawn **after** the farm's, so existing shared ids never move.
-- **The cave** (`NORTH.cave`, x 99.6, z -58, at the foot of the east hills): the hill pushes out as a rocky spur (`spurH`, kept apart from `hillH` so the seeded trees and boulders don't move) ending in a steep face, with a ragged dark opening laid on it (`buildCaveMouth`). The grass texture fades to plain rock on its face, the painted grass and the loose boulders keep off it, and it's solid. Clicking the opening (`caveClick`) opens a menu of the two caves (Opus's and Fable's); picking one walks you in and goes straight down, with no warning: the owner wants people to just go in and explore. A cave rat that lived at the mouth moved to (88, -48).
+- **The cave** (`NORTH.cave`, x 99.6, z -58, at the foot of the east hills): the hill pushes out as a rocky spur (`spurH`, kept apart from `hillH` so the seeded trees and boulders don't move) ending in a steep face, with a ragged dark opening laid on it (`buildCaveMouth`). The grass texture fades to plain rock on its face, the painted grass and the loose boulders keep off it, and it's solid. Clicking the opening (`caveClick`) goes straight down into the cave dungeon (below), with no warning: the owner wants people to just go in and explore. A cave rat that lived at the mouth moved to (88, -48).
 - **Aggressive monsters** (`aggro: true`; the north's `hillRat`, level 6, and `caveRat`, level 9). They notice you within 6 units (`AGGRO_RANGE`), **but only if your combat level is at most twice their level plus one**; they ignore stronger players. They run at you (`chaseStep`) and start the fight themselves. They never leave their own ground, and once you run off they leave you alone for 10 s (`AGGRO_COOL`). A type can borrow another's model (`model: 'rat'`) and be scaled (`scale`).
 - **Fishing:**
   - **Spots:** shrimp in the river (net), bream in the village pond (Fishing 10, rod and worms), trout at the north lake (Fishing 15, rod and feathers).
