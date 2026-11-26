@@ -667,31 +667,39 @@ function caveWon(){
   setTimeout(() => { showToast('The cave troll crashes to the ground. A chest lies among the bones, and a rope hangs down from a crack of daylight.'); addSystemLine('Open the chest to claim your reward.'); }, 1200);
 }
 
-// ----- the cave's ambience, made in code: a low drone, a cold draught, water dripping and the odd groan from deep in the rock.
+// ----- the cave's ambience, made in code from filtered noise and a long echo (no tones, which sounded like an arcade): room tone, a cold draught, water dripping and the odd groan from deep in the rock.
 // It plays at the music volume, and the village music fades out while you're down here (updateFightMusic). -----
 const CAVE_AMB = { g: null, next: 0, groan: 0 };
+// noise, white or brown (white noise summed and leaked, so it's all rumble); and a cave's echo: a long, dark, decaying tail
+function caveNoise(ctx, dur, brown){ const n = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); let v = 0;
+  for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; if (brown) { v = (v + 0.02 * w) / 1.02; d[i] = v * 3.5; } else d[i] = w; } return b; }
+function caveReverb(ctx){ const sr = ctx.sampleRate, n = Math.floor(sr * 3.2), b = ctx.createBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); let lp = 0; for (let i = 0; i < n; i++) { lp += 0.25 * ((Math.random() * 2 - 1) - lp); d[i] = lp * Math.pow(1 - i / n, 3.2) * (i < sr * 0.012 ? i / (sr * 0.012) : 1); } }
+  const cv = ctx.createConvolver(); cv.buffer = b; return cv; }
 function caveAmbBed(ctx, out){
-  for (const [f, v] of [[55, 0.2], [55.4, 0.16], [82.4, 0.07]]) {   // two low notes a hair apart, slowly breathing, and a fifth above
-    const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
-    o.type = 'sine'; o.frequency.value = f; g.gain.value = v; lfo.frequency.value = 0.04 + f * 0.0006; lg.gain.value = v * 0.6;
-    lfo.connect(lg); lg.connect(g.gain); o.connect(g); g.connect(out); o.start(); lfo.start(); }
-  const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 4); n.loop = true;   // the draught: noise through a slowly wandering band
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 300; bp.Q.value = 0.8;
-  const sw = ctx.createOscillator(), sg = ctx.createGain(); sw.frequency.value = 0.03; sg.gain.value = 140; sw.connect(sg); sg.connect(bp.frequency);
-  const ng = ctx.createGain(); ng.gain.value = 0.045; const wl = ctx.createOscillator(), wg = ctx.createGain(); wl.frequency.value = 0.07; wg.gain.value = 0.03; wl.connect(wg); wg.connect(ng.gain);
-  n.connect(bp); bp.connect(ng); ng.connect(out); n.start(); sw.start(); wl.start();
+  const loop = (buf, f0, type, q, vol) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = f0; f.Q.value = q; const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(out); s.start(); return { f, g }; };
+  const brown = caveNoise(ctx, 6, true), white = caveNoise(ctx, 5, false);
+  loop(brown, 110, 'lowpass', 0.5, 0.55);   // the room tone: the deep, still hum of a big space underground
+  const draught = loop(brown, 260, 'bandpass', 1.4, 0.35);   // air moving through the passages, rising and falling
+  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.045; lg.gain.value = 0.25; lfo.connect(lg); lg.connect(draught.g.gain); lfo.start();
+  const sw = ctx.createOscillator(), sg = ctx.createGain(); sw.frequency.value = 0.023; sg.gain.value = 90; sw.connect(sg); sg.connect(draught.f.frequency); sw.start();
+  loop(white, 5200, 'lowpass', 0.3, 0.004);   // a faint hiss of distance
+  const rv = caveReverb(ctx), wet = ctx.createGain(); wet.gain.value = 0.9; rv.connect(wet); wet.connect(out); CAVE_AMB.rv = rv;   /* the drips and the shifting rock ring in this */
 }
-function caveDrip(ctx, out, t){   // a drop into a pool, with a couple of fading echoes off the rock
-  const f = 700 + Math.random() * 500;
-  [[0, 0.1], [0.23, 0.035], [0.47, 0.014]].forEach(([at, v]) => { const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter(), s = t + at;
-    o.type = 'sine'; o.frequency.setValueAtTime(f, s); o.frequency.exponentialRampToValueAtTime(f * 0.5, s + 0.09); lp.type = 'lowpass'; lp.frequency.value = at ? 1100 : 2000;
-    g.gain.setValueAtTime(0.0001, s); g.gain.linearRampToValueAtTime(v, s + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.16); o.connect(lp); lp.connect(g); g.connect(out); o.start(s); o.stop(s + 0.2); });
+function caveDrip(ctx, out, t){   // a drop hitting a pool somewhere: a tiny tick of noise, ringing at the water's note, mostly heard in the echo
+  const rv = CAVE_AMB.rv, s = ctx.createBufferSource(); s.buffer = caveNoise(ctx, 0.05, false);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 18; const f = 650 + Math.random() * 600; bp.frequency.setValueAtTime(f, t); bp.frequency.linearRampToValueAtTime(f * 1.25, t + 0.04);
+  const g = ctx.createGain(), v = 0.25 + Math.random() * 0.25; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  const dry = ctx.createGain(); dry.gain.value = 0.25; s.connect(bp); bp.connect(g); g.connect(dry); dry.connect(out); if (rv) g.connect(rv); s.start(t); s.stop(t + 0.06);
 }
-function caveGroan(ctx, out, t){   // something big shifting far off: a low swell and a rumble, no higher than a few hundred hertz
-  const o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), f = 38 + Math.random() * 14;
-  o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t); o.frequency.linearRampToValueAtTime(f * 0.8, t + 3); lp.type = 'lowpass'; lp.frequency.value = 180; lp.Q.value = 2;
-  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 1.2); g.gain.linearRampToValueAtTime(0.0001, t + 3.2); o.connect(lp); lp.connect(g); g.connect(out); o.start(t); o.stop(t + 3.3);
-  nz(ctx, out, t + 0.4, 2.4, 'lowpass', 140, 80, 0.7, 0.18, 0.8, 1.5);
+function caveGroan(ctx, out, t){   // rock shifting far off: a low slow surge of rumble, and a few small stones skittering down after it
+  const rv = CAVE_AMB.rv, s = ctx.createBufferSource(); s.buffer = caveNoise(ctx, 4, true);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(90, t); lp.frequency.linearRampToValueAtTime(160, t + 1.4); lp.frequency.linearRampToValueAtTime(70, t + 3.8);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.7, t + 1.3); g.gain.linearRampToValueAtTime(0.0001, t + 3.8);
+  s.connect(lp); lp.connect(g); g.connect(out); if (rv) g.connect(rv); s.start(t); s.stop(t + 4);
+  for (let i = 0; i < 5; i++) { const at = t + 1.6 + i * (0.12 + Math.random() * 0.25), c = ctx.createBufferSource(); c.buffer = caveNoise(ctx, 0.03, false);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500 + Math.random() * 500; bp.Q.value = 4; const cg = ctx.createGain(); cg.gain.setValueAtTime(0.05 + Math.random() * 0.05, at); cg.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
+    c.connect(bp); bp.connect(cg); if (rv) cg.connect(rv); c.start(at); c.stop(at + 0.04); }
 }
 function caveAmbience(on){
   if (!on && !CAVE_AMB.g) return;
