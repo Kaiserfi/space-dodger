@@ -1610,9 +1610,9 @@ function updateSmelt(){
   const kind = smeltKind();
   if (!kind) { stopSmelting('You have run out of ore.'); return; }
   smeltSound();
-  if (kind === 'bronze') { removeItem('Copper ore'); removeItem('Tin ore'); addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6); showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6 Smithing XP`); }
+  if (kind === 'bronze') { removeItem('Copper ore'); removeItem('Tin ore'); addItem('Bronze bar', 1, BAR_ICON); addXp('Smithing', 6.25); showToast(`You smelt a bronze bar (${barCount()} in your bag).  +6.25 Smithing XP`); }
   else { removeItem('Iron ore');
-    if (Math.random() < ironChance()) { addItem('Iron bar', 1, IRON_BAR_ICON); addXp('Smithing', 12); showToast(`You smelt an iron bar (${barCount('Iron bar')} in your bag).  +12 Smithing XP`); }
+    if (Math.random() < ironChance()) { addItem('Iron bar', 1, IRON_BAR_ICON); addXp('Smithing', 12.5); showToast(`You smelt an iron bar (${barCount('Iron bar')} in your bag).  +12.5 Smithing XP`); }
     else showToast('The ore is too impure, and the iron is lost.'); }
   if (!smeltKind()) { stopSmelting(); return; }
   document.getElementById('smeltLabel').textContent = `Smelting ${smeltKind()}...`;
@@ -3212,8 +3212,10 @@ function followCharacter(){
 
 // ----- the Stats tab: our own skill list and summaries -----
 const HP = { cur: 10 };   // your current health; the most is your Hitpoints level
-const SKILL_XP = {Melee: 0, Hitpoints: 2025, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0, Farming: 0, Crafting: 0};   // everyone starts at level 1, and Hitpoints at 10
-const levelOf = xp => 1 + Math.floor(Math.sqrt(xp / 25));   // level 12 is 3025 xp, level 8 is 1225 xp
+const SKILL_XP = {Melee: 0, Hitpoints: 1154, Woodcutting: 0, Mining: 0, Fishing: 0, Smithing: 0, Cooking: 0, Firemaking: 0, Farming: 0, Crafting: 0};   // everyone starts at level 1, and Hitpoints at 10
+/* the phone game's XP curve (RuneScape's), capped at 99: XP_AT[l] is where level l starts (level 10 is 1154, 99 is 13,034,431) */
+const XP_AT = [0, 0]; for (let l = 2, pts = 0; l <= 100; l++) { pts += Math.floor(l - 1 + 300 * Math.pow(2, (l - 1) / 7)); XP_AT[l] = Math.floor(pts / 4); }
+const levelOf = xp => { let l = 1; while (l < 99 && xp >= XP_AT[l + 1]) l++; return l; };
 let statsSub = 'skills';
 function renderStats(){
   const body = document.getElementById('statsBody');
@@ -3230,14 +3232,16 @@ function renderStats(){
   }
   const names = Object.keys(SKILL_XP);
   // a row per skill: its level, a bar filling towards the next level, and the XP still needed
-  const xpFor = lvl => 25 * (lvl - 1) * (lvl - 1);   // the XP where a level starts (the inverse of levelOf)
+  const xpFor = lvl => XP_AT[Math.min(lvl, 100)];   // the XP where a level starts
   const row = n => {
     const xp = SKILL_XP[n], lvl = levelOf(xp), from = xpFor(lvl), to = xpFor(lvl + 1);
     const pct = Math.min(100, (xp - from) / (to - from) * 100);
-    return `<div class="skRow" title="${n}: ${xp} XP. Level ${lvl + 1} at ${to} XP.">
+    const f = v => Math.floor(v).toLocaleString();   /* XP can have halves (smithing gives 12.5 a bar) */
+    if (lvl >= 99) return `<div class="skRow" title="${n}: ${f(xp)} XP."><div class="skTop"><span>${n}</span><b>Lv 99</b></div><div class="skBar"><i style="width:100%"></i></div><div class="skXp">${f(xp)} XP</div></div>`;
+    return `<div class="skRow" title="${n}: ${f(xp)} XP. Level ${lvl + 1} at ${f(to)} XP.">
       <div class="skTop"><span>${n}</span><b>Lv ${lvl}</b></div>
       <div class="skBar"><i style="width:${pct.toFixed(1)}%"></i></div>
-      <div class="skXp">${xp - from} / ${to - from} XP &middot; ${to - xp} to level ${lvl + 1}</div>
+      <div class="skXp">${f(xp - from)} / ${f(to - from)} XP &middot; ${Math.ceil(to - xp).toLocaleString()} to level ${lvl + 1}</div>
     </div>`;
   };
   const total = names.reduce((t, n) => t + levelOf(SKILL_XP[n]), 0);
@@ -3254,7 +3258,7 @@ function renderStats(){
     <div class="statRow"><span>Shield</span><b>${equipped.shield || 'none'}</b></div>
     <h4>Overall</h4>
     <div class="statRow"><span>Skill total</span><b>${total}</b></div>
-    <div class="statRow"><span>Total XP</span><b>${totalXp}</b></div>
+    <div class="statRow"><span>Total XP</span><b>${Math.floor(totalXp).toLocaleString()}</b></div>
     <div class="statRow"><span>Combat level</span><b>${combat}</b></div>`;
 }
 // Only one side panel is open at a time; each tab button toggles its own panel.
@@ -3375,25 +3379,25 @@ function ironIcon(svg){ return svg.replace(/#([0-9a-f]{6})\b/gi, (_, h) => { con
 const ironHead = svg => svg.replace(/#(cd7f32|5a3a1a|f2c28a|a8682a)\b/gi, m => ironIcon(m));
 const IRON_ORE_ICON = ironIcon(ORE_ICON).replace(/#c2652b|#d9773a/gi, '#8a5a42'), IRON_BAR_ICON = ironIcon(BAR_ICON);
 const RECIPES = [
-  { name: 'Bronze dagger',     bars: 1, level: 1,  xp: 12 },
-  { name: 'Bronze axe',        bars: 1, level: 1,  xp: 12 },
-  { name: 'Bronze pickaxe',    bars: 1, level: 1,  xp: 12 },
-  { name: 'Bronze boots',      bars: 1, level: 2,  xp: 12 },
-  { name: 'Bronze helmet',     bars: 1, level: 3,  xp: 14 },
-  { name: 'Bronze sword',      bars: 2, level: 4,  xp: 25 },
-  { name: 'Bronze shield',     bars: 2, level: 6,  xp: 30 },
-  { name: 'Bronze leg armour', bars: 3, level: 8,  xp: 40 },
-  { name: 'Bronze chestplate', bars: 5, level: 10, xp: 65 },
+  { name: 'Bronze dagger',     bars: 1, level: 1, xp: 12.5 },
+  { name: 'Bronze axe',        bars: 1, level: 1, xp: 12.5 },
+  { name: 'Bronze pickaxe',    bars: 1, level: 1, xp: 12.5 },
+  { name: 'Bronze boots',      bars: 1, level: 3, xp: 12.5 },
+  { name: 'Bronze helmet',     bars: 2, level: 8, xp: 25 },
+  { name: 'Bronze sword',      bars: 1, level: 1, xp: 12.5 },
+  { name: 'Bronze shield',     bars: 2, level: 5, xp: 25 },
+  { name: 'Bronze leg armour', bars: 3, level: 12, xp: 37.5 },
+  { name: 'Bronze chestplate', bars: 5, level: 15, xp: 62.5 },
   // iron, from the north's rocks: the step up from bronze, for the forest beyond
   { name: 'Iron dagger',       bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
   { name: 'Iron axe',          bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
   { name: 'Iron pickaxe',      bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
-  { name: 'Iron boots',        bars: 1, level: 16, xp: 25, bar: 'Iron bar' },
-  { name: 'Iron helmet',       bars: 1, level: 17, xp: 28, bar: 'Iron bar' },
-  { name: 'Iron sword',        bars: 2, level: 19, xp: 50, bar: 'Iron bar' },
-  { name: 'Iron shield',       bars: 2, level: 21, xp: 60, bar: 'Iron bar' },
-  { name: 'Iron leg armour',   bars: 3, level: 23, xp: 80, bar: 'Iron bar' },
-  { name: 'Iron chestplate',   bars: 5, level: 25, xp: 130, bar: 'Iron bar' }
+  { name: 'Iron boots',        bars: 1, level: 17, xp: 25, bar: 'Iron bar' },
+  { name: 'Iron helmet',       bars: 2, level: 22, xp: 50, bar: 'Iron bar' },
+  { name: 'Iron sword',        bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
+  { name: 'Iron shield',       bars: 2, level: 19, xp: 50, bar: 'Iron bar' },
+  { name: 'Iron leg armour',   bars: 3, level: 26, xp: 75, bar: 'Iron bar' },
+  { name: 'Iron chestplate',   bars: 5, level: 29, xp: 125, bar: 'Iron bar' }
 ];
 const BAG_SIZE = 30;
 const bag = [];
