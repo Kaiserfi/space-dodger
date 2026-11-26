@@ -38,11 +38,11 @@ The first deploy may ask to turn on some Google Cloud services (Cloud Functions,
 
 In the Firebase console, open Realtime Database, add a child `banned` at the top level if it isn't there, and under it add the player's account id with the value `true`. Their id is the key of their entry in `adventure/live/players` or `adventure/saves`, or the `uid` on their leaderboard entries.
 
-With the strict rules published (`database.rules.next.json`), a banned account can't save, show up online, or write anything. The server also refuses its scores.
+With the rules in `database.rules.json` (published), a banned account can't save, show up online, or write anything. The server also refuses its scores.
 
 ## Testing against the emulators
 
-Nothing here touches the live project. Download the Firebase CLI into a scratch folder and start the emulators from the repository's top folder with the test config (`firebase.emu.json`, which loads `database.rules.next.json`):
+Nothing here touches the live project. Download the Firebase CLI into a scratch folder and start the emulators from the repository's top folder with the test config (`firebase.emu.json`, which loads `database.rules.json`):
 
 ```bash
 firebase emulators:start --config firebase.emu.json --project space-dodger-1a558
