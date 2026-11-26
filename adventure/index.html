@@ -9139,11 +9139,11 @@ function buildCave(){
     // Hollis, chained to the wall on a rock
     const [hx, hz] = CV_AT.hollis; add(new THREE.BoxGeometry(1.6, 1.0, 1.4), 0x4e4840, hx - 0.2, 0.5, hz); solidBoxes.push({ x0: hx - 1.0, x1: hx + 0.7, z0: hz - 0.8, z1: hz + 0.8 });
     const H = makeChibi({ gender: 'male', skin: 0xe0b090, hair: 'short', hairCol: 0x6a5030, shirt: 0x6a7048, pants: 0x4a4030, ...LOOK_PLAIN });
-    H.scale.setScalar(CHIBI_SCALE); H.position.set(hx, 0.98, hz); H.rotation.y = Math.PI / 2; scene.add(H); CV.hollis = H;
+    H.scale.setScalar(CHIBI_SCALE); H.position.set(hx, 0.5, hz);   /* sat with the seat of his trousers on the rock (measured: sat, his lowest point is 0.5 above the group) */ H.rotation.y = Math.PI / 2; scene.add(H); CV.hollis = H;
     { const hc = H.userData.chibi; hc.legs.forEach(l => l.rotation.x = -1.45); hc.body.position.y = 0.02; hc.arms.forEach(a => a.rotation.x = -0.5); hc.head.rotation.x = 0.15; }
     const chain = []; for (let i = 0; i < 6; i++) { const g = new THREE.TorusGeometry(0.12, 0.035, 4, 8); g.rotateY(i % 2 ? Math.PI / 2 : 0); g.translate(hx - 1.6 + i * 0.25, 1.0 - Math.sin(i / 5 * Math.PI) * 0.25, hz + 0.45); chain.push(colour(g, 0x3a3a40, 0.02)); }
     merged(chain);
-    cvClick(H, 'Talk-to', 'Hollis', hollisClick, hx, hz);
+    { const hc = H.userData.chibi; cvClick(H, 'Talk-to', 'Hollis', hollisClick, hx, hz); H.userData.chibi = hc; }
     // the damp patch, and the glowcap that grows there
     const [mx, mz] = CV_AT.patch;
     const soil = add(new THREE.SphereGeometry(1.1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 1, flatShading: true }), mx, -0.02, mz); soil.scale.set(1, 0.28, 1);   /* a low heap of damp earth */
