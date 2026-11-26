@@ -108,6 +108,27 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Never in delves:** in the Root Cellar and any future challenge delve, nothing may stop a creature reaching its target. Creatures there route round obstacles (`findPath`), and delve arenas stay free of anything that makes a safespot.
 - **Party roles:** archers, melee and bandage healers should work together in a party delve. Keep the existing threat system and add: melee hits count 1.5x towards threat (so a fighter holds creatures), and healing adds 0.5 threat per point healed on each creature attacking the healed player. Tune both in play. Arrows, swings and heals all go through `partyFx`; the no-carrying rule already counts damage plus healing.
 
+### Planned: the Molten Hound (mock-up approved by the owner, not in the game yet)
+
+A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/molten-hound.jpg`. The code is a test hook, not game code:
+
+- **Files:** `tools/mockups/molten-hound-hook.js` holds `makeHound()`; `molten-hound.js` renders it (studio views on a plain background, then beside the hero by day and night); `molten-hound-anim.js` renders the poses as frames. Serve the repo on 8123 and run with `OUT=<scratch folder>`. They use `offlineDb` and never change the game.
+- **Size:** about 7.2 long and 4.3 tall with the mane (the hero is 3.95), facing +z like the other animals.
+- **Body:** a chunky build (the owner turned down a slimmer one): a chest sphere, a waist cylinder and a hip sphere, with rock spikes (flattened 4-sided cones) on the shoulders and spine. `limb(parent, a, b, r1, r2, mat)` puts a tapered cylinder between two points.
+- **The cracks are one 3D pattern, not a texture.** `ROCK` is a single `MeshToonMaterial` whose shader (`onBeforeCompile`) draws 3D Voronoi cells in the hound's own space: the gap between the two nearest cell points is a seam, about 70% of seams are molten (yellow core, orange edge, a red halo) and the rest are cold dark cracks; each plate gets its own grey and a lighter top edge. Every rock mesh carries a `rest` attribute (each vertex's place on the standing hound, set once after building), so seams run unbroken from part to part and stay pinned to a limb as it moves. `uFire` pulses the glow. Don't go back to a UV texture per part: seams stopped at every join and smeared at the sphere poles.
+- **Fire:** `flameGeo` is a bent teardrop (a lathe) with vertex colours from yellow root to red tip, drawn with an unlit `MeshBasicMaterial` with `toneMapped: false` (tone mapping washed the yellow out). Flames make the mane (head to mid-back), a neck ruff, cheek tufts, elbow and hock tufts, and the tail (nine chained segments that curl up). `tick(now)` flickers them and sways the tail; `userData.fire` scales all the fire and the glow (it drops to 0.15 as he dies).
+- **Head:** carved from flat planes with `ConvexGeometry` (`hull(points)`, mirrored in x): a skull whose brow ridge is part of the bone and overhangs the eyes, a short deep muzzle, a small flat nose, a jaw, and tall pointed ears swept back. Eyes are small glowing slits under the brow. The mouth is lit inside (roof, tongue, throat) with cream fangs and a row of teeth.
+- **Legs:** shoulder and hip groups (`FL`, `HL`) with a second group at the elbow and stifle (`FK`, `HK`), so paws lift in the walk. All four feet use the same `paw()`: a plain dark pad, four knuckles, four claws, glowing lines between the toes.
+- **Poses:** `userData.pose(mode, k, now)` in the same shape as the other animals: `idle`, `walk` (diagonal pairs), `ready`, `swing` (sink back, spring, snap), `hurt`, `block`, `dead` (keels over, the fire goes out).
+- **What the owner turned down:** blocks over the eyes for brows, glowing rings at the ankles, paws that differ from each other, sabre fangs, glowing dashes on the snout, a ball head with a tube snout ("derpy"), and the slim body.
+- **Before it goes in the game:**
+  - Ask the owner where it lives, and take its stats from ITAP's code.
+  - Merge the parts (it is about 250 meshes now) into a few meshes per moving group, as `cropStages` and the barracks do.
+  - Check the crack shader's cost on a phone (27 cell look-ups a pixel); bake it into vertex colours or a texture if it's slow.
+  - Give it no light of its own: use `LIGHT_SPOTS` or the emissive glow.
+  - `ConvexGeometry` comes from `three/addons/geometries/ConvexGeometry.js`; import it at the top of the game module or bake the head's triangles.
+  - The pose clips were only checked as still frames, with the older head. Check them in motion.
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
