@@ -134,11 +134,37 @@ function openItemMenu(name, x, y){
   return true;
 }
 addEventListener('pointerdown', e => { if (!itemMenu.hidden && !e.composedPath().includes(itemMenu) && !e.target.closest('#bagGrid')) itemMenu.hidden = true; });   /* by the click's path, so a menu redrawn under the pointer still counts as inside */
+// the watering can in the bag: fill it at whatever water is close by, or hang it back on the toolbelt
+function openCanMenu(it, x, y){
+  itemMenu.innerHTML = `<div class="imHead">Watering can (${FARM_CAN.n}/${CAN_MAX})</div><button data-o="f">Fill</button><button data-o="b">Put on toolbelt</button><button data-o="x">Cancel</button>`;
+  itemMenu.hidden = false;
+  itemMenu.style.left = Math.min(innerWidth - 170, x) + 'px'; itemMenu.style.top = Math.min(innerHeight - itemMenu.offsetHeight - 8, y) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true;
+    if (b.dataset.o === 'f') fillCanNearby();
+    if (b.dataset.o === 'b') { if (toolbelt.can) { showToast(`Your toolbelt already holds a ${toolbelt.can.toLowerCase()}.`); return; } if (!bag.includes(it)) return; toolbelt.can = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast('You hang the watering can on your toolbelt.'); saveNow(false); } };
+}
+const CAN_REACH = 6;   // how far off the water can be: a few steps
+function nearestWater(){
+  const hx = hero.position.x, hz = hero.position.z; let best = null;
+  const take = (x, z) => { const d = Math.hypot(x - hx, z - hz); if (d <= CAN_REACH && (!best || d < best.d)) best = { x, z, d }; };
+  if (typeof CAVE !== 'undefined' && CAVE) take(CV_AT.pool[0], CV_AT.pool[1]);   /* the cave's pool */
+  else { take(65.8, -6.6);   /* the farm trough */
+    for (let r = 0.5; r <= CAN_REACH; r += 0.5) for (let a = 0; a < 24; a++) { const x = hx + Math.cos(a / 24 * Math.PI * 2) * r, z = hz + Math.sin(a / 24 * Math.PI * 2) * r; if (waterSD(x, z) < -0.3) take(x, z); } }   /* the river, the stream, the pond, the north's stream and lake */
+  return best;
+}
+function fillCanNearby(){
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  if (!hasTool('Watering can')) return;
+  if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
+  const w = nearestWater(); if (!w) { showToast("There's no water close enough to fill it from."); return; }
+  cancelChop();
+  farmAct({ x: w.x, z: w.z }, 1500, 'fill', () => { FARM_CAN.n = CAN_MAX; renderBag(); renderGear(); renderBelt(); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); }, 2.4);
+}
 function craftItem(o){
   if (o.fire) { startFire(o); return; }
   if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
   for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
-  if (o.water && (!hasTool('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at the farm trough.'); return; }
+  if (o.water && (!hasTool('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at any water nearby.'); return; }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   for (const n in o.needs) for (let i = 0; i < o.needs[n]; i++) removeItem(n);
   if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }

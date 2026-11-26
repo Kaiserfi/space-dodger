@@ -1801,6 +1801,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   const cell = e.target.closest('.slot[data-i]'); if (!cell) return;
   const it = bag[+cell.dataset.i];
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
+  if (it && it.name === 'Watering can') { openCanMenu(it, e.clientX + 6, e.clientY - 10); return; }   /* fill it at any water nearby, or hang it on the belt */
   if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
   if (it && FOOD[it.name]) { eatReadyAt = performance.now() + EAT_DELAY; if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + EAT_DELAY);   /* and eating in a fight holds back your next swing */
@@ -6945,11 +6946,37 @@ function openItemMenu(name, x, y){
   return true;
 }
 addEventListener('pointerdown', e => { if (!itemMenu.hidden && !e.composedPath().includes(itemMenu) && !e.target.closest('#bagGrid')) itemMenu.hidden = true; });   /* by the click's path, so a menu redrawn under the pointer still counts as inside */
+// the watering can in the bag: fill it at whatever water is close by, or hang it back on the toolbelt
+function openCanMenu(it, x, y){
+  itemMenu.innerHTML = `<div class="imHead">Watering can (${FARM_CAN.n}/${CAN_MAX})</div><button data-o="f">Fill</button><button data-o="b">Put on toolbelt</button><button data-o="x">Cancel</button>`;
+  itemMenu.hidden = false;
+  itemMenu.style.left = Math.min(innerWidth - 170, x) + 'px'; itemMenu.style.top = Math.min(innerHeight - itemMenu.offsetHeight - 8, y) + 'px';
+  itemMenu.onclick = e => { const b = e.target.closest('button'); if (!b) return; itemMenu.hidden = true;
+    if (b.dataset.o === 'f') fillCanNearby();
+    if (b.dataset.o === 'b') { if (toolbelt.can) { showToast(`Your toolbelt already holds a ${toolbelt.can.toLowerCase()}.`); return; } if (!bag.includes(it)) return; toolbelt.can = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast('You hang the watering can on your toolbelt.'); saveNow(false); } };
+}
+const CAN_REACH = 6;   // how far off the water can be: a few steps
+function nearestWater(){
+  const hx = hero.position.x, hz = hero.position.z; let best = null;
+  const take = (x, z) => { const d = Math.hypot(x - hx, z - hz); if (d <= CAN_REACH && (!best || d < best.d)) best = { x, z, d }; };
+  if (typeof CAVE !== 'undefined' && CAVE) take(CV_AT.pool[0], CV_AT.pool[1]);   /* the cave's pool */
+  else { take(65.8, -6.6);   /* the farm trough */
+    for (let r = 0.5; r <= CAN_REACH; r += 0.5) for (let a = 0; a < 24; a++) { const x = hx + Math.cos(a / 24 * Math.PI * 2) * r, z = hz + Math.sin(a / 24 * Math.PI * 2) * r; if (waterSD(x, z) < -0.3) take(x, z); } }   /* the river, the stream, the pond, the north's stream and lake */
+  return best;
+}
+function fillCanNearby(){
+  if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
+  if (!hasTool('Watering can')) return;
+  if (FARM_CAN.n >= CAN_MAX) { showToast('Your watering can is already full.'); return; }
+  const w = nearestWater(); if (!w) { showToast("There's no water close enough to fill it from."); return; }
+  cancelChop();
+  farmAct({ x: w.x, z: w.z }, 1500, 'fill', () => { FARM_CAN.n = CAN_MAX; renderBag(); renderGear(); renderBelt(); showToast(`You fill the watering can. (${CAN_MAX} waterings)`); }, 2.4);
+}
 function craftItem(o){
   if (o.fire) { startFire(o); return; }
   if (levelOf(SKILL_XP[o.skill]) < o.level) { showToast(`You need ${o.skill} ${o.level} to do that.`); return; }
   for (const n in o.needs) if (countOf(n) < o.needs[n]) { showToast(`You need ${o.needs[n]} ${n.toLowerCase()} to make a ${o.make.toLowerCase()}.`); return; }
-  if (o.water && (!hasTool('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at the farm trough.'); return; }
+  if (o.water && (!hasTool('Watering can') || FARM_CAN.n < o.water)) { showToast('You need some water for that. Fill a watering can at any water nearby.'); return; }
   if (FIGHT) { showToast("You can't do that in the middle of a fight!"); return; }
   for (const n in o.needs) for (let i = 0; i < o.needs[n]; i++) removeItem(n);
   if (!addItem(o.make, 1, ICON_FOR[o.make])) { for (const n in o.needs) addItem(n, o.needs[n], ICON_FOR[n]); showToast('Your bag is full.'); return; }
@@ -7181,7 +7208,7 @@ function patchClick(pt, auto){
     farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); if (cr.item === 'Wheat') rtAdvance(3, 4, 'Show Tilly your harvest.'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
     if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the farmers\' market.'); return; }
-    if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
+    if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the trough by the gate, or at any water nearby.'); return; }
     farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the ${(CROPS[p.c] || CROPS.Wheat).say}. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
     const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
