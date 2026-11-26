@@ -566,6 +566,25 @@ function texMat(tex, rx, ry, color = 0xffffff){
 // They are built in their own units and scaled to the hall; rot turns a house by a quarter or half turn.
 const houses = [];
 const HOUSE_SIZE = 2;   // houses are twice the size of the first ones
+// a cast-iron kitchen range (houses and the hall): a black stove with a glowing firebox behind a grate, an oven door with a
+// brass knob, two hotplates with a pot and a frying pan, a towel rail and a chimney pipe. Its front faces +z; add(geo, material,
+// x, y, z) places a part; returns the stove's body, the part players click to cook
+let STOVE_M = null;
+function stoveParts(add, x, z, pipeTop = 3.2){
+  const M = STOVE_M || (STOVE_M = { iron: new THREE.MeshStandardMaterial({ color: 0x2e2f33, roughness: 0.55, metalness: 0.5, flatShading: true }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xc8a048, roughness: 0.35, metalness: 0.7 }), door: mat(0x3a3b40), plate: mat(0x45464c), pot: mat(0x5a5e66), lid: mat(0x6a6e76), soot: mat(0x1a1410) });
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d), C = (r1, r2, h, n = 14) => new THREE.CylinderGeometry(r1, r2, h, n), f = z + 0.65;
+  const body = add(B(2.6, 1.3, 1.3), M.iron, x, 0.75, z); add(B(2.8, 0.12, 1.45), M.iron, x, 1.46, z);
+  for (const s of [-1, 1]) for (const t of [-1, 1]) add(B(0.16, 0.12, 0.16), M.iron, x + s * 1.15, 0.06, z + t * 0.5);
+  add(B(1.0, 0.8, 0.06), M.door, x + 0.55, 0.8, f + 0.02); add(C(0.07, 0.07, 0.14, 8).rotateX(Math.PI / 2), M.brass, x + 0.95, 0.85, f + 0.07);
+  add(B(0.8, 0.5, 0.06), M.soot, x - 0.65, 0.75, f + 0.01); add(B(0.6, 0.3, 0.05), fireMat, x - 0.65, 0.68, f + 0.04);
+  for (let i = 0; i < 4; i++) add(B(0.04, 0.5, 0.05), M.iron, x - 0.95 + i * 0.2, 0.75, f + 0.05);
+  for (const s of [-1, 1]) add(C(0.36, 0.36, 0.05, 16), M.plate, x + s * 0.6, 1.55, z);
+  add(C(0.3, 0.26, 0.45), M.pot, x - 0.6, 1.8, z); add(C(0.31, 0.31, 0.05), M.lid, x - 0.6, 2.04, z);
+  add(C(0.32, 0.28, 0.1), M.iron, x + 0.6, 1.63, z); add(B(0.6, 0.05, 0.08), M.iron, x + 1.2, 1.66, z);
+  const pipe = pipeTop - 1.5; add(C(0.16, 0.16, pipe, 10), M.iron, x + 0.9, 1.5 + pipe / 2, z - 0.45); add(B(2.7, 0.05, 0.05), M.brass, x, 1.25, f + 0.07);
+  return body;
+}
 function house(x, z, w, d, wall, roofCol, rot = 0, furnish = null){
   const g = new THREE.Group();
   const S = HOUSE_SIZE; w = w * S; d = d * S;
@@ -688,15 +707,12 @@ function furnishHome(g, h, w, d, t, rot){
   put(B(1.6, 0.3, 0.8), 0xf4f0e6, bx, 1.2, bz - 1.3); put(B(2.6, 1.6, 0.3), dark, bx, 1.0, BK + 0.15);
   block(bx, bz, 1.3, 1.9);
   h.bed = h.toWorld(bx, bz); h.bedTop = 1.25 * h.k;   // for whoever sleeps in it
-  // the fireplace on the back wall, with a fire and a mantel
+  // the kitchen range against the back wall, its chimney pipe going up behind it
   const fx = R - 2.2;
-  put(B(2.8, 3.4, 1.2), texMat(wallStone, 1, 1.4, 0x9a948a), fx, 1.7, BK + 0.6);
-  put(B(1.6, 1.3, 0.3), 0x1a1410, fx, 0.75, BK + 1.15);
-  put(B(1.0, 0.6, 0.2), fireMat, fx, 0.45, BK + 1.25);
-  put(B(3.2, 0.25, 1.5), dark, fx, 2.2, BK + 0.75);
+  const stove = stoveParts((geo, m, px, py, pz) => put(geo, m, px, py, pz), fx, BK + 0.8);
   block(fx, BK + 0.7, 1.4, 0.8);
-  { const fp = h.toWorld(fx, BK + 1.4), hearth = room.children[room.children.length - 4];
-    hearth.userData = { action: 'Cook', name: 'Fireplace', rec: { kind: 'range', x: fp.x, z: fp.z, s: 0.9, state: 'standing' } }; trees.push(hearth); }
+  { const fp = h.toWorld(fx, BK + 1.4), hearth = stove;
+    hearth.userData = { action: 'Cook', name: 'Range', rec: { kind: 'range', x: fp.x, z: fp.z, s: 0.9, state: 'standing' } }; trees.push(hearth); }
   // a table and two stools on the right, with a candle and a loaf on it
   const tx = R - 2.4, tz = 0.8;
   put(B(2.6, 0.2, 1.6), wood, tx, 1.5, tz);
@@ -1079,13 +1095,9 @@ function hallOverhaul(){
     for (let y = 30; y < 256; y += 40) { g.fillStyle = '#a8342a'; g.beginPath(); g.moveTo(32, y - 12); g.lineTo(44, y); g.lineTo(32, y + 12); g.lineTo(20, y); g.closePath(); g.fill(); }
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   P(new THREE.PlaneGeometry(1.9, 9.2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: runner, roughness: 1 }), 0, 0.075, 0.4, false);
-  // the great hearth in the north wall, with a fire you can cook on
-  const hearth = P(B(3.6, 3.2, 1.2), stoneM(1.4, 1.4, 0xc8b898), 0, 1.6, -4.45, false);
-  P(B(2.2, 1.5, 0.3), M(0x150e08), 0, 0.85, -3.84, false);
-  const fire = P(B(1.4, 0.8, 0.2), fireMat, 0, 0.55, -3.74, false);
-  P(B(4.1, 0.3, 1.5), M(0x5a3a1e), 0, 3.2, -4.3, false);
-  fire.userData = { action: 'Cook', name: 'Hearth', rec: { kind: 'range', x: HALL.x, z: HALL.z - 3.0 * HS, s: 1.2, state: 'standing' } }; trees.push(fire);
-  hearth.userData = fire.userData; trees.push(hearth);
+  // the hall's kitchen range against the north wall, for cooking
+  const fire = stoveParts((geo, m, px, py, pz) => P(geo, m, px, py, pz, false), 0, -4.3, 4.2), hearth = fire;   // the hall's kitchen range, against the north wall
+  fire.userData = { action: 'Cook', name: 'Range', rec: { kind: 'range', x: HALL.x, z: HALL.z - 3.0 * HS, s: 1.2, state: 'standing' } }; trees.push(fire);
   solidBoxes.push(box(-1.8, 1.8, -5.0, -3.8));
   hallLight = new THREE.PointLight(0xff9a40, 2.2, 14, 1.6); hallLight.position.set(0, 1.4, -3.0); H.add(hallLight);
   // tapestries of the village emblem either side of the hearth
