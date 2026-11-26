@@ -215,10 +215,21 @@ async function claimNode(rec){
     return w.ok ? until : null;
   } catch (e) { return null; }
 }
+// a closed browser can't delete its own presence note, so whoever sees a note more than 2 minutes old deletes it:
+// after a short random wait (not every game at once), and only if it hasn't changed since we looked (ETag), so someone who has just come back is never removed
+const SWEPT = {};
+function sweepPresence(id){
+  if (!ONLINE.id || id === ONLINE.id || Date.now() - (SWEPT[id] || 0) < 300000) return; SWEPT[id] = Date.now();
+  setTimeout(async () => {
+    try { const url = `${DB}/adventure/live/players/${id}.json`, r = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } }), tag = r.headers.get('ETag'), cur = await r.json();
+      if (!cur || !tag || !(cur.t && Date.now() - cur.t > 120000)) return;
+      await fetch(url, { method: 'DELETE', headers: { 'If-Match': tag } }); } catch (e) {}
+  }, 2000 + Math.random() * 10000);
+}
 // the other players: a sprite with their look, and their name above it
 function setRemote(id, p){
   if (!p || id === ONLINE.id) return;
-  if (p.t && Date.now() - p.t > 30000) { removeRemote(id); return; }   // a left-behind entry from a closed browser
+  if (p.t && Date.now() - p.t > 30000) { removeRemote(id); sweepPresence(id); return; }   // a left-behind entry from a closed browser (and tidy it out of the database)
   let r = remote[id];
   if (!r) {
     // a join line only after the first list, and not again for someone who was just here (a briefly stale entry is not a new arrival)
@@ -325,7 +336,7 @@ function updateOnline(){
   const t = performance.now();
   for (const id in remote) {
     const r = remote[id];
-    if (t - r.seen > 20000) { removeRemote(id); continue; }   // gone quiet: they have left
+    if (t - r.seen > 20000) { removeRemote(id); setTimeout(() => sweepPresence(id), 130000); continue; }   // gone quiet: they have left (their note is tidied away once it's 2 minutes old)
     const x = r.sprite.position.x, z = r.sprite.position.z;
     const nx = x + (r.tx - x) * 0.25, nz = z + (r.tz - z) * 0.25;
     const moving = Math.hypot(nx - x, nz - z) > 0.01;

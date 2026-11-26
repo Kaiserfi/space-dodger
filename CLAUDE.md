@@ -268,6 +268,11 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. The console still has old top-level copies of players, nodes, event, graves and mobs, so keep them in any rules you hand over. `database.rules.next.json` is the strict step: only your own account writes your save, presence and grave; everything else needs a sign-in. It's not published yet; check with the owner before telling them to publish it.
 - Anything deeper (stopping players editing their own save or one-shotting monsters) needs a server: Cloud Functions on the Blaze plan, checking actions instead of trusting the browser. That's discussed but not started; shops and coins would go first.
 
+### Presence notes
+
+- Each open game writes its note at `adventure/live/players/<id>` every second or two and deletes it on logout. A closed or crashed browser can't, so other games hide any note older than 30 s, and whoever sees one more than 2 minutes old deletes it (`sweepPresence`: a random wait, then an ETag-checked delete, so a player who just came back is never removed). Both the current rules and `database.rules.next.json` allow that delete.
+- Anyone can read `live/players` without signing in (names, positions, chat lines). The stricter rules aren't published yet.
+
 ### Healing other players
 
 - Clicking a bandage opens **Heal / Heal other**. Heal other lists hurt players within 14 units (their health comes from presence, `hp: [cur, max]`). Picking one heals on the spot if they're within 4 units, otherwise you walk up first; aim at their real position (`r.tx/r.tz`), not their sliding figure.
