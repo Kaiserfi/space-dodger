@@ -217,6 +217,50 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - **The key pickup chime** (`caveChime`) also marks every finished puzzle: the bridge, the wall, the braziers, the portcullis, the runes, the glowcap, the great door.
 - **Sound:** made-in-code ambience at 60% of the music volume, from filtered noise and a generated cave echo (`caveReverb`), never tones (the owner found tones "arcade like"): only the deep room rumble underneath (`caveAmbBed`; the owner turned down the wind and a trickle of bubbles), and events timed by `caveAmbTick`: distant and near drips, a spot dripping steadily, pebbles, bats (`caveBats`) and rock shifting (`caveGroan`), and the village music fades out while you're down there. The troll fight plays the boss theme, and the troll's den never plays the ordinary battle theme, not even in the seconds after the troll falls (the cellar had the same bug once). Other cave fights play the usual battle theme. Climbing down shows no message.
 
+### How the cave dungeon is built (for changing or adding to it)
+
+- **Where it lives:** one piece, `345-cave-dungeon.js`, between `340` and `350` (never after `350`: see the build notes). A handful of hooks elsewhere check `CAVE` the way they check `DELVE`:
+  - `findPath` swaps in `CAVE_GRID` for any walk starting at z > 550
+  - `040` lighting, and `updateFightMusic` (village music off, the troll's boss theme)
+  - `clickNode` multi-combat, `sideSwing`, and `playerDies` → `caveDied`
+  - the aggro checks, `noFireHere`, `busyNow`, `sameWorld`, `groundShare` (`inCaveZone`)
+  - saves: `cd: caveSaveP()`, cave items left out of `bag`, `pos` at the mouth
+  - `walkStart` and `cancelChop` call `stopCaveJob`
+  - `questTalk('Hollis')` → `hollisTalk`
+  - the bag click (`caveItemClick`) and `dropItem` (cave items can't be dropped)
+  - `updateCave()` in `frame()`
+- **The layout is data.** `CAVE_ROOMS` (rectangles, each with the name shown in the HUD) and `CAVE_HALLS` (4.4-wide passages that start and end exactly on room edges). `buildCave` makes from them:
+  - the floor: one merged plane mesh, UVs from world position
+  - the walls: solid boxes round each room with gaps where a hall meets it, plus side walls on each hall, and low boulders piled on every wall, merged into one vertex-coloured mesh
+  - corner stalagmites, and torches on the walls, each adding a `LIGHT_SPOTS` entry
+  
+  To add a room: give it a rectangle and a hall whose ends sit on both rooms' edges, then put its things in a block of `buildCave`. A hall's orientation is read from its 4.4 width.
+- **Building blocks** in `buildCave`:
+  - `rock`, `colour` and `merged`: vertex-coloured, merged decoration; keep the draw calls down
+  - `caveBar(mesh, box)`: a door, wall or drop that is a solid box until `.set(true)`; `lift` makes a portcullis rise, otherwise it sinks or hides
+  - `cvClick(obj, action, name, onClick, x, z)`: makes a thing clickable through `rec.onClick`. **It replaces `userData`**, so keep anything stored there (Hollis's `chibi`) and put it back.
+  - `caveKey(...)`: a floating, spinning key you click to take
+- **Doing things:**
+  - `caveGo(x, z, reach, then)` walks to a free side at `reach`, or acts at once if you're already beside it, and refuses ("You can't reach that from here") if the walk ends far away.
+  - `caveWork(x, z, reach, ms, label, pose, done)` is the job with the shared `#smeltBar`. It stops if you walk or get attacked, and poses the hero directly each frame in `caveJobStep`. Poses: `axe`, `pick`, `rod`, `net`, `work`, `plant`, `anvil` (work plus anvil sounds), and `climb` (moves `hero.position.y`, always reset to 0 when the job ends or stops).
+  - `caveNeed(skill, level, what)` gives the "You need X N to ..." toast.
+  - **Every step that gives items checks `bagRoomFor` first** and says "Your bag is full." Nothing in the cave ever goes on the ground.
+- **Progress** is `CAVE_P`, saved as `cd`: plain flags (`k_<room>` for a cleared room, `seal`, `bridge`, `wall`, `door`, `fed`, `glow`, `webs` as a bitmask, the keys `ember`, `iron` and `tide` once taken, `ironMade`), `pl` (the rune stones), `inv` (cave items put away), `done` and `runs`.
+  - `caveSync(entering)` sets every door, key and prop from these flags; call it after any change.
+  - Old saves are converted once in `caveLoadP` (`v: 2`): new fields need a default there.
+  - A flag for something the player holds must be able to recover if the item is lost (the keys reset when missing; the webs reset when no rope can be made; Hollis hands spores over again).
+- **Items:** a new cave item needs a place in `CAVE_ITEMS`, an icon (the `svg` helpers near the top) and a line in `CAVE_ITEM_TEXT`. `caveStash` and `caveUnstash` move them out of the bag and back on leaving and entering, and `caveHas` counts the bag plus what's put away.
+- **Creatures:** `caveSpawn(kind, x, z, room)` (a `MONSTER_TYPES` key, marked `delve` and `cave`). `CAVE_MONS` lists each room's creatures, spawned on entering for rooms not yet cleared. `caveMobs` moves only those in the hero's room, multi-combat. `caveStep` goes straight there when the line is clear, otherwise routes with `findPath` every 0.9 s, and glares from the edge when there's no way round (the chasm goblin). Spawn points must be clear ground (`monsterHit`), never behind braziers or props. A room counts as cleared when all its creatures are down.
+- **Messages:** short toasts when a room is first entered (`caveEnterRoom`) and when a step happens. The HUD is only the room name and the three keys. Every finished puzzle plays `caveChime` (the key pickup sound), and big moments add `caveRumble`.
+- **Traps I hit building it:**
+  - a file placed after `350` vanished from scope
+  - `cvClick` wiped Hollis's `userData.chibi`
+  - a seated chibi already sits at hip height: measure the lowest point (`traverseVisible`) instead of adding the seat's height
+  - the felled tree's bridge gap must be exactly the trunk's width, or players walk on air beside it
+  - creatures spawned behind a brazier got stuck
+  - writing through a database trigger's own `ref` (in functions) opens a second connection, so use one `admin.database()`
+- **Testing:** serve the repo on 8123, then run `tools/tests/cave/run.js`, the whole dungeon end to end (about 10 minutes headless, pictures to `OUT`), and `tools/tests/cave/full-bag.js`. The hook in `tools/tests/cave/hook.js` teleports the hero, calls each puzzle's click function, kills a room's creatures through `killMonster`, renders room pictures, and runs `trollMath` (hit chances on both sides). Headless walking is slow, so the test teleports next to things before each step.
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
