@@ -183,6 +183,15 @@ const trees = [];   // the trees that can be clicked or hovered right now
 const treeRecs = []; // every tree's state, standing or not
 // ----- a tree built from our own shapes: a tapered trunk with root flares and a lumpy, leafy crown -----
 // The crown's vertices are nudged by a hash of their position, so the blobs look uneven but still join up.
+// a tree is one solid thing, so its trunk, roots and leaves are joined into a single mesh coloured per corner (eleven draws become one)
+const TREE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, metalness: 0 });
+function mergeTree(g){
+  const geos = g.children.map(m => { m.updateMatrix(); const q = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); q.applyMatrix4(m.matrix);
+    const n = q.attributes.position.count, col = new Float32Array(n * 3), c = m.material.color; for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    q.setAttribute('color', new THREE.BufferAttribute(col, 3)); return q; });
+  const all = mergeGeometries(geos); if (!all) return;
+  g.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); g.clear(); g.add(new THREE.Mesh(all, TREE_MAT));
+}
 function makeTree(x, z, s = 1, oak = false){
   const g = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.34 * s, 2.8 * s, 7), mat(0x5a3a1e));
@@ -210,6 +219,7 @@ function makeTree(x, z, s = 1, oak = false){
     const m = new THREE.Mesh(geo, mat(greens[i % greens.length]));
     m.position.set(dx * s, (2.5 + dy) * s, dz * s); g.add(m);
   });
+  mergeTree(g);
   g.position.set(x, 0, z);                    // the origin is the base, so the tree falls over from its roots
   g.userData.action = 'Chop'; g.userData.name = oak ? 'Oak tree' : 'Tree';
   const h = Math.max(1, 0.35 * s);   // at least a 2x2 footprint, centred on the tree

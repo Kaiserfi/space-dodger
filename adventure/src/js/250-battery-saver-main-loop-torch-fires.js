@@ -5,6 +5,7 @@ function applyPower(){
   const pr = on ? 1 : Math.min(devicePixelRatio, 2);
   renderer.setPixelRatio(pr); composer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false); composer.setSize(innerWidth, innerHeight);
   bloom.enabled = !on;
+  const half = on ? 24 : 30; Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half }); sun.shadow.camera.updateProjectionMatrix();
   const size = on ? 1024 : 2048; if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
   if (typeof fitView === 'function') fitView();
 }
@@ -62,7 +63,7 @@ function frame(){
   riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
   clouds.rotation.y = now * 0.000006;
   sky.position.copy(camera.position);
-  if (shouldDraw(now)) { if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
+  if (shouldDraw(now)) { farSweep(); if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
   requestAnimationFrame(frame);
 }
 // ----- a held torch: the flame flickers, and at night it lights the ground round you -----
