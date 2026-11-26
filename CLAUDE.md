@@ -286,7 +286,14 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
   - **What it records:** impossible scores in `arcade/flags/<uid>`, and each entry's `secs` (game length), for tightening the caps later.
   - **Rules:** `firebase.json` has no database rules on purpose, so a deploy never publishes them. The emulator config `firebase.emu.json` loads `database.rules.json`.
 - **Done:** the functions are deployed (from the owner's PC, `firebase deploy --only functions`), the arcade posts through them, and the strict rules are published.
-- **Next steps agreed with the owner:** a save watchdog (a function that rolls back impossible jumps in ITAP saves), then server-run coins, shops and trades.
+- **The save watchdog** (`functions/watchdog.js`, `watchSave`, a trigger on `adventure/saves/{uid}`):
+  - **What it does:** compares each save with the last good one (`watch/state/<uid>`: `prev` and `peak`). Coins, per-skill XP or an item count rising past `LIMITS` (a burst plus a rate per second, with the gap between saves capped at 2 minutes) are put back, the save is rewritten, and the account is flagged in `watch/flags/<uid>`.
+  - **Generous on purpose:** losses are always fine, climbing back to your own `peak` is always fine (a gravestone, XP the cellar took), and an account's first save is just noted.
+  - **The player's side:** a correction sets `adventure/live/wd/<uid>`, and the game reloads its save (`watchdogFix`, through `liveFeed('wd')`, handled once each with `itapWd`), so an honest player never gets stuck re-sending a turned-down value.
+  - **Owner's exemption:** `watch/trust/<uid> = true` skips an account, for example after giving coins by hand.
+  - **Tested:** `tools/tests/emulator/watchdog.js`; `itap.js` checks normal play raises no flags.
+  - **Raise the limits, don't lower them,** if a real reward or feature is ever bigger than `LIMITS` allows.
+- **Next step discussed with the owner:** server-run coins, shops and trades, if trading grows.
 
 ### Presence notes
 
