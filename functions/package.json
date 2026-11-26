@@ -1,0 +1,11 @@
+{
+  "name": "space-dodger-functions",
+  "description": "Server checks for the arcade leaderboards (see functions/README.md)",
+  "private": true,
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.4.0"
+  }
+}
