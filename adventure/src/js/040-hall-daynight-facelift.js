@@ -99,12 +99,12 @@ const NIGHT_GROUND = new THREE.Color(0x4a5a2a), NIGHT_GROUND_TO = new THREE.Colo
 const nightLights = [];
 let stars = null, moon = null, DAY = { light: 1, night: 0 };
 function updateDayNight(){
-  const h = DELVE ? 0 : hourNow(), RISE = 6, SET = 19.5;   /* always dark in the cellar, lit by its braziers */
+  const h = DELVE || CAVE ? 0 : hourNow(), RISE = 6, SET = 19.5;   /* always dark in the cellar, lit by its braziers */
   const dayFrac = (h - RISE) / (SET - RISE), up = dayFrac >= 0 && dayFrac <= 1;
   const elev = up ? Math.sin(Math.PI * dayFrac) : -Math.sin(Math.PI * (((h - SET) + 24) % 24) / (24 - (SET - RISE)));
   const light = THREE.MathUtils.smoothstep(elev, -0.08, 0.3), night = 1 - THREE.MathUtils.smoothstep(elev, -0.1, 0.25), dusk = Math.max(0, 1 - Math.abs(elev) / 0.3);
   DAY = { light, night };
-  const nb = DELVE ? 0 : night;   /* the brighter moonlit night up top; the Root Cellar stays as dark as ever */
+  const nb = DELVE ? 0 : CAVE ? 0.7 : night;   /* the cave: dark, but a touch less than the cellar */   /* the brighter moonlit night up top; the Root Cellar stays as dark as ever */
   // the sun (or, at night, the moon) travels from east to west across the southern sky
   const f = up ? dayFrac : (((h - SET) + 24) % 24) / (24 - (SET - RISE));
   const dir = new THREE.Vector3(Math.cos(Math.PI * f), Math.max(0.12, Math.abs(Math.sin(Math.PI * f))), 0.45).normalize();
@@ -113,11 +113,11 @@ function updateDayNight(){
   sun.intensity = up ? 0.3 + 1.8 * light : 0.35;
   if (nb > 0.5 && sun.intensity < 1) { sun.intensity = 0.35 + 0.85 * nb; sun.color.set(0xb0c4f0); }   /* moonlight */
   const bk = (SETTINGS.bright - 50) / 100;   // the brightness setting, -0.5 to +0.5: mostly lifts the dark, barely touches the day
-  hemi.intensity = 0.18 + 0.72 * light + nb * 0.38 + night * 1.4 * Math.max(0, bk); hemi.color.set(light > 0.3 ? 0xdff0ff : (DELVE ? 0x6a80b0 : 0x7890d0));
+  hemi.intensity = 0.18 + 0.72 * light + nb * 0.38 + night * 1.4 * Math.max(0, bk); hemi.color.set(light > 0.3 ? 0xdff0ff : (DELVE || CAVE ? 0x6a80b0 : 0x7890d0));
   hemi.groundColor.copy(NIGHT_GROUND).lerp(NIGHT_GROUND_TO, nb);
   renderer.toneMappingExposure = (0.85 + 0.2 * light) * (1 + bk * (0.25 + 0.45 * night)) * (1 + 0.15 * nb);
   // sky colours: day, sunset and night, blended
-  const NS = DELVE ? SKY.cellar : SKY.night, c = (i) => _skyA.set(NS[i]).lerp(_skyB.set(SKY.day[i]), light).lerp(_skyB.set(SKY.dusk[i]), dusk * 0.7);
+  const NS = DELVE || CAVE ? SKY.cellar : SKY.night, c = (i) => _skyA.set(NS[i]).lerp(_skyB.set(SKY.day[i]), light).lerp(_skyB.set(SKY.dusk[i]), dusk * 0.7);
   skyMat.uniforms.top.value.copy(c(0)); skyMat.uniforms.mid.value.copy(c(1)); skyMat.uniforms.bot.value.copy(c(2));
   skyMat.uniforms.sunDir.value.copy(dir); skyMat.uniforms.sunCol.value.setRGB(1, 0.85, 0.6).multiplyScalar(up ? 1 : 0.15);
   scene.fog.color.copy(c(2)); scene.background.copy(c(2));
@@ -146,7 +146,7 @@ function updateDayNight(){
     spots.sort((a, b) => a.d - b.d);
     nightLights.forEach((L, i) => { const sp = spots[i]; L.follow = sp && sp.follow || null; if (sp && sp.p) L.position.set(sp.p[0], sp.p[1], sp.p[2]); }); }
   for (const L of nightLights) if (L.follow) L.position.set(L.follow.position.x, 2.6, L.follow.position.z);   // a carried torch's light moves with them
-  nightLights.forEach(L => { L.distance = DELVE ? 13 : 18; L.intensity = (DELVE ? 6 : 9) * night * (0.92 + Math.random() * 0.08); });
+  nightLights.forEach(L => { L.distance = DELVE ? 13 : CAVE ? 15 : 18; L.intensity = (DELVE ? 6 : CAVE ? 7 : 9) * night * (0.92 + Math.random() * 0.08); });
 }
 // ----- the hall's facelift: warm cut stone, buttresses, an arched doorway, glowing windows, a bell tower,
 // village banners waving outside, and a proper great hall inside (built once the emblem drawing is ready)

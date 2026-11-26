@@ -10,7 +10,7 @@ function applyPower(){
 }
 for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown']) addEventListener(ev, () => { POWER.input = performance.now(); }, { passive: true });
 // is anything happening that's worth drawing smoothly?
-function busyNow(now){ return now - POWER.input < 2500 || walkTarget || FIGHT || chop.rec || smelting || cooking || smithing || fishing || farmBusy || milling || spinning || bandaging || (typeof DELVE !== 'undefined' && DELVE) || Object.keys(remote).length > 0 && Object.values(remote).some(r => Math.hypot(r.tx - r.sprite.position.x, r.tz - r.sprite.position.z) > 0.05); }
+function busyNow(now){ return now - POWER.input < 2500 || walkTarget || FIGHT || chop.rec || smelting || cooking || smithing || fishing || farmBusy || milling || spinning || bandaging || (typeof DELVE !== 'undefined' && DELVE) || CAVE || Object.keys(remote).length > 0 && Object.values(remote).some(r => Math.hypot(r.tx - r.sprite.position.x, r.tz - r.sprite.position.z) > 0.05); }
 function shouldDraw(now){
   if (!SETTINGS.saver) return true;
   const gap = busyNow(now) ? 33 : 66;   // about 30 a second while something's happening, 15 when all is still
@@ -42,7 +42,7 @@ function frame(){
   updateFightMusic();
   updateBonfire();
   growCrops();
-  updateCellar(); updateDelve();
+  updateCellar(); updateDelve(); updateCave();
   updateTrade();
   updateFarmPose();
   updateMilling(); updateSpinning(); updateBandage(); updateGround(); renderPartyFrames();
@@ -84,7 +84,7 @@ const FIRES = [], FIRE_MS = 90000, FIRE_LIGHT_MS = 1600;
 let lighting = null;   // { o, t0, x, z }: the tinderbox at work
 const fireUrl = key => `${DB}/adventure/live/fires/${key}.json`;
 function noFireHere(x, z){
-  if (DELVE) return "You can't light a fire down here.";
+  if (DELVE || CAVE) return "You can't light a fire down here.";
   if (waterSD(x, z) < 1.2) return "You can't light a fire here.";
   const inside = houses.some(h => Math.abs(x - h.x) < h.hw + 0.4 && Math.abs(z - h.z) < h.hd + 0.4) || (Math.abs(x - HALL.x) < 8 * HS && Math.abs(z - HALL.z) < 7 * HS)
     || (x > BARRACKS.x0 && x < BARRACKS.jx1 && z > BARRACKS.z0 && z < BARRACKS.z1) || (Math.abs(x - FISH_SHACK.x) < 4.5 && Math.abs(z - FISH_SHACK.z) < 3.5);

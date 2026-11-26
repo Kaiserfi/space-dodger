@@ -5,7 +5,7 @@ const GROUND = [], GROUND_MS = 180000, GROUND_MOB_MS = 120000, GROUND_PRIV = 600
 let groundK = 0;
 const groundUrl = key => `${DB}/adventure/live/ground/${key}.json`;
 function groundShare(gi){
-  if (!ONLINE.id || inDelveZone(gi.x, gi.z)) return;
+  if (!ONLINE.id || inDelveZone(gi.x, gi.z) || inCaveZone(gi.x, gi.z)) return;
   fetch(groundUrl(gi.key), { method: 'PUT', body: JSON.stringify({ n: gi.name, q: gi.qty, x: +gi.x.toFixed(2), z: +gi.z.toFixed(2), by: gi.by, pub: gi.pub, until: gi.until }) })
     .then(res => { if (res.ok) gi.shared = true; }).catch(() => {});
 }

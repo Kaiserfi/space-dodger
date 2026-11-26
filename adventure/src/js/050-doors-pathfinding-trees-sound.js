@@ -66,8 +66,11 @@ const cellFree = (ix, iz) => !blocked(cellX(ix), cellZ(iz));
 function monsterHit(x, z){ const r = 0.7; return boxesNear(x, z).some(b => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r); }
 function hardHit(x, z){ return boxesNear(x, z).some(bx => x > bx.x0 - 0.05 && x < bx.x1 + 0.05 && z > bx.z0 - 0.05 && z < bx.z1 + 0.05); }   // overlapping a box, with only a hair of tolerance
 // A* over the grid. If the target cannot be reached, the route goes to the reachable cell nearest to it.
+let CAVE = null;   // the cave dungeon while you're in it (345-cave-dungeon)
 function findPath(fromV, toV){
   if (DELVE) { let x = toV.x - DELVE_C.x, z = toV.z - DELVE_C.z; const d = Math.hypot(x, z), m = DELVE_C.pit - 1.2; if (d > m) { x *= m / d; z *= m / d; } return [{ x: fromV.x, z: fromV.z }, { x: DELVE_C.x + x, z: DELVE_C.z + z }]; }
+  if (fromV.z > 550 && !PATH.cave) { const keep = { X0: PATH.X0, Z0: PATH.Z0, NX: PATH.NX, NZ: PATH.NZ };   /* down in the cave: its own smaller grid */
+    Object.assign(PATH, CAVE_GRID, { cave: true }); try { return findPath(fromV, toV); } finally { Object.assign(PATH, keep, { cave: false }); } }
   const { NX, NZ } = PATH;
   const sx = Math.round((fromV.x - PATH.X0) / PATH.C), sz = Math.round((fromV.z - PATH.Z0) / PATH.C);
   const gx = Math.min(NX - 1, Math.max(0, Math.round((toV.x - PATH.X0) / PATH.C)));
@@ -118,6 +121,7 @@ function walkStart(point, then, replan = false){
   }
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   if (!replan && typeof stopLighting === 'function') stopLighting();
+  if (!replan && typeof stopCaveJob === 'function') stopCaveJob();   /* walking off stops a job in the cave */
   unstick();
   const path = findPath(hero.position, point);
   if (!replan) walkTries = 0;   // a new click starts with fresh re-plans
