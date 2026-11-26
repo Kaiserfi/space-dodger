@@ -10,6 +10,11 @@ The arcade's leaderboards are written only by the server, never by a browser:
 
 A score that's impossible for its game's length is turned down and recorded in `arcade/flags/<uid>`.
 
+**The save watchdog** (`watchdog.js`, `watchSave`) runs every time an ITAP save is written.
+- **What it checks:** if coins, a skill's XP or an item jumped further than real play allows in the time since the last save, it puts them back to the last good values and records the account in `watch/flags/<uid>`. The player's game reloads the corrected save.
+- **What it always allows:** losses, and climbing back to your own best. An account's first save is just noted.
+- **Exempting an account:** add `watch/trust/<uid> = true`, for example before giving someone coins by hand in the console, or the watchdog will take them back.
+
 The name filter in `filter.js` is copied from `index.html` and `word-filter.js` by `node tools/build-functions.js`. Don't edit it by hand: the build check fails if it's out of date.
 
 ## Deploying (from your own computer)
@@ -38,11 +43,11 @@ The first deploy may ask to turn on some Google Cloud services (Cloud Functions,
 
 In the Firebase console, open Realtime Database, add a child `banned` at the top level if it isn't there, and under it add the player's account id with the value `true`. Their id is the key of their entry in `adventure/live/players` or `adventure/saves`, or the `uid` on their leaderboard entries.
 
-With the strict rules published (`database.rules.next.json`), a banned account can't save, show up online, or write anything. The server also refuses its scores.
+With the rules in `database.rules.json` (published), a banned account can't save, show up online, or write anything. The server also refuses its scores.
 
 ## Testing against the emulators
 
-Nothing here touches the live project. Download the Firebase CLI into a scratch folder and start the emulators from the repository's top folder with the test config (`firebase.emu.json`, which loads `database.rules.next.json`):
+Nothing here touches the live project. Download the Firebase CLI into a scratch folder and start the emulators from the repository's top folder with the test config (`firebase.emu.json`, which loads `database.rules.json`):
 
 ```bash
 firebase emulators:start --config firebase.emu.json --project space-dodger-1a558
@@ -51,7 +56,8 @@ firebase emulators:start --config firebase.emu.json --project space-dodger-1a558
 Then serve the repository on port 8123 and run the tests:
 - `tools/tests/emulator/rules.js`: the rules and both functions, directly
 - `tools/tests/emulator/arcade.js`: the arcade page
-- `tools/tests/emulator/itap.js`: ITAP Adventure with two players
+- `tools/tests/emulator/itap.js`: ITAP Adventure with two players, including a faked-coins check
+- `tools/tests/emulator/watchdog.js`: the save watchdog
 
 The tests rewrite every live Firebase address to the emulators and abort anything still aimed at the live project.
 

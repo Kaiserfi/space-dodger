@@ -277,28 +277,33 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 
 - **Every browser signs in anonymously** to Firebase Auth through the REST API (`signIn`, `FB_KEY` is the project's public web key). The refresh token is in `itapAuth` and renewed every 45 minutes, and the live stream reopens with the new token (also on `auth_revoked`). A `fetch` wrapper adds `?auth=` to every database request, and `ONLINE.id` is the account's uid.
 - **Old saves move once:** the first load claims `adventure/claimed/<old id>` (write-once) and copies `saves/<old id>` to `saves/<uid>`. If that fails, the player keeps the old id for that session and it tries again (`itapOld`).
-- **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. `database.rules.next.json` is the strict set, tested against the emulators. Not published yet:
+- **The rules** (`database.rules.json`, published by the owner on 26 November 2026, checked live afterwards):
   - only your own account writes your save, presence and grave; everything else needs a sign-in
   - every write is refused for an account listed in `banned/<uid>`
   - the arcade boards (`scores`, `snake`, `crawler`) are written only by the server
   - `arcade/` and `banned/` are closed to browsers
   - the old top-level copies are read-only
   
-  The order matters:
-  1. the owner deploys the functions
-  2. the arcade page change (which posts scores through them) is merged
-  3. the owner publishes the strict rules
+  To change them, edit `database.rules.json`, test with the emulators (`tools/tests/emulator/`), and give the owner the whole file to paste into the console. Their console now matches this file.
 - **A save may have no `bag`:** Firebase drops an empty list, so rules must never require one (a `hasChildren(['bag', ...])` rule once refused every save with an empty bag, caught in the emulator test before it was published).
 - **The server (`functions/`, Cloud Functions, the owner is on the Blaze plan):** `arcadeStart` / `arcadeSubmit`; see `functions/README.md` for deploying, banning and the emulator tests.
   - **What it checks:** a server-timed run, and a score cap per game per second (`GAMES`, generous for 240 Hz screens, where the games run faster). Names belong to the first account that posts them (`arcade/names`). The name filter is copied from `index.html` and `word-filter.js` into `functions/filter.js` by `tools/build-functions.js`; CI checks the copy.
   - **What it records:** impossible scores in `arcade/flags/<uid>`, and each entry's `secs` (game length), for tightening the caps later.
-  - **Rules:** `firebase.json` has no database rules on purpose, so a deploy never publishes them. The emulator config `firebase.emu.json` loads `database.rules.next.json`.
-- **Next steps agreed with the owner:** a save watchdog (a function that rolls back impossible jumps in ITAP saves), then server-run coins, shops and trades.
+  - **Rules:** `firebase.json` has no database rules on purpose, so a deploy never publishes them. The emulator config `firebase.emu.json` loads `database.rules.json`.
+- **Done:** the functions are deployed (from the owner's PC, `firebase deploy --only functions`), the arcade posts through them, and the strict rules are published.
+- **The save watchdog** (`functions/watchdog.js`, `watchSave`, a trigger on `adventure/saves/{uid}`):
+  - **What it does:** compares each save with the last good one (`watch/state/<uid>`: `prev` and `peak`). Coins, per-skill XP or an item count rising past `LIMITS` (a burst plus a rate per second, with the gap between saves capped at 2 minutes) are put back, the save is rewritten, and the account is flagged in `watch/flags/<uid>`.
+  - **Generous on purpose:** losses are always fine, climbing back to your own `peak` is always fine (a gravestone, XP the cellar took), and an account's first save is just noted.
+  - **The player's side:** a correction sets `adventure/live/wd/<uid>`, and the game reloads its save (`watchdogFix`, through `liveFeed('wd')`, handled once each with `itapWd`), so an honest player never gets stuck re-sending a turned-down value.
+  - **Owner's exemption:** `watch/trust/<uid> = true` skips an account, for example after giving coins by hand.
+  - **Tested:** `tools/tests/emulator/watchdog.js`; `itap.js` checks normal play raises no flags.
+  - **Raise the limits, don't lower them,** if a real reward or feature is ever bigger than `LIMITS` allows.
+- **Next step discussed with the owner:** server-run coins, shops and trades, if trading grows.
 
 ### Presence notes
 
-- Each open game writes its note at `adventure/live/players/<id>` every second or two and deletes it on logout. A closed or crashed browser can't, so other games hide any note older than 30 s, and whoever sees one more than 2 minutes old deletes it (`sweepPresence`: a random wait, then an ETag-checked delete, so a player who just came back is never removed). Both the current rules and `database.rules.next.json` allow that delete.
-- Anyone can read `live/players` without signing in (names, positions, chat lines). The stricter rules aren't published yet.
+- Each open game writes its note at `adventure/live/players/<id>` every second or two and deletes it on logout. A closed or crashed browser can't, so other games hide any note older than 30 s, and whoever sees one more than 2 minutes old deletes it (`sweepPresence`: a random wait, then an ETag-checked delete, so a player who just came back is never removed). The rules allow that delete (by anyone signed in, for a note over a minute old).
+- Anyone can read `live/players` without signing in (names, positions, chat lines), as the game needs; only writing is locked down.
 
 ### Healing other players
 

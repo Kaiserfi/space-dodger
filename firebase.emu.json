@@ -26,6 +26,6 @@
     "singleProjectMode": true
   },
   "database": {
-    "rules": "database.rules.next.json"
+    "rules": "database.rules.json"
   }
 }

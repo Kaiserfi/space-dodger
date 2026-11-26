@@ -14,6 +14,9 @@ const { badName, nameKey } = require('./filter');
 admin.initializeApp({ databaseURL: 'https://space-dodger-1a558-default-rtdb.firebaseio.com' });   /* named outright, so the emulator uses the same database too */
 setGlobalOptions({ region: 'us-central1', maxInstances: 5 });
 
+// the ITAP save watchdog (see watchdog.js)
+exports.watchSave = require('./watchdog').watchSave;
+
 // each game: its board in the database, the most points a second of play could give, and a head start for bonuses
 const GAMES = {
   scores: { perSec: 6000, base: 2000 },   // Space Dodger

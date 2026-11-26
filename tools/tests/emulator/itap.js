@@ -21,7 +21,8 @@ const HOOK = `window.__t = { ready: () => ONLINE.ready, id: () => ONLINE.id,
   heal: id => { const r = remote[id]; fetch(DB + '/adventure/live/mobs/_heals/' + id + '.json', { method: 'POST', body: JSON.stringify({ amt: 2, by: ONLINE.id, t: Date.now() }) }); return !!r; },
   remotes: () => Object.values(remote).map(r => r.name),
   mobFight: () => { const m = MONSTERS.find(q => q.sid !== undefined); mobClaim(m); return m.sid; },
-  logout: () => { logOut(); return true; } };`;
+  logout: () => { logOut(); return true; },
+  coins: () => COINS, cheat: () => { COINS += 999999; saveNow(false); return COINS; }, fix: at => { watchdogFix(at); return true; } };`;
 async function player(b, name){
   const ctx = await b.newContext(), p = await ctx.newPage(), refused = [];
   await ctx.route(LIVE, r => { console.log('BLOCKED live request', r.request().url().slice(0, 90)); return r.abort(); });
@@ -64,6 +65,10 @@ async function player(b, name){
   console.log('   Anna sees:', JSON.stringify(await A.t('remotes')), '| Ben sees:', JSON.stringify(await B.t('remotes')));
   await A.t('invite', idb); await A.p.waitForTimeout(3000); const inv = await admin('adventure/live/parties'); check(inv && Object.keys(inv).length, 'a party invite is written', inv && Object.keys(inv));
   await B.t('logout'); await A.p.waitForTimeout(4000); const pres2 = await admin('adventure/live/players'); check(pres2 && !pres2[idb], 'logging out removes Ben from online', pres2 && Object.keys(pres2));
+  const flags0 = await admin('watch/flags'); check(!flags0, 'normal play raised no watchdog flags', flags0);
+  const before = await A.t('coins'); await A.t('cheat'); await A.p.waitForTimeout(4000);
+  const sv = await admin('adventure/saves/' + ida), wd = await admin('adventure/live/wd/' + ida); check(sv.co === before && typeof wd === 'number', 'faked coins in the game are put back on the server', { saved: sv.co, before });
+  await A.t('fix', wd); await A.p.waitForTimeout(3000); check(await A.t('coins') === before, "and the player's game reloads the corrected save", await A.t('coins'));
   for (const P of [A, B]) check(!P.refused.length, `${P.name}: nothing the game sent was refused by the rules`, P.refused);
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
   await A.ctx.close(); await B.ctx.close(); await b.close();
