@@ -18,27 +18,6 @@ function shouldDraw(now){
   POWER.last = now; return true;
 }
 window.__powerReady = true; applyPower();
-// floating pollen and fireflies drifting around the player
-const MOTES = 160;
-const moteGeo = new THREE.BufferGeometry();
-const moteBase = new Float32Array(MOTES * 3), motePos = new Float32Array(MOTES * 3);
-for (let i = 0; i < MOTES; i++) { moteBase[i * 3] = (Math.random() - 0.5) * 50; moteBase[i * 3 + 1] = 0.5 + Math.random() * 6; moteBase[i * 3 + 2] = (Math.random() - 0.5) * 50; }
-moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
-const moteTex = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 32; const g = cv.getContext('2d');
-  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,250,210,1)'); gr.addColorStop(1, 'rgba(255,250,210,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(cv); })();
-const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: moteTex, size: 0.35, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xfff2b0 }));
-motes.frustumCulled = false; scene.add(motes);
-function updateMotes(now){
-  const t = now * 0.001;
-  for (let i = 0; i < MOTES; i++) {
-    const bx = moteBase[i * 3], bz = moteBase[i * 3 + 2];
-    let x = bx + Math.sin(t * 0.3 + i) * 1.5, z = bz + Math.cos(t * 0.25 + i * 1.7) * 1.5;
-    x = ((x - target.x + 25) % 50 + 50) % 50 - 25 + target.x; z = ((z - target.z + 25) % 50 + 50) % 50 - 25 + target.z;
-    motePos[i * 3] = x; motePos[i * 3 + 1] = moteBase[i * 3 + 1] + Math.sin(t * 0.8 + i * 3.1) * 0.4; motePos[i * 3 + 2] = z;
-  }
-  moteGeo.attributes.position.needsUpdate = true;
-}
 function frame(){
   updateWalk();
   updateSmelt();
@@ -83,7 +62,7 @@ function frame(){
   riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
   clouds.rotation.y = now * 0.000006;
   sky.position.copy(camera.position);
-  if (shouldDraw(now)) { updateMotes(now); if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
+  if (shouldDraw(now)) { if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
   requestAnimationFrame(frame);
 }
 // ----- a held torch: the flame flickers, and at night it lights the ground round you -----

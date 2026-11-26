@@ -55,11 +55,10 @@ function makeFarmMonster(kind){
       else if (mode === 'ready') { H.rotation.x = 0.3; L[0].rotation.x = Math.max(0, Math.sin(now * 5)) * -0.4; }   // head lowered, pawing the ground
       else { H.rotation.x = 0.35 + Math.sin(now * 0.8) * 0.15; } };   // grazing
     g.scale.setScalar(1.05);
-  } else if (kind === 'rat') {   // a giant rat: mangy dark grey, hunched, glowing red eyes, bared teeth and a long pink tail
+  } else if (kind === 'rat') {   // a giant rat: dark grey, hunched, glowing red eyes, bared teeth and a long pink tail
     const body = new THREE.Group(); g.add(body); parts.body = body;
     P(body, gRound(0.55, 16), 0x4a4a50, 0, 0.62, 0).scale.set(1, 0.82, 1.55);
     P(body, gRound(0.4, 12), 0x55555c, 0, 0.92, -0.2).scale.set(1, 0.8, 1.3);   // the hunched back
-    for (const [x, y, z] of [[0.48, 0.75, 0.1], [-0.3, 1.05, -0.35], [0.35, 0.6, -0.55]]) P(body, gRound(0.12, 8), 0x9a4a3a, x, y, z, false).scale.set(0.5, 1, 1.4);   // wounds
     const head = new THREE.Group(); head.position.set(0, 0.7, 0.85); body.add(head); parts.head = head;
     P(head, geo('ratSnout', () => new THREE.ConeGeometry(0.3, 0.75, 10)), 0x4e4e55, 0, 0, 0.3).rotation.x = Math.PI / 2;
     P(head, gRound(0.06, 8), 0xd88a8a, 0, 0, 0.68, false);
