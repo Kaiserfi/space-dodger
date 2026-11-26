@@ -108,7 +108,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   ray.setFromCamera(ndc, camera);
   const hit = new THREE.Vector3();
   if (ray.intersectObject(doorMesh, false).length) { clickMark(e.clientX, e.clientY, true); if (doorOpen) closeDoor(); else useDoor(); return; }
-  const treeHit = ray.intersectObjects(trees, true)[0];
+  const treeHit = liveHit(ray.intersectObjects(trees, true));
   if (treeHit) {
     let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
     if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
@@ -188,6 +188,20 @@ function resetTouches(){ touches.clear(); twoFingers = false; }
 addEventListener('orientationchange', () => { resetTouches(); fitView(); setTimeout(fitView, 250); setTimeout(fitView, 700); });
 addEventListener('visibilitychange', resetTouches);
 if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
+/* the first thing under the pointer that is really there. The ray also finds hidden objects, so a fallen monster waiting to
+   respawn (hidden, not removed) kept saying "Attack" and swallowed clicks on the ground where it fell. Hidden objects are skipped
+   (invisible click targets hide only their material, so they still count), and so are monsters that are dying or dead. */
+function liveHit(hits){
+  for (const h of hits) {
+    let shown = true, g = null;
+    for (let a = h.object; a; a = a.parent) { if (!a.visible) { shown = false; break; } if (!g && a.userData && (a.userData.action || a.userData.rec)) g = a; }
+    if (!shown) continue;
+    const rec = g && g.userData.rec;
+    if (rec && rec.kind === 'monster' && (rec.state === 'dying' || rec.state === 'dead')) continue;
+    return h;
+  }
+  return null;
+}
 // hovering the door says what a click does, as in the classic game
 const tip = document.getElementById('tip');
 renderer.domElement.addEventListener('pointermove', e => {
@@ -198,7 +212,7 @@ renderer.domElement.addEventListener('pointermove', e => {
     ray.setFromCamera(ndc, camera);
     if (ray.intersectObject(doorMesh, false).length > 0) label = { name: 'Door', action: doorOpen ? 'Close' : 'Open' };
     else {
-      const hit = ray.intersectObjects(trees, true)[0];
+      const hit = liveHit(ray.intersectObjects(trees, true));
       if (hit) { let g = hit.object; while (g && !g.userData.action) g = g.parent; if (g) label = { name: g.userData.name, action: g.userData.action }; }
     }
   }
