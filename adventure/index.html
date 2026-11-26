@@ -7969,7 +7969,7 @@ function updateBandage(){
   const who = updateBandage.who; updateBandage.who = null;
   if (who) {   /* someone else: send them the heal; their game adds it */
     const r = remote[who]; fetch(`${DB}/adventure/live/mobs/_heals/${who}.json`, { method: 'POST', body: JSON.stringify({ a: BANDAGE_HEAL, by: ONLINE.name, t: Date.now() }) }).catch(() => {});
-    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal'); if (DELVE && DELVE.party) DELVE.heal = (DELVE.heal || 0) + gain;   /* what they'll really gain, the same number they see */ bandageChime(); addXp('Crafting', 10);
+    if (ONLINE.act && ONLINE.act.k === 'heal') setAct(null); const gain = r && r.hp ? Math.max(0, Math.min(BANDAGE_HEAL, r.hp[1] - r.hp[0])) : BANDAGE_HEAL; if (r) hitsplat(r.sprite, gain, 'heal'); if (DELVE && DELVE.party) DELVE.heal = (DELVE.heal || 0) + gain;   /* what they'll really gain, the same number they see */ bandageChime();
     showToast(`You bandage ${r ? r.name : 'them'} up.  +10 Crafting XP`); saveNow(false); return; }
   const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + BANDAGE_HEAL); renderStats();
   if (ONLINE.act && ONLINE.act.k === 'heal') setAct(FIGHT ? fightAct(FIGHT.m) : null);
