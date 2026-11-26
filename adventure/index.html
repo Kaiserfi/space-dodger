@@ -317,7 +317,12 @@ const LOOK = [
   {key: 'hair', label: 'Hair', values: [{id: 'short', label: 'Short'}, {id: 'long', label: 'Long'}, {id: 'topknot', label: 'Top knot'}, {id: 'ponytail', label: 'Ponytail'}, {id: 'pigtails', label: 'Pigtails'}, {id: 'bob', label: 'Bob'}, {id: 'braid', label: 'Braid'}, {id: 'spacebuns', label: 'Space buns'}, {id: 'mouseears', label: 'Mouse ears'}, {id: 'lowbun', label: 'Low bun'}, {id: 'waves', label: 'Long waves'}, {id: 'halfup', label: 'Half-up with bow'}, {id: 'spiky', label: 'Spiky'}, {id: 'curly', label: 'Curly'}, {id: 'middlepart', label: 'Middle part'}, {id: 'pompadour', label: 'Pompadour'}, {id: 'fauxhawk', label: 'Faux hawk'}, {id: 'frcrop', label: 'French crop'}, {id: 'longloose', label: 'Long and loose'}, {id: 'buzz', label: 'Buzz cut'}, {id: 'bald', label: 'Bald'}]},
   {key: 'hairCol', label: 'Hair colour', values: [{id: 0x4a2a14, label: 'Brown'}, {id: 0x2e1a0e, label: 'Dark brown'}, {id: 0x1a1a1a, label: 'Black'}, {id: 0xe0c070, label: 'Blonde'}, {id: 0xd9a066, label: 'Strawberry'}, {id: 0x8a4a22, label: 'Auburn'}, {id: 0xa03a1e, label: 'Red'}, {id: 0x9a9aa0, label: 'Grey'}, {id: 0xeeeeee, label: 'White'}, {id: 0x3a6ad0, label: 'Blue'}, {id: 0xe070b0, label: 'Pink'}, {id: 0x3a9a5a, label: 'Green'}, {id: 0x7a4ac0, label: 'Purple'}]},
   {key: 'eye', label: 'Eyes', values: [{id: 0x1e1a2a, label: 'Dark'}, {id: 0x5a3418, label: 'Brown'}, {id: 0x2a5ab0, label: 'Blue'}, {id: 0x2a8a4a, label: 'Green'}, {id: 0x7a6a2a, label: 'Hazel'}, {id: 0x6a7a8a, label: 'Grey'}]},
-  {key: 'cheeks', label: 'Cheeks', values: [{id: 'auto', label: 'Natural'}, {id: 'rosy', label: 'Rosy'}, {id: 'none', label: 'Plain'}]},
+  {key: 'cheeks', label: 'Cheeks', values: [{id: 'auto', label: 'Natural'}, {id: 'rosy', label: 'Rosy'}, {id: 'lines', label: 'Blush lines'}, {id: 'none', label: 'Plain'}]},
+  {key: 'brows', label: 'Eyebrows', values: [{id: 'none', label: 'None'}, {id: 'soft', label: 'Soft'}, {id: 'straight', label: 'Straight'}, {id: 'bold', label: 'Bold'}, {id: 'worried', label: 'Worried'}]},
+  {key: 'eyeShape', label: 'Eye shape', values: [{id: 'round', label: 'Round'}, {id: 'lashes', label: 'Lashes'}, {id: 'sparkle', label: 'Sparkle'}, {id: 'sleepy', label: 'Sleepy'}, {id: 'happy', label: 'Happy'}, {id: 'wink', label: 'Wink'}]},
+  {key: 'mouth', label: 'Mouth', values: [{id: 'smile', label: 'Smile'}, {id: 'grin', label: 'Grin'}, {id: 'open', label: 'Open'}, {id: 'cat', label: 'Cat'}, {id: 'smirk', label: 'Smirk'}, {id: 'tongue', label: 'Tongue out'}]},
+  {key: 'nose', label: 'Nose', values: [{id: 'none', label: 'None'}, {id: 'button', label: 'Button'}, {id: 'dot', label: 'Dot'}, {id: 'line', label: 'Line'}]},
+  {key: 'freckles', label: 'Freckles', values: [{id: 'none', label: 'None'}, {id: 'some', label: 'Freckles'}]},
   {key: 'shirt', label: 'Top', values: [{id: 0x3d6fb8, label: 'Blue'}, {id: 0x3f8f4f, label: 'Green'}, {id: 0x8c2f2f, label: 'Red'}, {id: 0x7a5a2a, label: 'Brown'}, {id: 0x8a8f98, label: 'Grey'}, {id: 0xd8b040, label: 'Yellow'}, {id: 0x6a3a8a, label: 'Purple'}, {id: 0x2a8a8a, label: 'Teal'}, {id: 0xe8e4d8, label: 'White'}, {id: 0x2a2a30, label: 'Black'}, {id: 0xd8703a, label: 'Orange'}, {id: 0xd87aa0, label: 'Pink'}]},
   {key: 'pants', label: 'Trousers', values: [{id: 0x5c4a2a, label: 'Brown'}, {id: 0x2a3a5c, label: 'Navy'}, {id: 0x3a3a3a, label: 'Charcoal'}, {id: 0x6a4a8a, label: 'Plum'}, {id: 0x1e1e22, label: 'Black'}, {id: 0x7a7a80, label: 'Grey'}, {id: 0x3a5a2a, label: 'Green'}, {id: 0xb09a6a, label: 'Tan'}, {id: 0x3a5a9a, label: 'Blue'}, {id: 0x7a2a2a, label: 'Red'}]},
   {key: 'outfit', label: 'Outfit', only: 'female', values: [{id: 'none', label: 'Skirt'}, {id: 'gown', label: 'Gown'}, {id: 'pinafore', label: 'Pinafore'}, {id: 'puff', label: 'Puff sleeves'}, {id: 'sash', label: 'Sash and bow'}, {id: 'tiered', label: 'Tiered skirt'}, {id: 'bodice', label: 'Laced bodice'}]},
@@ -326,8 +331,8 @@ const LOOK = [
   {key: 'acc', label: 'Accessory', values: [{id: 'none', label: 'None'}, {id: 'flowers', label: 'Flower crown'}]},
   {key: 'boots', label: 'Boots', values: [{id: 0x5a3a22, label: 'Brown'}, {id: 0x1e1a18, label: 'Black'}, {id: 0x6a6a70, label: 'Grey'}, {id: 0x7a2a22, label: 'Red'}, {id: 0x9a7a4a, label: 'Tan'}]},
 ];
-let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, eye: 0x1e1a2a, cheeks: 'auto', boots: 0x5a3a22, outfit: 'none', dressCol: 0xaa4c8a, trimCol: 0xf2ece0, acc: 'none'};
-const LOOK_PLAIN = { outfit: 'none', acc: 'none' };   /* someone whose game doesn't send these yet */
+let look = {gender: 'male', hair: 'short', hairCol: 0x4a2a14, skin: 0xe8c39c, shirt: 0x3d6fb8, pants: 0x5c4a2a, eye: 0x1e1a2a, cheeks: 'auto', boots: 0x5a3a22, outfit: 'none', dressCol: 0xaa4c8a, trimCol: 0xf2ece0, acc: 'none', brows: 'none', eyeShape: 'round', mouth: 'smile', nose: 'none', freckles: 'none'};
+const LOOK_PLAIN = { outfit: 'none', acc: 'none', brows: 'none', eyeShape: 'round', mouth: 'smile', nose: 'none', freckles: 'none' };   /* someone whose game doesn't send these yet */
 let lookMade = false;
 try { const d = JSON.parse(localStorage.getItem('lowpolyLook')); if (d) { look = {...look, ...d.look}; lookMade = !!d.made; } } catch (e) {}
 const saveLook = () => { try { localStorage.setItem('lowpolyLook', JSON.stringify({look, made: lookMade})); } catch (e) {} };
@@ -2694,6 +2699,54 @@ function chibiTexMat(c, kind, side = THREE.FrontSide){
   const k = c + '|' + kind + '|' + side;
   return chibiTexCache[k] || (chibiTexCache[k] = new THREE.MeshToonMaterial({ color: c, gradientMap: toonRamp, map: chibiTexture(kind), side }));
 }
+
+/* the face options: drawn flat on the skin (a 0.62 sphere scaled 1.05, 0.95, 1), so nothing pokes out */
+const faceOn = (x, y, lift) => new THREE.Vector3(x, y, 0.62 * Math.sqrt(Math.max(0, 1 - (x / 0.651) ** 2 - (y / 0.589) ** 2)) + lift);
+const faceGeo = {
+  arc: (r, t, a) => geo(`fArc|${r}|${t}|${a}`, () => new THREE.TorusGeometry(r, t, 6, 16, a)),
+  cap: (r, l) => geo(`fCap|${r}|${l}`, () => new THREE.CapsuleGeometry(r, l, 4, 8)),
+  disc: (r, a = 0, b = Math.PI * 2) => geo(`fDisc|${r}|${a}|${b}`, () => new THREE.CircleGeometry(r, 18, a, b)),
+};
+let faceShadeTex = null;
+function chibiFace(o, head, eyes, smile, hc){
+  const put = (g, col, x, y, lift, rz = 0, op = 1) => { const m = new THREE.Mesh(g, basic(col, op)); m.position.copy(faceOn(x, y, lift)); m.lookAt(m.position.clone().multiplyScalar(2)); m.rotateZ(rz); head.add(m); return m; };
+  const INK = 0x1a1410, LIP = 0x5a2a2a, skinC = new THREE.Color(o.skin || 0xe8c39c);
+  const browC = hc === 0x10fe01 || o.hair === 'bald' ? 0x3a2a1a : new THREE.Color(hc).multiplyScalar(0.7).getHex();
+  const drop = list => { for (const m of list) { head.remove(m); eyes.splice(eyes.indexOf(m), 1); } };
+  // eyebrows
+  const b = o.brows;
+  if (b === 'soft') for (const s of [-1, 1]) put(faceGeo.arc(0.1, 0.018, 2.0), browC, s * 0.23, 0.17, 0.006, Math.PI / 2 - 1.0);
+  if (b === 'straight') for (const s of [-1, 1]) put(faceGeo.cap(0.02, 0.14), browC, s * 0.23, 0.2, 0.01, Math.PI / 2 + s * 0.08);
+  if (b === 'bold') for (const s of [-1, 1]) put(faceGeo.cap(0.032, 0.15), browC, s * 0.23, 0.2, 0.01, Math.PI / 2 - s * 0.25);
+  if (b === 'worried') for (const s of [-1, 1]) put(faceGeo.cap(0.02, 0.13), browC, s * 0.23, 0.21, 0.01, Math.PI / 2 + s * 0.35);
+  // eye shapes (the round eye is the default; blinking only touches what's left in eyes)
+  const e = o.eyeShape;
+  if (e === 'lashes') for (const s of [-1, 1]) { put(faceGeo.arc(0.1, 0.016, 2.4), INK, s * 0.22, 0.04, 0.03, Math.PI / 2 - 1.2); for (let k = 0; k < 2; k++) put(faceGeo.cap(0.012, 0.05), INK, s * (0.3 + k * 0.03), 0.12 - k * 0.04, 0.03, s * (0.9 + k * 0.4)); }
+  if (e === 'sparkle') for (let i = 0; i < eyes.length; i += 2) { eyes[i].scale.x *= 1.15; eyes[i].scale.z *= 1.15; const sh = new THREE.Mesh(gRound(0.022, 8), basic(0xffffff)); sh.position.set(-0.03 / 0.92, -0.06 / 1.15, 0.12); sh.scale.set(1 / 0.92, 1 / 1.15, 1); eyes[i].add(sh); }
+  if (e === 'sleepy') for (const s of [-1, 1]) { put(faceGeo.disc(0.105, 0, Math.PI), skinC.getHex(), s * 0.22, 0.03, 0.075); put(faceGeo.cap(0.013, 0.17), INK, s * 0.22, 0.03, 0.08, Math.PI / 2); }
+  if (e === 'happy') { drop(eyes.slice()); for (const s of [-1, 1]) put(faceGeo.arc(0.08, 0.02, Math.PI), INK, s * 0.22, -0.01, 0.012); }
+  if (e === 'wink') { drop(eyes.slice(2, 4)); put(faceGeo.arc(0.08, 0.02, Math.PI), INK, 0.22, -0.01, 0.012); }
+  // mouths (the smile is the default)
+  const mo = o.mouth;
+  if (mo && mo !== 'smile' && mo !== 'tongue') smile.visible = false;
+  if (mo === 'grin') { put(faceGeo.disc(0.09, Math.PI, Math.PI), LIP, 0, -0.13, 0.006); put(faceGeo.disc(0.075, Math.PI + 0.25, Math.PI - 0.5), 0xffffff, 0, -0.14, 0.009).scale.y = 0.45; }
+  if (mo === 'open') { put(faceGeo.disc(0.05), LIP, 0, -0.16, 0.006).scale.y = 1.2; put(faceGeo.disc(0.03), 0xe06a6a, 0, -0.185, 0.009).scale.y = 0.6; }
+  if (mo === 'cat') for (const s of [-1, 1]) put(faceGeo.arc(0.035, 0.014, Math.PI), LIP, s * 0.035, -0.13, 0.006, Math.PI);
+  if (mo === 'smirk') put(faceGeo.arc(0.06, 0.02, 2.0), LIP, 0.04, -0.15, 0.006, Math.PI + 0.6);
+  if (mo === 'tongue') put(faceGeo.disc(0.035, Math.PI, Math.PI), 0xe06a6a, 0, -0.165, 0.008).scale.y = 1.3;
+  // nose, freckles and blush lines
+  const dk = skinC.clone().multiplyScalar(0.72).getHex();
+  if (o.nose === 'button') chibiPart(head, gRound(0.075, 12), skinC.clone().multiplyScalar(0.9).getHex(), 0, -0.05, 0.6).scale.set(1.1, 0.85, 0.7);
+  if (o.nose === 'dot') put(faceGeo.disc(0.022), dk, 0, -0.05, 0.004).scale.x = 1.4;
+  if (o.nose === 'line') put(faceGeo.cap(0.01, 0.06), dk, 0.02, -0.03, 0.004, 0.15);
+  if (o.freckles === 'some') for (const s of [-1, 1]) for (const [x, y] of [[0.3, -0.12], [0.36, -0.08], [0.33, -0.17], [0.4, -0.14], [0.27, -0.07], [0.42, -0.06]]) put(faceGeo.disc(0.012), 0x9a5a3a, s * x, y, 0.004, 0, 0.7);
+  if (o.cheeks === 'lines') for (const s of [-1, 1]) for (let k = 0; k < 3; k++) put(faceGeo.cap(0.008, 0.05), 0xe06a7a, s * (0.33 + k * 0.035), -0.15, 0.03, -0.5, 0.8);
+  // soft shading for everyone: a touch lighter on the brow, warmer low on the cheeks and chin
+  if (!faceShadeTex) { const cv = document.createElement('canvas'); cv.width = 8; cv.height = 256; const g = cv.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, '#fff8f2'); gr.addColorStop(0.62, '#ffe8dc'); gr.addColorStop(1, '#f2c8b8'); g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
+    faceShadeTex = new THREE.CanvasTexture(cv); faceShadeTex.colorSpace = THREE.SRGBColorSpace; }
+  const skinMesh = head.children[0]; if (skinMesh && skinMesh.material && skinMesh.material.isMeshToonMaterial) { const k = (o.skin || 0) + '|faceShade'; skinMesh.material = chibiTexCache[k] || (chibiTexCache[k] = new THREE.MeshToonMaterial({ color: skinMesh.material.color.clone(), gradientMap: toonRamp, map: faceShadeTex })); }
+}
 function makeChibi(o){
   const g = new THREE.Group(), body = new THREE.Group(), female = o.gender === 'female';
   g.add(body);
@@ -2723,9 +2776,9 @@ function makeChibi(o){
   for (const s of [-1, 1]) {
     const eye = new THREE.Mesh(gRound(0.12, 16), basic(o.eye || 0x1e1a2a)); eye.scale.set(0.8, 1.15, 0.5); eye.position.set(s * 0.22, 0.02, 0.56); head.add(eye); eyes.push(eye);
     const shine = new THREE.Mesh(gRound(0.04, 8), basic(0xffffff)); shine.position.set(s * 0.22 + 0.03, 0.08, 0.62); head.add(shine); eyes.push(shine);
-    if (o.cheeks === 'rosy' || ((!o.cheeks || o.cheeks === 'auto') && female)) { const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek); }   // rosy cheeks on the female build only
+    if (o.cheeks !== 'lines' && (o.cheeks === 'rosy' || ((!o.cheeks || o.cheeks === 'auto') && female))) { const cheek = new THREE.Mesh(gRound(0.08, 12), basic(0xff8f8f, 0.55)); cheek.scale.set(1.3, 0.7, 0.3); cheek.position.set(s * 0.36, -0.16, 0.5); head.add(cheek); }   // rosy cheeks on the female build only
   }
-  const smile = new THREE.Mesh(geo('smile', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), basic(0x5a2a2a)); smile.rotation.z = Math.PI; smile.position.set(0, -0.14, 0.6); head.add(smile);
+  const smile = g.userData.smile = new THREE.Mesh(geo('smile', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), basic(0x5a2a2a)); smile.rotation.z = Math.PI; smile.position.set(0, -0.14, 0.6); head.add(smile);
   // hair: a rounded cap tipped forward over the brow, and a patch behind the ears down to the nape so no scalp shows
   const hs = o.hair || 'short', hc = o.hairCol;
   if (hs !== 'bald') {
@@ -2759,6 +2812,7 @@ function makeChibi(o){
     chibiPart(head, gRound(0.17, 10), hc, Math.cos(a) * rr, y, z - 0.04);
   }
   chibiExtras(o, female, outfit, body, torso, head, arms, legs, hs, hc);
+  chibiFace(o, head, eyes, smile, hc);
   const knot = hs === 'topknot' ? chibiPart(head, gRound(0.2, 14), hc, 0, 0.7, -0.15) : null;
   // tools and worn gear
   const tools = { axe: makeTool('axe'), pick: makeTool('pick'), hoe: makeTool('hoe'), can: makeTool('can') };
