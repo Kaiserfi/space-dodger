@@ -1,8 +1,9 @@
 // ----- village music: a soft loop made from synthesised notes (no sound files) -----
 const MUSIC = { master: null, timer: 0, nextTime: 0, step: 0, mel: 4 };
 // the volume settings, saved in this browser
-const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false, grass: (matchMedia('(pointer: coarse)').matches ? 'low' : 'high') };
+const SETTINGS = { music: 50, sfx: 80, musicMute: false, sfxMute: false };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('itapSettings')) || {}); } catch (e) {}
+delete SETTINGS.grass;   /* the old grass setting (off, low, high) is gone: the grass is painted on now */
 if (typeof SETTINGS.bright !== 'number') SETTINGS.bright = 50;
 if (typeof SETTINGS.saver !== 'boolean') SETTINGS.saver = matchMedia('(pointer: coarse)').matches;   /* battery saver: on by default on phones and tablets */   // brightness: 50 is as designed; higher lifts the night for dim screens
 document.getElementById('volBright').addEventListener('input', e => { SETTINGS.bright = +e.target.value; applySettings(); });
@@ -84,14 +85,12 @@ function applySettings(){
     b.innerHTML = SPEAKER(m); b.classList.toggle('muted', m); b.title = m ? 'Unmute' : 'Mute';
     document.getElementById('vol' + id).value = SETTINGS[k];
   }
-  document.querySelectorAll('#grassOpts button').forEach(b => b.classList.toggle('on', b.dataset.g === SETTINGS.grass));
   document.querySelectorAll('#saverOpts button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'on') === SETTINGS.saver));
   if (window.__powerReady) applyPower();   /* not before the renderer's effects are set up */
   document.getElementById('volBright').value = SETTINGS.bright;
   try { localStorage.setItem('itapSettings', JSON.stringify(SETTINGS)); } catch (e) {}
 }
 document.getElementById('saverOpts').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; SETTINGS.saver = b.dataset.s === 'on'; applySettings(); });
-document.getElementById('grassOpts').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; SETTINGS.grass = b.dataset.g; applySettings(); if (window.buildGrass) buildGrass(); });
 for (const [k, id] of [['music', 'Music'], ['sfx', 'Sfx']]) {
   document.getElementById('vol' + id).addEventListener('input', e => { SETTINGS[k] = +e.target.value; SETTINGS[k + 'Mute'] = false; applySettings(); });
   document.getElementById('mute' + id).addEventListener('click', () => { SETTINGS[k + 'Mute'] = !SETTINGS[k + 'Mute']; applySettings(); });

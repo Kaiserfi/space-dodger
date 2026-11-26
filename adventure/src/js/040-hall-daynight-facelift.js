@@ -122,7 +122,6 @@ function updateDayNight(){
   skyMat.uniforms.sunDir.value.copy(dir); skyMat.uniforms.sunCol.value.setRGB(1, 0.85, 0.6).multiplyScalar(up ? 1 : 0.15);
   scene.fog.color.copy(c(2)); scene.background.copy(c(2));
   clouds.traverse(o => { if (o.isMesh) { o.material.emissiveIntensity = 0.05 + 0.3 * light; o.material.color.setScalar(0.35 + 0.65 * light); } });
-  if (grass) grass.uni.lightK.value = 0.1 + 0.9 * Math.pow(light, 1.3) + night * 0.5 * Math.max(0, bk) + 0.18 * nb;   // the grass darkens with the ground
   // stars and the moon
   if (!stars) {
     const pos = []; for (let i = 0; i < 700; i++) { const a = Math.random() * Math.PI * 2, y = 0.1 + Math.random() * 0.9, r = Math.sqrt(1 - y * y); pos.push(Math.cos(a) * r * 170, y * 170, Math.sin(a) * r * 170); }
