@@ -1704,8 +1704,13 @@ function updateSmith(){
 function equip(name){
   const def = ITEMS[name], old = equipped[def.slot];
   if (def.req && levelOf(SKILL_XP.Melee) < def.req) { showToast(`You need Melee ${def.req} to use ${aOrAn(name)} ${name.toLowerCase()}.`); return; }
+  /* the pair of daggers takes both hands: putting it on takes the shield off, and a shield (or torch) takes the pair off */
+  const clash = def.twoHand ? 'shield' : def.slot === 'shield' && equipped.weapon && ITEMS[equipped.weapon] && ITEMS[equipped.weapon].twoHand ? 'weapon' : null;
+  const also = clash && equipped[clash];
+  if (also && BAG_SIZE - bag.length + 1 < (old ? 1 : 0) + 1) { showToast('Your bag is full.'); return; }
   removeItem(name);
   if (old) addItem(old, 1, ITEMS[old].icon);   // the piece it replaces goes back to the bag
+  if (also) { addItem(also, 1, ITEMS[also].icon); equipped[clash] = null; }
   equipped[def.slot] = name;
   heroFrame = '';   // redraw the sprite with the new gear
   renderBag(); renderStats(); renderGear();
@@ -1820,7 +1825,8 @@ let CUR_SHOP = SHOPS.mara;
 function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; if (CUR_SHOP.stock) loadFishStock(); document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
-const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Iron ore': 8, 'Iron bar': 18, 'Iron dagger': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze dagger': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const OLD_DAGGERS = { 'Bronze dagger': 'Bronze daggers', 'Iron dagger': 'Iron daggers' };
+const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Iron ore': 8, 'Iron bar': 18, 'Iron daggers': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze daggers': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -2721,10 +2727,12 @@ const faceGeo = {
 };
 let faceShadeTex = null;
 function chibiFace(o, head, eyes, smile, hc){
-  const put = (g, col, x, y, lift, rz = 0, op = 1) => { const m = new THREE.Mesh(g, basic(col, op)); m.position.copy(faceOn(x, y, lift)); m.lookAt(m.position.clone().multiplyScalar(2)); m.rotateZ(rz); head.add(m); return m; };
+  /* the expression (brows, eye shapes, mouth) goes in one group so a fight face can hide it; nose, freckles and cheeks sit on the head */
+  const parts = new THREE.Group(); head.add(parts); let into = parts; const allEyes = eyes.slice();
+  const put = (g, col, x, y, lift, rz = 0, op = 1) => { const m = new THREE.Mesh(g, basic(col, op)); m.position.copy(faceOn(x, y, lift)); m.lookAt(m.position.clone().multiplyScalar(2)); m.rotateZ(rz); into.add(m); return m; };
   const INK = 0x1a1410, LIP = 0x5a2a2a, skinC = new THREE.Color(o.skin || 0xe8c39c);
   const browC = hc === 0x10fe01 || o.hair === 'bald' ? 0x3a2a1a : new THREE.Color(hc).multiplyScalar(0.7).getHex();
-  const drop = list => { for (const m of list) { head.remove(m); eyes.splice(eyes.indexOf(m), 1); } };
+  const drop = list => { for (const m of list) { m.visible = false; eyes.splice(eyes.indexOf(m), 1); } };   /* hidden, not thrown away: a fight face opens them again */
   // eyebrows
   const b = o.brows;
   if (b === 'soft') for (const s of [-1, 1]) put(faceGeo.arc(0.1, 0.018, 2.0), browC, s * 0.23, 0.17, 0.006, Math.PI / 2 - 1.0);
@@ -2747,6 +2755,7 @@ function chibiFace(o, head, eyes, smile, hc){
   if (mo === 'smirk') put(faceGeo.arc(0.06, 0.02, 2.0), LIP, 0.04, -0.15, 0.006, Math.PI + 0.6);
   if (mo === 'tongue') put(faceGeo.disc(0.035, Math.PI, Math.PI), 0xe06a6a, 0, -0.165, 0.008).scale.y = 1.3;
   // nose, freckles and blush lines
+  into = head;
   const dk = skinC.clone().multiplyScalar(0.72).getHex();
   if (o.nose === 'button') chibiPart(head, gRound(0.075, 12), skinC.clone().multiplyScalar(0.9).getHex(), 0, -0.05, 0.6).scale.set(1.1, 0.85, 0.7);
   if (o.nose === 'dot') put(faceGeo.disc(0.022), dk, 0, -0.05, 0.004).scale.x = 1.4;
@@ -2758,6 +2767,7 @@ function chibiFace(o, head, eyes, smile, hc){
     gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, '#fff8f2'); gr.addColorStop(0.62, '#ffe8dc'); gr.addColorStop(1, '#f2c8b8'); g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
     faceShadeTex = new THREE.CanvasTexture(cv); faceShadeTex.colorSpace = THREE.SRGBColorSpace; }
   const skinMesh = head.children[0]; if (skinMesh && skinMesh.material && skinMesh.material.isMeshToonMaterial) { const k = (o.skin || 0) + '|faceShade'; skinMesh.material = chibiTexCache[k] || (chibiTexCache[k] = new THREE.MeshToonMaterial({ color: skinMesh.material.color.clone(), gradientMap: toonRamp, map: faceShadeTex })); }
+  return { parts, allEyes, eyes: eyes.slice(), smileOn: smile.visible };
 }
 function makeChibi(o){
   const g = new THREE.Group(), body = new THREE.Group(), female = o.gender === 'female';
@@ -2824,14 +2834,14 @@ function makeChibi(o){
     chibiPart(head, gRound(0.17, 10), hc, Math.cos(a) * rr, y, z - 0.04);
   }
   chibiExtras(o, female, outfit, body, torso, head, arms, legs, hs, hc);
-  chibiFace(o, head, eyes, smile, hc);
+  const face = chibiFace(o, head, eyes, smile, hc);
   const knot = hs === 'topknot' ? chibiPart(head, gRound(0.2, 14), hc, 0, 0.7, -0.15) : null;
   // tools and worn gear
   const tools = { axe: makeTool('axe'), pick: makeTool('pick'), hoe: makeTool('hoe'), can: makeTool('can') };
   for (const t of Object.values(tools)) { t.position.set(0, -0.45, 0); arms[1].add(t); }
   const gear = new THREE.Group(); body.add(gear);
   g.scale.setScalar(CHIBI_SCALE);
-  g.userData.chibi = { knot, body, legs, arms, head, eyes, tools, gear, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
+  g.userData.chibi = { knot, body, legs, arms, head, eyes, tools, gear, face, smile, look: o, blink: 2 + Math.random() * 3, seed: Math.random() * 10 };
   return g;
 }
 // the village emblem, "The Oak and the River", and the cloth of the villager's cloak
@@ -2882,7 +2892,9 @@ function dressChibi(g, eq){
   const c = g.userData.chibi; c.gear.clear(); c.weapon = null;
   if (!c.cloak) { c.cloak = new THREE.Group(); c.body.add(c.cloak); }
   c.cloak.clear(); if (eq.back === "Villager's cloak") addCape(g);
-  for (const a of c.arms) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
+  for (const a of [...c.arms, ...(c.elbows || [])]) a.children.filter(k => k.userData.isGear).forEach(k => a.remove(k));
+  const dual = !!(eq.weapon && ITEMS[eq.weapon] && ITEMS[eq.weapon].twoHand); c.weaponL = null;
+  chibiElbows(c, dual);   /* the pair of daggers needs elbows for its stab; everything else keeps the straight arm */
   // armour: every piece is listed so it can be taken off again
   (c.armour || []).forEach(m => m.parent && m.parent.remove(m)); c.armour = [];
   if (c.knot) c.knot.visible = !eq.head;   // a helmet covers the top knot
@@ -2924,8 +2936,8 @@ function dressChibi(g, eq){
     A(l, geo('bootCuff', () => new THREE.CylinderGeometry(0.17, 0.18, 0.1, 14)), BD, 0, -0.4, 0, false);
     A(l, geo('bootToe', () => new THREE.SphereGeometry(0.09, 10, 8)), BL, 0, -0.52, 0.3, false).scale.set(1.2, 0.7, 0.8);
   }
-  if (eq.weapon) {   // a full-size blade held angled down and forward; the dagger is the same, shorter
-    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, -0.45, 0); w.rotation.x = -1.15; c.arms[1].add(w); c.weapon = w;   /* angled forward enough that the point clears the ground when you stand */
+  if (eq.weapon) {   // a full-size blade held angled down and forward; the daggers are the same, shorter, one in each hand
+    const w = new THREE.Group(); w.userData.isGear = true; w.position.set(0, dual ? -0.23 : -0.45, 0); w.rotation.x = -1.15; (dual ? c.elbows[1] : c.arms[1]).add(w); c.weapon = w;   /* angled forward enough that the point clears the ground when you stand */
     use(eq.weapon); const blade = pal(eq.weapon)[3];
     const len = eq.weapon.endsWith('sword') ? 1.15 : 0.6;
     chibiPart(w, geo('swGrip', () => new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8)), 0x4a2e16, 0, 0.05, 0);
@@ -2936,9 +2948,10 @@ function dressChibi(g, eq){
       const hw = (len > 1 ? 0.16 : 0.13) / 2, sh = new THREE.Shape(); sh.moveTo(-hw, 0); sh.lineTo(hw, 0); sh.lineTo(0, -0.26); sh.closePath();
       return new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: false }).translate(0, 0, -0.02); }), blade, 0, -0.17 - len, 0);
     chibiPart(w, geo('swFuller' + len, () => new THREE.BoxGeometry(0.03, len * 0.85, 0.05)), BL, 0, -0.17 - len / 2, 0, false);
+      if (dual) { const wl = w.clone(true); wl.scale.x = -1; c.elbows[0].add(wl); c.weaponL = wl; }   /* the second dagger, mirrored into the left hand */
   }
   c.torch = null;
-  if (eq.shield === 'Torch') {   // a torch in the left hand, held forward and up: a wooden stick, a wrapped head, and a flame
+  if (eq.shield === 'Torch' && !dual) {   // a torch in the left hand, held forward and up: a wooden stick, a wrapped head, and a flame
     const tg = new THREE.Group(); tg.userData.isGear = true; tg.position.set(-0.04, -0.45, 0.06); tg.rotation.set(0.6, 0, 0.45); c.arms[0].add(tg);   // forward, up, and leaning out away from the head
     chibiPart(tg, geo('torchStick', () => new THREE.CylinderGeometry(0.045, 0.06, 0.95, 7)), 0x7a4d22, 0, 0.3, 0);
     chibiPart(tg, geo('torchWrap', () => new THREE.CylinderGeometry(0.1, 0.08, 0.2, 8)), 0x4a3220, 0, 0.78, 0);
@@ -2948,7 +2961,7 @@ function dressChibi(g, eq){
     let light = null;
     if (g === hero) light = true;   /* only your own torch lights the ground; the light itself lives in the scene all the time (heroTorchLight), because adding or removing a light makes three.js rebuild every shader */
     c.torch = { flame, light };
-  } else if (eq.shield) {   // a big round shield on the left arm, with a rim, a boss and rivets
+  } else if (eq.shield && !dual) {   // a big round shield on the left arm, with a rim, a boss and rivets
     use(eq.shield);
     const sh = new THREE.Group(); sh.userData.isGear = true; sh.position.set(-0.27, -0.42, 0.04); sh.rotation.set(0, 0, 1.62); c.arms[0].add(sh);   /* centred on the hand, as if gripped, and upright, clear of the shoulder (measured idle and mid-stride) */
     chibiPart(sh, geo('shDisc', () => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24)), BR, 0, 0, 0);
@@ -2960,6 +2973,101 @@ function dressChibi(g, eq){
       const face2 = new THREE.Mesh(geo('shFace2', () => new THREE.CircleGeometry(0.43, 32).rotateX(-Math.PI / 2)), face.material); face2.position.y = 0.042; face2.rotation.y = -Math.PI / 2; face2.userData.shadowSet = true; sh.add(face2);   // the outer face too
     } else chibiPart(sh, geo('shBoss', () => new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)), BL, 0, -0.04, 0, false).rotation.x = Math.PI;
     for (let i = 0; i < 6; i++) chibiPart(sh, geo('rivet', () => new THREE.SphereGeometry(0.035, 6, 5)), BL, Math.cos(i * 1.05) * 0.36, -0.05, Math.sin(i * 1.05) * 0.36, false);
+  }
+  /* with the pair, anything worn low on the arm (bracers, cuffs) rides on the forearm so it bends with the elbow */
+  if (dual) c.arms.forEach((a, i) => { for (const k of a.children.slice()) if (k !== c.elbows[i] && !k.userData.elbowPart && k.position.y <= -0.3) { k.position.y += 0.22; c.elbows[i].add(k); } });
+}
+/* elbows, for the pair of daggers: each arm splits 0.22 below the shoulder, the forearm and hand moving into the elbow.
+   Only figures holding the pair get them (a few more meshes); everyone else keeps the one-piece arm. */
+function chibiElbows(c, on){
+  if (on && !c.elbows) {
+    c.elbows = c.arms.map(arm => {
+      const sleeve = arm.children[0], hand = arm.children[1], mat = sleeve.material;
+      sleeve.visible = false;
+      const part = (par, g, y) => { const m = chibiPart(par, g, mat.color.getHex(), 0, y, 0); m.material = mat; m.userData.elbowPart = true; return m; };
+      part(arm, gCapsule(0.11, 0.1), -0.11);
+      const el = new THREE.Group(); el.position.set(0, -0.22, 0); el.userData.elbowPart = true; arm.add(el);
+      part(el, gRound(0.115, 12), 0); part(el, gCapsule(0.105, 0.1), -0.11);
+      hand.position.y += 0.22; el.add(hand); el.userData.hand = hand; arm.userData.sleeve = sleeve;
+      return el;
+    });
+  } else if (!on && c.elbows) {
+    c.arms.forEach((arm, i) => { const el = c.elbows[i], hand = el.userData.hand;
+      for (const k of el.children.slice()) if (k !== hand && !k.userData.elbowPart && k.position.y <= -0.08) { k.position.y -= 0.22; arm.add(k); }   /* anything that rode on the forearm goes back to the arm */
+      hand.position.y -= 0.22; arm.add(hand); arm.remove(el);
+      for (const k of arm.children.slice()) if (k.userData.elbowPart) arm.remove(k);
+      arm.userData.sleeve.visible = true; });
+    c.elbows = null;
+  }
+}
+/* the pair of daggers in a fight: a ready guard with both blades out, and the lunge stab, right then left, over one attack (DUAL_MS) */
+const DUAL_BLOCK = [-0.5, 0]; const DUAL_MS = 1500, DUAL_HITS = [0.27, 0.77], DUAL_MULT = 0.55;   /* when each stab lands, as a share of the attack; each stab's max hit against a sword's */
+function dualReady(c){
+  const [AL, AR] = c.arms, [EL, ER] = c.elbows;
+  for (const [A, E, sd] of [[AL, EL, -1], [AR, ER, 1]]) { A.rotation.set(-0.35, 0, sd * 0.18); E.rotation.set(-1.0, 0, 0); }
+  c.weapon.rotation.set(-0.55, 0, 0); c.weaponL.rotation.set(-0.55, 0, 0);
+  c.body.rotation.set(0, 0, 0); c.body.position.set(0, 0, 0); c.legs[0].rotation.set(-0.15, 0, 0); c.legs[1].rotation.set(0.15, 0, 0); c.head.rotation.set(0, 0, 0);
+}
+function dualLunge(c, k){
+  dualReady(c);
+  const ease = x => x * x * (3 - 2 * x), S = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+  const [AL, AR] = c.arms, [EL, ER] = c.elbows, [LL, LR] = c.legs;
+  const stab = (A, E, W, front, back, t, sd) => {
+    const ch = ease(S(t, 0, 0.38)), go = ease(S(t, 0.42, 0.58)), rec = ease(S(t, 0.68, 1));
+    /* the arm: back and slightly out into an L, then driven straight forward, then home */
+    let ux = lerp(-0.35, 0.85, ch), uz = lerp(sd * 0.18, sd * 0.38, ch), ex = lerp(-1.0, -2.05, ch);
+    ux = lerp(lerp(ux, -1.5, go), -0.35, rec); uz = lerp(lerp(uz, sd * 0.02, go), sd * 0.18, rec); ex = lerp(lerp(ex, -0.08, go), -1.0, rec);
+    A.rotation.set(ux, 0, uz); E.rotation.set(ex, 0, 0); W.rotation.set(lerp(lerp(-0.55, -0.1, ch), 0, go) * (1 - rec) - 0.55 * rec, 0, 0);
+    /* the body: weight back and turned away while it chambers, then the step in and the twist into the blow */
+    const twist = lerp(lerp(0, sd * 0.3, ch), sd * -0.35, go) * (1 - rec), lean = lerp(lerp(0, -0.08, ch), 0.18, go) * (1 - rec), step = lerp(lerp(0, -0.08, ch), 0.42, go) * (1 - rec);
+    front.rotation.x = lerp(lerp(-0.15 * sd, 0.1, ch), -0.62, go) * (1 - rec) + -0.15 * sd * rec;   /* the same-side foot steps out front, the back leg stretches behind */
+    back.rotation.x = lerp(lerp(0.15 * sd, -0.05, ch), 0.5, go) * (1 - rec) + 0.15 * sd * rec;
+    c.body.rotation.set(lean, twist, 0); c.head.rotation.y = -twist * 0.6;   /* the eyes stay on the target */
+    c.body.position.set(0, 0, step);
+  };
+  if (k < 0.5) stab(AR, ER, c.weapon, LR, LL, k / 0.5, 1); else stab(AL, EL, c.weaponL, LL, LR, (k - 0.5) / 0.5, -1);
+  dualSettle(c);
+}
+/* keep the boots on the ground: measure the lowest boot point and lift or drop the body to where it rests standing */
+function dualSettle(c){
+  const lowest = () => { c.body.parent.updateMatrixWorld(true); let lo = 9; for (const l of c.legs) l.traverse(m => { if (m.isMesh && m.material !== outlineMat) lo = Math.min(lo, dualBox.setFromObject(m).min.y); }); return lo - c.body.parent.position.y; };
+  if (c.footRest === undefined) { const keep = [c.body.position.z, c.body.rotation.x, c.legs[0].rotation.x, c.legs[1].rotation.x]; c.body.position.z = 0; c.body.rotation.x = 0; c.legs[0].rotation.x = 0; c.legs[1].rotation.x = 0; c.footRest = lowest();   /* where the boots rest standing */ [c.body.position.z, c.body.rotation.x, c.legs[0].rotation.x, c.legs[1].rotation.x] = keep; }
+  c.body.position.y += (c.footRest - lowest()) / (c.body.parent.scale.y || 1);
+}
+const dualBox = new THREE.Box3();
+/* fighting faces: a hard stare between blows, a shout on each blow, and a wince when hit. Built once per figure, then only shown or hidden.
+   They replace the creator's brows, eye shapes and mouth while fighting; nose, freckles and cheeks stay. */
+function buildFightFaces(c){
+  const h = c.head, look = c.look || {}, INK = 0x1a1410, LIP = 0x5a2a2a;
+  const bc = new THREE.Color(look.hairCol === 0x10fe01 || look.hair === 'bald' || look.hairCol === undefined ? 0x3a2a1a : look.hairCol).multiplyScalar(0.6);
+  const hsl = {}; bc.getHSL(hsl); if (hsl.l > 0.3) bc.setHSL(hsl.h, hsl.s, 0.3);   /* light hair still gives brows that read */
+  const browC = bc.getHex(), mk = () => { const g = new THREE.Group(); g.visible = false; h.add(g); return g; };
+  const P = (g, geo, col, x, y, lift, rz = 0) => { const m = new THREE.Mesh(geo, basic(col)); m.position.copy(faceOn(x, y, lift)); m.lookAt(m.position.clone().multiplyScalar(2)); m.rotateZ(rz); g.add(m); return m; };
+  const brow = (g, tilt, y) => { for (const s of [-1, 1]) P(g, faceGeo.cap(0.028, 0.15), browC, s * 0.22, y, 0.014, Math.PI / 2 + s * tilt); };
+  const F = { focus: mk(), shout: mk(), wince: mk() };
+  brow(F.focus, 0.42, 0.125); P(F.focus, faceGeo.cap(0.014, 0.1), LIP, 0, -0.15, 0.006, Math.PI / 2 + 0.05);   /* a hard stare, the jaw set */
+  brow(F.shout, 0.55, 0.11);   /* teeth bared in a shout */
+  P(F.shout, faceGeo.disc(0.085, Math.PI, Math.PI), LIP, 0, -0.12, 0.006).scale.set(1.1, 1.25, 1);
+  P(F.shout, faceGeo.disc(0.07, Math.PI + 0.2, Math.PI - 0.4), 0xffffff, 0, -0.125, 0.009).scale.set(1.05, 0.38, 1);
+  P(F.shout, faceGeo.disc(0.032, 0, Math.PI), 0xd86a6a, 0, -0.205, 0.009).scale.y = 0.6;
+  for (const s of [-1, 1]) { P(F.wince, faceGeo.cap(0.03, 0.14), browC, s * 0.22, 0.065, 0.014, Math.PI / 2 + s * 0.38); P(F.wince, faceGeo.arc(0.05, 0.012, Math.PI * 0.7), INK, s * 0.22, -0.055, 0.012, Math.PI * 0.15); }   /* eyes screwed shut, the brows doing the squeeze */
+  P(F.wince, faceGeo.arc(0.05, 0.017, Math.PI * 0.8), LIP, 0, -0.18, 0.006, Math.PI * 0.1);
+  c.ff = F;
+}
+function setFightFace(c, kind){
+  if (!c || !c.face || (c.ffKind || null) === (kind || null)) return;
+  if (kind && !c.ff) buildFightFaces(c);
+  c.ffKind = kind || null;
+  const fc = c.face, all = fc.allEyes;
+  if (c.ff) for (const k in c.ff) c.ff[k].visible = k === kind;
+  fc.parts.visible = !kind; c.smile.visible = kind ? false : fc.smileOn;
+  /* the eyes: narrowed for focus and the shout, shut for the wince, and back to the creator's for none */
+  const squash = kind === 'focus' ? 0.3 : kind === 'shout' ? 0.4 : 0;
+  c.eyes = kind ? all : fc.eyes; c.squash = squash; c.shut = kind === 'wince';
+  for (let i = 0; i < all.length; i += 2) {
+    const e = all[i], sh = all[i + 1], mine = fc.eyes.includes(e), show = kind ? kind !== 'wince' : mine;
+    e.visible = sh.visible = show; e.position.y = 0.02 - 0.03 * squash; e.scale.y = 1.15 * (1 - squash);
+    sh.position.y = squash ? e.position.y + 0.015 : 0.08; sh.scale.setScalar(squash ? 0.6 : 1);
   }
 }
 const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
@@ -3008,7 +3116,9 @@ function poseChibi(g, mode, t, tool = 'axe'){
   c.tools.can.visible = mode === 'water' || mode === 'fill';
   c.gear.visible = mode !== 'swing';
   const handsBusy = !['idle', 'walk', 'fight', 'ready', 'block', 'hurt', 'dead'].includes(mode);   /* any skilling or everyday job: the sword, shield or torch is put away for the moment */
-  for (const a of c.arms) a.children.forEach(k => { if (k.userData.isGear) k.visible = !handsBusy; });
+  for (const a of c.arms) a.traverse(k => { if (k.userData.isGear) k.visible = !handsBusy; });
+  if (c.elbows) { for (const e of c.elbows) e.rotation.set(0, 0, 0); if (c.weaponL) c.weaponL.rotation.set(-1.15, 0, 0); }   /* out of a fight the arms hang straight */
+  if (c.ffKind && performance.now() > (c.ffUntil || 0)) setFightFace(c, null);   /* a second after the fight, your own face comes back */
   const [L, R] = c.legs, [AL, AR] = c.arms;
   for (const leg of c.legs) { if (!leg.userData.hip) leg.userData.hip = leg.position.clone(); leg.position.copy(leg.userData.hip); leg.rotation.y = 0; leg.children[1].rotation.x = 0; }
   c.body.position.y = 0; c.body.position.z = 0; c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0);
@@ -3094,7 +3204,7 @@ function poseChibi(g, mode, t, tool = 'axe'){
   c.blink -= 1 / 60;
   const closed = c.blink < 0.12;
   if (c.blink < 0) c.blink = 2 + Math.random() * 4;
-  c.eyes.forEach((e, i) => { if (i % 2 === 0) e.scale.y = closed ? 0.15 : 1.15; else e.visible = !closed; });
+  if (!c.shut) c.eyes.forEach((e, i) => { if (i % 2 === 0) e.scale.y = closed ? 0.15 : 1.15 * (1 - (c.squash || 0)); else e.visible = !closed; });
 }
 // turn a character smoothly to face a heading (radians, 0 = +z)
 function turnChibi(g, yaw){
@@ -3131,7 +3241,7 @@ function updateHeroAnim(){
 }
 function rebuildHero(){
   if (hero) scene.remove(hero);
-  hero = makeChibi(look);
+  hero = makeChibi(look); hero.userData.chibi.fightFaces = true;
   dressChibi(hero, equipped);
   hero.position.copy(START);
   hero.rotation.y = heroAnim.yaw = 0;   // facing the camera's side of the hall
@@ -3461,6 +3571,8 @@ const TIN_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
 const DAGGER_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M7 2 L9 2 L9.5 9 L6.5 9 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
   <rect x="5" y="9" width="6" height="1.5" fill="#7a4d22"/><rect x="7" y="10.5" width="2" height="3.5" fill="#5a3a1a"/></svg>`;
+/* the pair: the same dagger twice, leaning out from each other */
+const DAGGERS_ICON = (() => { const inner = DAGGER_ICON.replace(/^<svg[^>]*>|<\/svg>$/g, ''); return `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges"><g transform="translate(-2.2 0.6) rotate(-16 8 9)">${inner}</g><g transform="translate(18.2 0.6) scale(-1 1) rotate(-16 8 9)">${inner}</g></svg>`; })();
 const SWORD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M7.5 1 L8.5 1 L9.2 10 L6.8 10 Z" fill="#cd7f32" stroke="#5a3a1a" stroke-width="0.8"/>
   <rect x="4.5" y="10" width="7" height="1.5" fill="#7a4d22"/><rect x="7.2" y="11.5" width="1.6" height="3" fill="#5a3a1a"/></svg>`;
@@ -3514,14 +3626,14 @@ const TORCH_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-render
 const ITEMS = {
   'Torch': { slot: 'shield', icon: TORCH_ICON, light: true },
   "Villager's cloak": { slot: 'back', def: 1, icon: CLOAK_ICON },
-  'Bronze dagger': { slot: 'weapon', atk: 3, icon: DAGGER_ICON },
+  'Bronze daggers': { slot: 'weapon', atk: 3, twoHand: true, icon: DAGGERS_ICON },   /* a pair: both hands, so no shield */
   'Bronze helmet': { slot: 'head', def: 2, icon: HELM_ICON },
   'Bronze chestplate': { slot: 'body', def: 8, icon: CHEST_ICON },
   'Bronze leg armour': { slot: 'legs', def: 5, icon: LEGS_ICON },
   'Bronze boots': { slot: 'feet', def: 1, icon: BOOTS_ICON },
   'Bronze sword':  { slot: 'weapon', atk: 6, icon: SWORD_ICON },
   'Bronze shield': { slot: 'shield', def: 6, icon: SHIELD_ICON },
-  'Iron dagger': { slot: 'weapon', atk: 5, req: 10, icon: ironIcon(DAGGER_ICON) },
+  'Iron daggers': { slot: 'weapon', atk: 5, req: 10, twoHand: true, icon: ironIcon(DAGGERS_ICON) },
   'Iron helmet': { slot: 'head', def: 4, req: 10, icon: ironIcon(HELM_ICON) },
   'Iron chestplate': { slot: 'body', def: 13, req: 10, icon: ironIcon(CHEST_ICON) },
   'Iron leg armour': { slot: 'legs', def: 8, req: 10, icon: ironIcon(LEGS_ICON) },
@@ -3537,7 +3649,7 @@ function ironIcon(svg){ return svg.replace(/#([0-9a-f]{6})\b/gi, (_, h) => { con
 const ironHead = svg => svg.replace(/#(cd7f32|5a3a1a|f2c28a|a8682a)\b/gi, m => ironIcon(m));
 const IRON_ORE_ICON = ironIcon(ORE_ICON).replace(/#c2652b|#d9773a/gi, '#8a5a42'), IRON_BAR_ICON = ironIcon(BAR_ICON);
 const RECIPES = [
-  { name: 'Bronze dagger',     bars: 1, level: 1, xp: 12.5 },
+  { name: 'Bronze daggers',    bars: 1, level: 1, xp: 12.5 },   /* a pair from one bar */
   { name: 'Bronze axe',        bars: 1, level: 1, xp: 12.5 },
   { name: 'Bronze pickaxe',    bars: 1, level: 1, xp: 12.5 },
   { name: 'Bronze boots',      bars: 1, level: 3, xp: 12.5 },
@@ -3547,7 +3659,7 @@ const RECIPES = [
   { name: 'Bronze leg armour', bars: 3, level: 12, xp: 37.5 },
   { name: 'Bronze chestplate', bars: 5, level: 15, xp: 62.5 },
   // iron, from the north's rocks: the step up from bronze, for the forest beyond
-  { name: 'Iron dagger',       bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
+  { name: 'Iron daggers',      bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
   { name: 'Iron axe',          bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
   { name: 'Iron pickaxe',      bars: 1, level: 15, xp: 25, bar: 'Iron bar' },
   { name: 'Iron boots',        bars: 1, level: 17, xp: 25, bar: 'Iron bar' },
@@ -3571,6 +3683,7 @@ const ORE_NAME = 'Copper ore';
 const SINGLE = new Set(['Raw shrimp', 'Shrimp', 'Raw trout', 'Trout', 'Raw bream', 'Bream', 'Raw chicken', 'Cooked chicken', 'Raw beef', 'Cooked beef', 'Bread dough', 'Bread', "Brenna's bread"]);   /* burnt food can't be eaten, so it stacks */
 const roomForOne = name => bag.length < BAG_SIZE || (!SINGLE.has(name) && hasItem(name));
 function addItem(name, qty = 1, icon = '') {
+  if (OLD_DAGGERS[name]) { name = OLD_DAGGERS[name]; icon = ICON_FOR[name]; }   /* from an older game: a single dagger is a pair now */
   if (name === 'Coins') { COINS += qty; renderBag(); return true; }
   if (SINGLE.has(name)) {   // one slot each; as many as fit (and false if not all of them did)
     const n = Math.min(qty, BAG_SIZE - bag.length);
@@ -5167,6 +5280,19 @@ function fightPose(c, kind, k){
   const [AL, AR] = c.arms;
   AL.rotation.set(0, 0, -0.2); AR.rotation.set(0, 0, 0.2); c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0); c.legs.forEach(l => l.rotation.set(0, 0, 0));
   if (c.weapon) { c.weapon.rotation.x = -1.15; c.weapon.rotation.z = 0; }
+  const dual = !!(c.weaponL && c.elbows);
+  if (c.fightFaces) {   /* the face: a wince when hit or falling, a shout around each blow, a hard stare otherwise */
+    const strike = kind === 'swing' && (dual ? (k > 0.2 && k < 0.36) || (k > 0.7 && k < 0.86) : k > 0.4 && k < 0.7);
+    setFightFace(c, kind === 'hurt' || kind === 'dead' ? 'wince' : strike ? 'shout' : 'focus'); c.ffUntil = performance.now() + 1000;
+  }
+  if (dual) {   /* the pair: a guard with both blades out, the lunge stab, and the usual block, flinch and fall from that guard */
+    c.body.position.set(0, 0, 0);
+    c.weapon.visible = c.weaponL.visible = kind !== 'eat';   /* a bite mid-fight: the blades are lowered out of the way */
+    if (kind === 'swing') { dualLunge(c, k); return; }
+    if (kind === 'dead') { c.elbows.forEach(e => e.rotation.set(0, 0, 0)); }
+    else { dualReady(c); if (kind !== 'ready' && kind !== 'eat') { AL.rotation.z = -0.2; AR.rotation.z = 0.2; c.elbows.forEach(e => e.rotation.set(-0.25, 0, 0)); c.weapon.rotation.x = c.weaponL.rotation.x = -1.15; if (kind === 'block') c.weaponL.rotation.set(DUAL_BLOCK[0], 0, DUAL_BLOCK[1]); } }   /* blocking or flinching: arms nearly straight, so a blade never swings back at the face */
+    if (kind === 'ready') { const b = Math.sin(performance.now() / 300) * 0.04; AR.rotation.x += b; dualSettle(c); return; }
+  }
   if (kind === 'swing') {
     const a = k < 0.45 ? lerp(-0.4, -2.9, ease(k / 0.45)) : k < 0.6 ? lerp(-2.9, -0.6, (k - 0.45) / 0.15) : lerp(-0.6, -0.4, (k - 0.6) / 0.4);
     AR.rotation.set(a, 0, 0.05);
@@ -5177,6 +5303,7 @@ function fightPose(c, kind, k){
   else if (kind === 'eat') eatPose(c, k);
   else if (kind === 'dead') { c.body.rotation.x = -1.45 * k; c.body.position.y = -0.62 * k; AL.rotation.set(-2.6 * k, 0, -0.4); AR.rotation.set(-2.6 * k, 0, 0.4); c.legs.forEach(l => l.rotation.x = 1.2 * k); }
   else { const b = Math.sin(performance.now() / 300) * 0.04; c.body.position.y = 0; AR.rotation.x = -0.4 + b; AL.rotation.x = -0.3; }   // ready stance
+  if (dual && kind !== 'dead') dualSettle(c);
 }
 function hitsplat(obj, n, kind, label){
   const el = document.createElement('div'); el.className = 'splat ' + kind; el.innerHTML = n + (label ? `<small>${label}</small>` : '');
@@ -5184,20 +5311,23 @@ function hitsplat(obj, n, kind, label){
 }
 const SPLATS = [], spV = new THREE.Vector3();
 function playerSwing(m){
-  const me = playerRolls(), it = monsterRolls(m.t);
-  FIGHT.pAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
+  const me = playerRolls(), it = monsterRolls(m.t), dual = !!(equipped.weapon && ITEMS[equipped.weapon] && ITEMS[equipped.weapon].twoHand);
+  FIGHT.pAnim = { kind: 'swing', t0: performance.now(), dur: dual ? DUAL_MS : 900 };
   combatSound('swing'); mobHit(m, 'ps', 0, '');
-  setTimeout(() => {
+  /* the pair stabs twice, right then left: each its own roll, each hitting for a little over half a sword's best */
+  if (dual) { setTimeout(() => { if (FIGHT && FIGHT.m === m) combatSound('swing'); }, DUAL_MS * 0.5); for (const at of DUAL_HITS) setTimeout(() => landBlow(m, me, it, Math.max(1, Math.round(me.maxHit * DUAL_MULT))), DUAL_MS * at); }
+  else setTimeout(() => landBlow(m, me, it, me.maxHit), 480);
+}
+function landBlow(m, me, it, maxHit){
     if (!FIGHT || FIGHT.m !== m) return;
     if (Math.random() < hitChance(me.att, it.def)) {
-      const dmg = Math.floor(Math.random() * (me.maxHit + 1));
+      const dmg = Math.floor(Math.random() * (maxHit + 1));
       if (dmg > 0) { if (m.delve && DELVE) DELVE.dmg = (DELVE.dmg || 0) + dmg; if (m.raid) raidHit(m, dmg); else if (m.ghost) partyHit(m, dmg); else { m.hp = Math.max(0, m.hp - dmg); if (m.delve && DELVE && DELVE.party) threat(m, ONLINE.id, dmg); } hitsplat(m.g, dmg, 'hit'); mobHit(m, 'p', dmg, 'hit'); combatSound('hit'); combatSound((m.t.snd || 'goblin') + 'Hurt'); FIGHT.mAnim = { kind: 'hurt', t0: performance.now(), dur: 450 };
         addXp('Melee', dmg * 4); addXp('Hitpoints', dmg * 4); }   /* the same for both: Melee stands for Attack, Strength and Defence together, and Hitpoints keeps pace with it as it does with each of those in RuneScape */
       else { hitsplat(m.g, 0, 'block', 'Blocked'); combatSound(m.t.metal ? 'clang' : 'thud'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'block'); }
     } else { hitsplat(m.g, 0, 'miss', 'Miss'); combatSound('miss'); FIGHT.mAnim = { kind: 'block', t0: performance.now(), dur: 500 }; mobHit(m, 'p', 0, 'miss'); }
     if (m.hp <= 0) { if (m.raid) { m.state = 'dying'; m.dieT = performance.now(); combatSound('goblinDie'); endFight(); } else if (m.ghost) endFight(); /* the leader's game says when it falls */ else killMonster(m); }
-  }, 480);
-}
+  }
 function monsterSwing(m){
   const me = playerRolls(), it = monsterRolls(m.t);
   FIGHT.mAnim = { kind: 'swing', t0: performance.now(), dur: 900 };
@@ -6137,8 +6267,8 @@ const MULBERRY_LEAF_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><pat
 const COCOON_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><ellipse cx="8" cy="8.5" rx="4" ry="6" fill="#f4f0e2" stroke="#a09878" stroke-width="0.7" transform="rotate(-25 8 8.5)"/><path d="M5 6 Q8 8 11 6 M4.6 9 Q8 11 11.4 9 M5.4 12 Q8 13.5 10.6 12" stroke="#d4ccb0" stroke-width="0.6" fill="none" transform="rotate(-25 8 8.5)"/></svg>`;
 const THREAD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><rect x="4" y="2" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="4" y="12" width="8" height="2" rx="0.6" fill="#a07848"/><rect x="5" y="4" width="6" height="8" fill="#f8f2e6" stroke="#c8bca0" stroke-width="0.5"/><path d="M5 5.5 L11 5.5 M5 7.5 L11 7.5 M5 9.5 L11 9.5 M11 10.5 Q13 12 12 14" stroke="#e0d6c0" stroke-width="0.6" fill="none"/></svg>`;
 const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx="7" cy="8" r="5" fill="#f4eee0" stroke="#b0a488" stroke-width="0.7"/><circle cx="7" cy="8" r="2" fill="#e2d8c0" stroke="#b0a488" stroke-width="0.5"/><path d="M11 10 L15 12 L14.4 14 L10 12 Z" fill="#f4eee0" stroke="#b0a488" stroke-width="0.6"/><path d="M5.6 4.6 L5.6 6.2 M4.8 5.4 L6.4 5.4" stroke="#d03030" stroke-width="0.9"/><path d="M7 7.2 Q8 6.6 8.6 7.6" stroke="#7ab090" stroke-width="0.8" fill="none"/></svg>`;
-const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironHead(AXE_ICON), 'Iron pickaxe': ironHead(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron dagger': ITEMS['Iron dagger'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
-  'Bronze bar': BAR_ICON, 'Bronze dagger': DAGGER_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
+const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironHead(AXE_ICON), 'Iron pickaxe': ironHead(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron daggers': ITEMS['Iron daggers'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
+  'Bronze bar': BAR_ICON, 'Bronze daggers': DAGGERS_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON, 'Raw bream': BREAM_ICON, 'Bream': COOKED_BREAM_ICON, 'Burnt bream': BURNT_BREAM_ICON, 'Worms': WORMS_ICON, 'Tinderbox': TINDER_ICON,
   'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
@@ -6219,12 +6349,14 @@ function applySave(d){
     COINS = typeof d.co === 'number' ? d.co : 0;
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
       if (it && it.name === 'Fly fishing rod') it = { ...it, name: 'Fishing rod' };   /* one rod for bait and flies now */
+      if (it && OLD_DAGGERS[it.name]) it = { ...it, name: OLD_DAGGERS[it.name] };   /* a single dagger is a pair now */
       if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
     for (const b of bag.slice()) { const first = bag.find(x => x.name === b.name); if (first !== b && !SINGLE.has(b.name)) { first.qty += b.qty; bag.splice(bag.indexOf(b), 1); } }   /* burnt food saved one to a slot joins back into one stack */
     for (const b of bag.slice()) while (SINGLE.has(b.name) && b.qty > 1 && bag.length < BAG_SIZE) { b.qty--; bag.push({ name: b.name, qty: 1, icon: b.icon, slot: freeSlot() }); }   // food from before it stopped stacking: spread into free slots (any left over stays together)
   }
-  if (d && d.eq) Object.keys(equipped).forEach(k => { equipped[k] = d.eq[k] && ICON_FOR[d.eq[k]] ? d.eq[k] : null; });
+  if (d && d.eq) Object.keys(equipped).forEach(k => { const n = d.eq[k] && (OLD_DAGGERS[d.eq[k]] || d.eq[k]); equipped[k] = n && ICON_FOR[n] ? n : null; });
+  if (equipped.weapon && ITEMS[equipped.weapon] && ITEMS[equipped.weapon].twoHand && equipped.shield && bag.length < BAG_SIZE) { addItem(equipped.shield, 1, ICON_FOR[equipped.shield] || ITEMS[equipped.shield].icon); equipped.shield = null; }   /* the pair takes both hands: a shield worn with an old dagger goes back to the bag */
   if (d && d.q && typeof d.q.hw === 'number') Object.assign(QUEST, d.q);
   if (equipped.body === "Villager's cloak") { equipped.back = equipped.body; equipped.body = null; }   // the cloak moved to its own back slot
   if (d && d.dm) Object.keys(d.dm).forEach(k => { if (d.dm[k] && typeof d.dm[k].n === 'number') DEMAND[k] = d.dm[k]; });   // Mara's prices carry over
@@ -6295,7 +6427,7 @@ function setRemote(id, p){
     if (ONLINE.announce && !(joinSeen[id] && Date.now() - joinSeen[id] < 600000)) addSystemLine(`${p.n || 'A player'} has joined the village.`);
     joinSeen[id] = Date.now();
     const lookJson = JSON.stringify(p.l || {});
-    const sprite = makeChibi({ ...look, ...LOOK_PLAIN, ...(p.l || {}) });   // their figure, in their look
+    const sprite = makeChibi({ ...look, ...LOOK_PLAIN, ...(p.l || {}) }); sprite.userData.chibi.fightFaces = true;   // their figure, in their look
     scene.add(sprite);
     const label = document.createElement('div');
     label.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:6;color:#fff;font:13px Georgia,serif;text-shadow:0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000;white-space:nowrap;display:none;';
@@ -6307,7 +6439,7 @@ function setRemote(id, p){
   }
   if (JSON.stringify(p.l || {}) !== r.lookJson) {   // the look changed: redraw the frames
     r.lookJson = JSON.stringify(p.l || {});
-    const fresh = makeChibi({ ...look, ...LOOK_PLAIN, ...(p.l || {}) });
+    const fresh = makeChibi({ ...look, ...LOOK_PLAIN, ...(p.l || {}) }); fresh.userData.chibi.fightFaces = true;
     fresh.position.copy(r.sprite.position); fresh.rotation.y = r.sprite.rotation.y;
     scene.remove(r.sprite); unregisterSprite(r.sprite); scene.add(fresh); r.sprite = fresh; r.eqJson = '';
   }
@@ -7165,7 +7297,7 @@ function partyFxApply(){
     for (const h of list) { if (!h || h.on !== DELVE.on || h.k <= fxSeen[key]) continue; fxSeen[key] = h.k;
       const m = DELVE.mons.find(q => q.sp === h.sp), r = remote[by]; if (!m || !m.g) continue;
       const lbl = h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : '';
-      if (h.w === 'ps' && r) { r.fAnim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound('swing')); }
+      if (h.w === 'ps' && r) { r.fAnim = { kind: 'swing', t0: now, dur: r.sprite.userData.chibi && r.sprite.userData.chibi.weaponL ? DUAL_MS : 900 }; soundAt(m.x, m.z, () => combatSound('swing')); }
       if (h.w === 'ms') { m.anim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Attack')); }
       if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, lbl); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : h.ty === 'block' ? 'thud' : 'miss')); }
       if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, lbl); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : 'miss')); }
@@ -8214,7 +8346,7 @@ function mobApply(sid, st){
   const m = MONSTERS.find(q => q.sid === sid); MOBST[sid] = st || {}; if (!m || !st || !st.h) return;
   const h = st.h; if (h.k === m.lastK) return; m.lastK = h.k; if (h.by === ONLINE.id) return;
   const r = remote[h.by], now = performance.now();
-  if (h.w === 'ps' && r) r.fAnim = { kind: 'swing', t0: now, dur: 900 };
+  if (h.w === 'ps' && r) r.fAnim = { kind: 'swing', t0: now, dur: r.sprite.userData.chibi && r.sprite.userData.chibi.weaponL ? DUAL_MS : 900 };
   if (h.w === 'ms') { m.anim = { kind: 'swing', t0: now, dur: 900 }; soundAt(m.x, m.z, () => combatSound((m.t.snd || 'goblin') + 'Attack')); }
   if (h.w === 'p') { hitsplat(m.g, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); m.anim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; soundAt(m.x, m.z, () => combatSound(h.ty === 'hit' ? 'hit' : h.ty === 'block' ? 'thud' : 'miss')); }
   if (h.w === 'm' && r) { hitsplat(r.sprite, h.d, h.ty, h.ty === 'block' ? 'Blocked' : h.ty === 'miss' ? 'Miss' : ''); r.fAnim = { kind: h.ty === 'hit' ? 'hurt' : 'block', t0: now, dur: 450 }; }
