@@ -502,9 +502,7 @@ function caveClick(){
 function askCave(){
   if (FIGHT) { showToast("You can't go in there while you're fighting!"); return; }
   if (DELVE || CAVE) return;
-  const cb = combatLevel(), weak = cb < 15 ? `<br><br>You're combat level ${cb}. It could go badly.` : '';
-  const back = !CAVE_P.done && Object.keys(CAVE_P).some(k => k !== 'runs' && k !== 'pl') ? '<br><br>Everything is as you left it.' : '';
-  delveAsk(`<div style="color:#f0c35a;font-size:16px;margin-bottom:6px;text-align:center">&#9888;&#65039; THE CAVE &#9888;&#65039;</div><div style="text-align:center">Goblins, giant rats and a cave troll lurk below, levels 15 to 20. You'll need every skill you have to get through.<br><br>Bring food, an axe, a pickaxe, a hammer, a tinderbox, and a fishing net or rod.<br><br>If you fall, your things stay in a gravestone here at the mouth.${weak}${back}</div>`, 'Go in', startCave, 'Not yet');
+  startCave();   /* no warning: the owner wants people to just go in and explore */
 }
 function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1 }); }
 function startCave(){
