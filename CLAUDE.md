@@ -1,8 +1,65 @@
 # Project notes
 
-## ITAP Adventure (`adventure/index.html`)
+## ITAP Adventure (`adventure/src/`, built into `adventure/index.html`)
 
-The whole game is one file: a three.js module script inside `adventure/index.html`. Players share a live Firebase Realtime Database, so treat every change as going straight to real players.
+The game is one three.js module script, kept as **source pieces in `adventure/src/`** and joined by `node tools/build-adventure.js` into **`adventure/index.html`**, the page players load (GitHub Pages serves it straight from `main`). Players share a live Firebase Realtime Database, so treat every change as going straight to real players.
+
+### Editing the game: the source files and the build
+
+- **Edit `adventure/src/`, never `adventure/index.html`.** Then run `node tools/build-adventure.js` and commit both the source files and the rebuilt `index.html`. A check on every push and pull request (`.github/workflows/adventure-build.yml`, which runs `node tools/build-adventure.js --check`) fails if `index.html` doesn't match its sources.
+- **The pieces:**
+  - `adventure/src/page.html`: the page around the game (head, the panels' markup, the import map), with the marker lines `/*@@style.css@@*/` and `//@@js@@`.
+  - `adventure/src/style.css`: the page's styles.
+  - `adventure/src/js/NNN-name.js`: the game script, joined in file-name order.
+- **It is still one module with one shared scope.** A name defined in one file can be used in any other, and order matters exactly as before: start-up code runs file by file, so a builder can't use a `const`/`let` from a later file at start-up (temporal dead zone). The pieces were cut from the old single file without changing a byte, so the order is the old file's order.
+- **Every build checks** that the script parses (errors point at `adventure/src/js/<file>:<line>`) and that no top-level name is defined twice, in one file or across two. It doesn't see a clash hidden in an inner scope, or the second name in a comma list (`const a = 1, b = 2`), though a same-level clash still fails the parse check.
+- **A new piece** gets a number between its neighbours (for example `175-...` between `170` and `180`), at the point in the order where it must run.
+- **Nothing can go between `350` and `990`:** `350` ends in the middle of `endNight()`, which finishes at the top of `990`. A file put there lands inside that function, and its names vanish from the shared scope ("updateCave is not defined").
+- **When git reports a conflict in `index.html`**, don't resolve it by hand: resolve the source files, then rebuild.
+- **Tests are unchanged:** they serve the built `adventure/index.html` and inject their hooks at `bootOnline();\nframe();` (the last lines of `990-join-and-boot.js`). Rebuild before running a test.
+- **Where things are** (each file is a stretch of the old file, so some hold more than their name says):
+
+| File | What's in it |
+|---|---|
+| `010-setup-looks-renderer` | imports, the creator's `LOOK` options, renderer, scene, camera, `LIGHT_SPOTS` |
+| `020-ground-river-north` | the ground, the river and stream, the north (`NORTH`, `hillH`, `northOut`) |
+| `030-buildings-nature-textures` | houses, nature props, textures drawn in code |
+| `040-hall-daynight-facelift` | the stone hall, day and night (`hourNow`, sky, lights), the hall's facelift |
+| `050-doors-pathfinding-trees-sound` | doors and walls, `findPath`, `walkStart`, `makeTree`, `sfx` and `soundAt` |
+| `060-skilling-chop-mine-smelt-cook` | skilling sounds, chopping, mining, smelting, cooking, eating (`EAT_MP3`) |
+| `070-smithing-mara-gear-tab` | the anvil, `SHOPS` and Mara's shop, Jory's fish stock, `equip`, the gear tab |
+| `080-music-talking-quests` | village music, the talk panel, quests (`QUEST`, `questTalk`) |
+| `090-conversations-chat-rock-smash` | the dialogue box, chat, the rock smash |
+| `100-ore-rocks-chibi-base` | ore rocks, `toonMat`, `chibiPart` |
+| `110-chibi-looks-faces-cape` | `chibiExtras`, `CHIBI_SHELLS`, `chibiTexMat`, `chibiFace`, `makeChibi`, the emblem and cape |
+| `120-chibi-gear-daggers-poses` | `dressChibi`, elbows and the pair of daggers, fight faces, `poseChibi` |
+| `130-creator-walking-camera-stats` | the character creator, walking and the click marker, camera, the Stats tab |
+| `140-bag-icons-items-toolbelt` | the bag (`addItem`), item icons, `ITEMS`, `RECIPES`, food, the toolbelt |
+| `150-barracks-fishing-shack-north-bridge` | the barracks and jail, Jory's shack, the north's bridge and trees |
+| `160-village` | the village layout, the villagers' lines, `FISHES` |
+| `170-paths-guards` | the paths, the guards' schedules |
+| `180-villagers-day` | `VILLAGER_DAY`, villager routes, `addNpc`, `fishPose` |
+| `190-farm-grass-combat-intro` | the farm, the painted grass (`grassMaskTexture`, `buildGrass`), the start of combat |
+| `200-monsters-fights-combat-sounds` | `MONSTER_TYPES`, animal models, `fightPose`, fights (`playerSwing`, `landBlow`, `hitsplat`), combat sounds |
+| `210-villager-chat-ruined-farm` | villagers' remarks and `tableTalk`, the ruined farm |
+| `220-root-cellar-delve` | the Root Cellar delve, `showRewardScroll` |
+| `230-bonfire-clearing-walls-fold` | the bonfire clearing, walls folding while inside, start |
+| `240-online-signin-presence-players` | sign-in (`signIn`), saves (`saveNow`, `applySave`), presence, other players |
+| `250-battery-saver-main-loop-torch-fires` | battery saver, the main loop (`frame`), the torch, fires |
+| `260-ground-items` | items on the ground (`GROUND`) |
+| `270-farming-pens-crops` | farming, the pens, crops |
+| `280-parties-party-delve` | parties, party frames, the party delve |
+| `290-market-silkworks` | Tilly's market, the silkworks |
+| `300-village-dressing` | the green, farm and woods dressing, river life |
+| `310-spinning-bandages-milling` | spinning, bandages, milling and dough |
+| `320-trading` | player menus and trading |
+| `330-bonfire-night-database-phrase` | the bonfire night's setup; **all the database code**: the one live feed (`startLive`, `liveFeed`), shared monsters (`mobPath`); the secret phrase |
+| `340-bonfire-night-people-fire-raid` | the night's villagers, the fire, sitting, goblins, graves, the host |
+| `345-cave-dungeon` | the cave dungeon (`CAVE`, `CAVE_P`, rooms, puzzles, its creatures, its ambience) |
+| `350-bonfire-night-each-frame` | the bonfire night's each-frame update |
+| `990-join-and-boot` | the join button, `bootOnline(); frame();` |
+
+  Find a name with `grep -n "name" adventure/src/js/*.js`.
 
 It is a RuneScape-style village game based on the owner's phone game, **Idle Tap Adventure (ITAP)**. When a feature exists in ITAP (monsters, delves, warnings, balance), match it: its code is in the `Kaiserfi/idletapadventure` repo (for example `www/js/combat.js` for challenge-mode delves and their wording). When it doesn't, follow how RuneScape does it, adapted to our simpler skills.
 
@@ -10,7 +67,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - **Ask only when the choice changes what gets built** (single or multi-combat, private or shared ground items). Otherwise pick the sensible default, say which, and go.
 - **"Show me" means a mock-up, not a change.** When the owner asks what something would look like, render it with test hooks and send pictures, without changing the game. Offer to build it afterwards.
-- **Search before adding a name.** The file is huge and shares one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once). `node --check` catches a clash at the same level, but not one hidden in an inner scope.
+- **Search before adding a name.** All the pieces share one scope: check a new function or `const` name isn't already taken (`roomFor`, `roof` and `SNOW` all clashed once) with `grep -n "name" adventure/src/js/*.js`. The build catches a clash at the top level, but not one hidden in an inner scope.
 - **Ask before placing a new building.** Show the owner a top-down map with the candidate spots marked first (render the whole map with an orthographic camera looking straight down, fog off, and draw a labelled grid on it with PIL), then a mock-up of the building, and only build once they've approved both.
 - **Read the owner's messages mid-task.** They often add a request while you work; fold it into the current change, or do it next and say so.
 
@@ -34,7 +91,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 - **Measure clearance against the tallest character, in world units.** A standing hero is about 3.95 tall, and NPCs with hats (Tilly, Bram, Ezra, the angry farmers) reach about the same height. Doorways must be at least 4.5 high. Awnings, beams and roofs that anyone stands under need their underside at least 0.15 above the top of the head. Measure with `new THREE.Box3().setFromObject(sprite).max.y` and compare it with the underside at that exact spot (sloped awnings are lower at the front). Don't guess from screenshots. When the owner gives a number ("raise it 1 unit"), use exactly that number.
 - **Check a new building from outside and from inside.** Walk the hero through every doorway in a test, and screenshot the outside from street level and the inside with the roof hidden. A roof that hides while you're inside (as the workshop's does) shows sky from close up; that is expected.
-- **Keep grass out of floors.** Grass grows wherever the mask in `grassMaskTexture()` allows. `solidBoxes` only clears the walls, so add a `g.fillRect` for the whole floor of any new building. Check with the grass setting on **high**, since tests default to `grass: 'off'`.
+- **Keep grass out of floors.** The grass is painted onto the ground (`buildGrass`: a copy of the ground just above it, brush-stroke clumps in the ground's own greens with a rolling light wave, see-through wherever the mask in `grassMaskTexture()` keeps grass away). There are no grass blades and no grass setting any more (the owner removed both). `solidBoxes` only clears the walls, so add a `g.fillRect` to the mask for the whole floor of any new building, path or field, and check it from the game camera.
 - **No signs unless asked.** Don't add painted or text signs to buildings, stalls or posts on your own initiative.
 - **Scale buildings to the characters.** Make sure players can't walk through props (beams, rubble, rocks): make them solid in `solidBoxes`, or flat enough to walk over. The ruined farmhouse had to be scaled up 1.6x and made solid.
 - **Built after start-up.** The town is built before the later parts of the script run, so a builder called from the town setup can't use `const`/`let` values defined further down (temporal dead zone), and a `var` is still `undefined`. Build such things lazily on the first frame (as `buildSilkworks()` and `buildMarket()` are, from `updateSilkworks()`), but paint their paths with the farm's roads at start-up.
@@ -76,6 +133,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Saves must stay compatible.** New save fields get a default when missing (old saves load fine), and items that change shape are converted on load. Examples: food that used to stack is spread into slots, coins move from the bag into the purse (`co`), and plots without a crop load as wheat.
 - **Food doesn't stack** (`SINGLE`: raw and cooked food, dough, bread). Burnt food and everything else stacks.
 - **Coins are in the purse** (`COINS`, shown at the right of the bag footer), not a bag slot. `addItem`, `removeItem`, `countOf` and `hasItem` handle `'Coins'` specially.
+- **The watering can in the bag** opens a menu (`openCanMenu`): Fill (any water within `CAN_REACH`, found by `nearestWater`: the river, stream, pond, the north's water, the farm trough, the cave pool; walks up and plays the fill pose), Put on toolbelt, Cancel. Unhook it from the belt with the × in the gear tab.
 - **The toolbelt** holds one of each skilling tool. Check tools with `hasTool(name)` (bag or belt), never `hasItem`, and add new tool types to `beltSlotFor` and `TOOLBELT_SLOTS`.
 - **Never hand items over into a full bag.** `addItem` quietly gives only what fits. Before a quest, reward or NPC gives anything, check there's room (`bagRoomFor`). If there isn't, the NPC says so and nothing moves on. And if a player is on a step without the thing they were given, let the NPC hand it over again.
 - **Items on the ground** (`GROUND`, `dropToGround`) work as in RuneScape: monster drops land where the monster fell (never straight into the bag), and dropped items, rewards and anything that doesn't fit go on the ground too. Only the owner sees a pile for the first minute (`GROUND_PRIV`), then everyone up top does. Monster drops last two minutes, everything else three. They're shared at `adventure/live/ground/<key>`, and picking one up is first come, first served: the game takes it in the database first, with an ETag `if-match`. Cellar drops stay private. Each item should have a small 3D model in `groundModel` (no bones on meat); anything without one shows as a cloth bundle.
@@ -128,6 +186,24 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
   - Give it no light of its own: use `LIGHT_SPOTS` or the emissive glow.
   - `ConvexGeometry` comes from `three/addons/geometries/ConvexGeometry.js`; import it at the top of the game module or bake the head's triangles.
   - The pose clips were only checked as still frames, with the older head. Check them in motion.
+
+### The cave dungeon (`345-cave-dungeon.js`)
+
+- **What it is:** a solo Zelda-meets-Dungeoneering dungeon for players who can take level 15 to 20 monsters, built lazily on the first trip down (`buildCave`), far off the map at x -70..70, z 598..694 (`inCaveZone`: z > 550; `inDelveZone` is now only the cellar, z 300..550). It has its own walking grid (`CAVE_GRID`, swapped in by `findPath` whenever the walk starts at z > 550). The owner asked to play it as a surprise, with no mock-ups.
+- **Rooms** (`CAVE_ROOMS`, joined by 4.4-wide passages in `CAVE_HALLS`; walls are solid boxes piled with low boulders, kept about 2.3 high so the game camera sees over them):
+  - The way in (the rope out), then the gatehouse: two cave goblins, then the portcullis lifts.
+  - The rune hall: five floor stones, each step flips it and its two neighbours, all lit opens the rune seal east (`CAVE_P.pl`). The great door north has three locks.
+  - West: the chasm (chop the dead tree, Woodcutting 15, and it falls as a bridge exactly the trunk's width and gives 4 logs; a goblin waits across), then the fire shrine (four braziers, Firemaking 10 and a log each, lit in `BRAZ_ORDER`, with no clue (the owner found marks too obvious): a wrong one or one burning out after `BRAZ_MS` puts them all out; then, 3 s after the warning, three blind rats inside the ring of braziers; the ember key appears on the altar; an old root gives more logs).
+  - East: the old mine (two blind rats; mine the cracked wall, Mining 15, for iron ore), then the goblin forge (goblin smith and a goblin; their furnace is a normal `furnace` rec; the anvil, Smithing 15 and 1 iron bar, makes the iron key, which floats over the anvil until you take it (the owner preferred that to it going straight into the bag); an iron seam in the wall gives one more ore every 20 s).
+  - South-west: the grotto, and west of it the goblin jail (`cell`), where Hollis sits on a bench behind bars and is talked to through them (`hollisTalk` through `questTalk`; `hollisIdle` breathes, blinks, looks round and at you, and tugs; he frowns until fed). He wants a cave fish (Fishing 10, net or rod), cooked on his fire (Cooking 10). He gives glowcap spores (Farming 5) that grow in 12 s and light the ledge. Three webs, twisted into a rope by clicking a web in the bag (Crafting 5, `twistRope`), let you climb (a real climb pose, the chest's lid opens) to the tide key.
+  - North: the troll's den. The cave troll (level 20) calls a blind rat at half health; then the cellar's own reward chest (`buildRewardChest`, `animRewardChest`, shared with the delve: the owner had already had a glitchy lid fixed there) (coins, 3 iron bars, feathers, +600 Melee and Hitpoints, +150 every other skill) and a rope out.
+- **Creatures** (`MONSTER_TYPES` caveGoblin, blindRat, goblinSmith, caveTroll; goblins from ITAP's numbers) are `m.delve` and `m.cave`, so they don't wander or respawn and the fights are multi-combat. Only those in your room come for you (`caveMobs`), round obstacles (`caveStep` uses `findPath` when the straight line is blocked), and it's **multi-combat**: everything in the room comes at you together (the owner asked for it after a one-at-a-time version).
+- **The cave's things are real items** (`CAVE_ITEMS`: the cave fish raw, cooked and burnt, glowcap spores, cave webs, the web rope and the three keys, with icons in `ICON_FOR` and a line each in `CAVE_ITEM_TEXT` when clicked). They can't be dropped or sold. **Nothing ever spills onto the ground:** anything that gives items (the tree, the wall, the seam, the pool, webs, keys, the chest, and going back down with things you left) refuses with "Your bag is full." until there's room. They never leave the cave: leaving or dying puts them away in `CAVE_P.inv` (`caveStash`) and the next trip down hands them back (`caveUnstash`); saves never put them in the bag. A key that somehow goes missing goes back where it came from. The great door takes all three keys.
+- **Progress is saved** (`cd: CAVE_P`, rooms cleared `k_<room>`, doors, keys, the fish, spores, webs, rope). Leaving and coming back keeps it; creatures in uncleared rooms come back at full health. After the reward `CAVE_P.done` is set, and the next trip starts fresh (`caveFresh`). Saves inside put you at the mouth (`caveExitSpot`).
+- **Dying** (`caveDied`): you leave the cave, your gravestone goes up at the cave mouth on the surface (`dropOnDeath` from there, before the save), and you wake in the hall as usual. No coin or XP penalty.
+- **Jobs** (`caveWork`) share `#smeltBar`, stop when you walk (`walkStart`, `cancelChop`) or get attacked, and pose the hero directly each frame. Lighting is the cellar's darkness slightly lifted (`nb` 0.7), lit through `LIGHT_SPOTS` (torches, lit braziers, the glowcap). The HUD (`#caveHud`) shows only the room's name and the three keys: the owner wants as few words as possible.
+- **The key pickup chime** (`caveChime`) also marks every finished puzzle: the bridge, the wall, the braziers, the portcullis, the runes, the glowcap, the great door.
+- **Sound:** made-in-code ambience at 60% of the music volume, from filtered noise and a generated cave echo (`caveReverb`), never tones (the owner found tones "arcade like"): only the deep room rumble underneath (`caveAmbBed`; the owner turned down the wind and a trickle of bubbles), and events timed by `caveAmbTick`: distant and near drips, a spot dripping steadily, pebbles, bats (`caveBats`) and rock shifting (`caveGroan`), and the village music fades out while you're down there. The troll fight plays the boss theme, and the troll's den never plays the ordinary battle theme, not even in the seconds after the troll falls (the cellar had the same bug once). Other cave fights play the usual battle theme. Climbing down shows no message.
 
 ### The Root Cellar delve
 
@@ -192,6 +268,11 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. The console still has old top-level copies of players, nodes, event, graves and mobs, so keep them in any rules you hand over. `database.rules.next.json` is the strict step: only your own account writes your save, presence and grave; everything else needs a sign-in. It's not published yet; check with the owner before telling them to publish it.
 - Anything deeper (stopping players editing their own save or one-shotting monsters) needs a server: Cloud Functions on the Blaze plan, checking actions instead of trusting the browser. That's discussed but not started; shops and coins would go first.
 
+### Presence notes
+
+- Each open game writes its note at `adventure/live/players/<id>` every second or two and deletes it on logout. A closed or crashed browser can't, so other games hide any note older than 30 s, and whoever sees one more than 2 minutes old deletes it (`sweepPresence`: a random wait, then an ETag-checked delete, so a player who just came back is never removed). Both the current rules and `database.rules.next.json` allow that delete.
+- Anyone can read `live/players` without signing in (names, positions, chat lines). The stricter rules aren't published yet.
+
 ### Healing other players
 
 - Clicking a bandage opens **Heal / Heal other**. Heal other lists hurt players within 14 units (their health comes from presence, `hp: [cur, max]`). Picking one heals on the spot if they're within 4 units, otherwise you walk up first; aim at their real position (`r.tx/r.tz`), not their sliding figure.
@@ -213,7 +294,8 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 
 ### Added in the north and fishing update (so you don't rebuild it)
 
-- **The north** (`NORTH`, across the river): reached only by the bridge at x -10. The river's solid strip has a gap there, and the whole river is now solid. It's a flat meadow at height 0 (everyone walks at 0) rising to solid hills on the north, west and east (`hillH`, `northOut`, strips of solid boxes), with solid knolls inside. A stream leaves the river at x 45 for a big lake (`NORTH.pool`, 56 by 32, with an island) that has trout spots on its south-west bank (`lakeShore`). Iron rocks sit in the north-west. The north has no grass blades: the grass mask and the path painter only cover the village, so its tracks are tinted into the ground's vertex colours (`NORTH_PATHS`). New monsters spawn **after** the farm's, so existing shared ids never move.
+- **The north** (`NORTH`, across the river): reached only by the bridge at x -10. The river's solid strip has a gap there, and the whole river is now solid. It's a flat meadow at height 0 (everyone walks at 0) rising to solid hills on the north, west and east (`hillH`, `northOut`, strips of solid boxes), with solid knolls inside. A stream leaves the river at x 45 for a big lake (`NORTH.pool`, 56 by 32, with an island) that has trout spots on its south-west bank (`lakeShore`). Iron rocks sit in the north-west. The path painter only covers the village, so the north's tracks are tinted into the ground's vertex colours (`NORTH_PATHS`). The grass mask (`GM`) reaches z -112: in the north it allows grass on the meadow, thinning towards the hills, and none on the hills and knolls (`hillH`, so their bare rock shows), round the iron rocks, on the lake, stream and banks, or on `NORTH_PATHS`. The painted grass covers the ground's own colours, so anywhere the ground is meant to look different (rock, gravel, dirt) must be cut out of the mask. Anything new in the north that grass shouldn't cover needs painting into the mask too. New monsters spawn **after** the farm's, so existing shared ids never move.
+- **The cave** (`NORTH.cave`, x 99.6, z -58, at the foot of the east hills): the hill pushes out as a rocky spur (`spurH`, kept apart from `hillH` so the seeded trees and boulders don't move) ending in a steep face, with a ragged dark opening laid on it (`buildCaveMouth`). The grass texture fades to plain rock on its face, the painted grass and the loose boulders keep off it, and it's solid. Clicking the opening (`caveClick`) goes straight down into the cave dungeon (below), with no warning: the owner wants people to just go in and explore. A cave rat that lived at the mouth moved to (88, -48).
 - **Aggressive monsters** (`aggro: true`; the north's `hillRat`, level 6, and `caveRat`, level 9). They notice you within 6 units (`AGGRO_RANGE`), **but only if your combat level is at most twice their level plus one**; they ignore stronger players. They run at you (`chaseStep`) and start the fight themselves. They never leave their own ground, and once you run off they leave you alone for 10 s (`AGGRO_COOL`). A type can borrow another's model (`model: 'rat'`) and be scaled (`scale`).
 - **Fishing:**
   - **Spots:** shrimp in the river (net), bream in the village pond (Fishing 10, rod and worms), trout at the north lake (Fishing 15, rod and feathers).
@@ -264,7 +346,7 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - **Test hooks run inside the game module.** Game internals aren't on `window`, so put helper functions in code injected after `bootOnline();\nframe();` and call them through `window.__t`. Don't write a literal line break inside a string in injected code (it breaks the whole page), and don't give two helpers the same name (the later one silently wins).
 - **Headless runs at only a few frames per second.** Walking and wandering are slow there, so teleport the hero next to things for checks, and allow long waits.
 - **Render pictures with a separate camera** (`renderer.render(scene, cam)` then `toDataURL`) to look at an object up close; the game camera follows the hero.
-- Check the script parses before testing: extract the module script and run `node --check` on it.
+- Before testing, run `node tools/build-adventure.js`: it rebuilds the page the tests load, checks the script parses and checks for name clashes.
 - **Tests fake the sign-in too:** `FakeDb.attach(page, uid)` signs that page in as `uid` (use fixed ids like `'id' + name`), and `offlineDb` signs in as `offlineTester`. Never let a test reach Google's real sign-in: it creates real accounts on the project.
 - **The local server stops when the session restarts.** If a test fails to load `localhost:8123`, start `python3 -m http.server 8123` again from the repo.
 - **Test scripts worth reusing** in `tools/tests/`: `party-delve-handoff.js` (`fight`, `threat` or the default leader-asleep run), `ground-drops.js` (`time` for real-time), `fly-fishing.js`, `guard-schedule.js <hour>`, `villager-day.js <hour>`, `barracks.js`, `guard-day.js <hour>`, `auth-migrate.js`, `bonfire-night.js`. Pass pictures to a scratch folder with `OUT=`; without it some scripts write into the repo folder.
