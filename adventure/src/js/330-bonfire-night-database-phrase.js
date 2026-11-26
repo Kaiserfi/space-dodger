@@ -195,6 +195,9 @@ function startEventStreams(){
   const es = liveFeed('event');
   es.addEventListener('put', e => { evApply(JSON.parse(e.data)); });
   es.addEventListener('patch', e => { evMerge(JSON.parse(e.data)); });
+  /* the save watchdog (functions/watchdog.js) put this account's save back: reload it, so the game stops re-sending the corrected gain */
+  const wf = liveFeed('wd'), wa = d => { const parts = d.path.split('/').filter(Boolean), v = !parts.length ? (d.data || {})[ONLINE.id] : parts[0] === ONLINE.id ? d.data : undefined; if (typeof v === 'number') watchdogFix(v); };
+  wf.addEventListener('put', e => wa(JSON.parse(e.data))); wf.addEventListener('patch', e => { const d = JSON.parse(e.data); for (const k in d.data) wa({ path: d.path + '/' + k, data: d.data[k] }); });
   const ff = liveFeed('fires'), fa = d => { const parts = d.path.split('/').filter(Boolean);
     if (!parts.length) { for (const f of FIRES.slice()) if (!f.mine && !(d.data && d.data[f.key])) dropFire(f, false); for (const k in (d.data || {})) fireApply(k, d.data[k]); return; }
     if (parts.length === 1) fireApply(parts[0], d.data); else fetch(fireUrl(parts[0])).then(r => r.json()).then(v => fireApply(parts[0], v)).catch(() => {}); };

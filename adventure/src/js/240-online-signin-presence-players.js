@@ -177,6 +177,14 @@ function applySave(d){
   if (d && d.pos && hero) { const sp = openSpotNear(d.pos.x, d.pos.z); hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); }   // back where you logged out
   renderBag(); renderStats(); renderGear();
 }
+// the server's save watchdog corrected this save (an impossible jump in coins, XP or an item): load the corrected copy.
+// Each correction is handled once (itapWd keeps the last one seen), so reconnecting doesn't reload again.
+function watchdogFix(at){
+  let seen = 0; try { seen = +(localStorage.getItem('itapWd') || 0); } catch (e) {}
+  if (!(at > seen)) return; try { localStorage.setItem('itapWd', String(at)); } catch (e) {}
+  if (!ONLINE.ready) return;
+  fetch(`${DB}/adventure/saves/${ONLINE.id}.json`).then(r => r.json()).then(d => { if (!d || !d.xp) return; applySave(d); addSystemLine('Your save was put back to how it was: part of it changed faster than the game allows.'); }).catch(() => {});
+}
 window.beforeUpdateReload = () => ONLINE.ready ? saveNow(false) : null;   // save before refreshing for a new version
 async function saveNow(keepalive){
   if (!ONLINE.ready) return;
