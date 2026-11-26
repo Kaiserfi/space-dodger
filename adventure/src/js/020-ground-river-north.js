@@ -21,6 +21,7 @@ const NORTH = {
   pool: { x: 60, z: -68, rx: 28, rz: 16, isle: [78, -63, 5] },   // the lake the stream runs into: wide east to west, with a wooded island
   ford: -35,                                    // the footbridge over the stream
   bridge: { x: -10, hw: 2 },                    // the bridge over the river: its middle, and half the gap in the river's solid strip
+  cave: { x: 99.6, z: -58, top: 7.2, hw: 7.5 },  // the cave: a rocky spur of the east hills, its face on x, its middle on z
 };
 const northOut = (x, z) => Math.max(NORTH.zN(x) - z, NORTH.xW(z) - x, x - NORTH.xE(z));   // above 0 is in the hills
 function hillH(x, z){
@@ -28,6 +29,16 @@ function hillH(x, z){
   const o = northOut(x, z); let h = o > 0 ? Math.min(17, o * 0.9 + o * o * 0.025) * (0.85 + 0.15 * Math.sin(x * 0.31 + z * 0.23)) : 0;
   for (const [mx, mz, r] of NORTH.knolls) { const d = Math.hypot(x - mx, z - mz); if (d < r) h = Math.max(h, Math.pow(1 - d / r, 0.8) * r * 0.55 * (0.9 + 0.1 * Math.sin(x + z))); }
   return h;
+}
+/* the cave's spur: the east hills push out into the meadow as a rocky shoulder that ends in a steep face, the cave mouth in it.
+   Kept apart from hillH, which also decides where trees and boulders go (their seeded placement must not change). */
+const caveFaceN = z => (Math.sin(z * 0.9) * 0.35 + Math.sin(z * 2.3 + 1) * 0.2) * Math.min(1, Math.max(0, (Math.abs(z - NORTH.cave.z) - 2.5) / 2));   // straight across the mouth
+function spurH(x, z){
+  const C = NORTH.cave, dz = Math.abs(z - C.z), fx = C.x + caveFaceN(z) + dz * dz * 0.035;   // the face curves back at its ends, like a buttress
+  if (x < fx || dz > C.hw + 3 || z > -19.5) return 0;
+  const side = 1 - Math.min(1, Math.max(0, (dz - (C.hw - 3.5 + (x - fx) * 0.15)) / 3.5));
+  const top = C.top + (x - fx) * 0.25 + Math.sin(x * 0.8 + z * 0.6) * 0.35;
+  return Math.max(0, top * side * side * (3 - 2 * side));
 }
 function northWaterSD(x, z){
   let m = Infinity; const S = NORTH.stream;
@@ -71,7 +82,7 @@ for (let i = 0; i < gp.count; i++) {
   const qd = Math.hypot(x - QUARRY.x, z - QUARRY.z);   // the quarry floor is dug level
   if (qd < 17) { gp.setY(i, qd < 14 ? -0.02 : (Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12) * (qd - 14) / 3); continue; }
   let y = inHall || inVillage ? 0 : Math.sin(x * 0.2) * 0.12 + Math.cos(z * 0.17) * 0.12;
-  if (z < -19.5) { const hh = hillH(x, z); y = hh > 0.05 ? hh : y * 0.5; }   /* the north: a flat floor to walk on, and the hills and knolls */
+  if (z < -19.5) { const hh = Math.max(hillH(x, z), spurH(x, z)); y = hh > 0.05 ? hh : y * 0.5; }   /* the north: a flat floor to walk on, and the hills and knolls */
   if (WATER_RECTS.some(([x0, x1, z0, z1]) => x > x0 - 1 && x < x1 + 1 && z > z0 - 1 && z < z1 + 1)) {   // round the water: never dip below its surface on dry land, and slope into it at the banks
     const sd = waterSD(x, z); y = sd > 0.6 ? Math.max(y, -0.05) : Math.min(y, Math.max(-0.66, WATER_Y + sd * 0.5)); }
   gp.setY(i, y);
@@ -93,7 +104,9 @@ voidPlane.position.y = -3; scene.add(voidPlane);
       c.lerp(new THREE.Color(0x8a7a52), k * 0.85); }
     if (z < -19.5) {   // the north: greener by the river, drier and stonier towards the hills, bare rock up on them, and its dirt tracks
       c.lerp(new THREE.Color(0x7a8a4a), Math.min(1, Math.max(0, (-z - 35) / 50)) * 0.55);
-      const hh = hillH(x, z); if (hh > 0.2) c.lerp(new THREE.Color(f > 0.5 ? 0x7a7466 : 0x6a665c), Math.min(0.9, hh / 5));
+      const hh = Math.max(hillH(x, z), spurH(x, z)); if (hh > 0.2) c.lerp(new THREE.Color(f > 0.5 ? 0x7a7466 : 0x6a665c), Math.min(0.9, hh / 5));
+      const sp = spurH(x, z), C = NORTH.cave; if (sp > 0.15) c.lerp(new THREE.Color(0x56524a), (sp > 1 && x < C.x + 1.6 ? 0.25 + 0.2 * (Math.sin(sp * 3.1) * 0.5 + 0.5) : 0) + 0.15);   /* darker rock bands in the cave's face */
+      { const d = Math.hypot((x - C.x) * 1.4, z - C.z) + Math.sin(x * 1.7 + z) * 0.8; if (x < C.x + 0.5 && d < 6) c.lerp(new THREE.Color(0x8a7458), Math.min(1, (6 - d) / 2.5) * 0.8); }   /* trodden earth in front of the mouth */
       if (NORTH_PATHS.some(pts => pts.some((p, k) => k && segDist(x, z, pts[k - 1], p) < 1.3))) c.lerp(new THREE.Color(0xa48a5e), 0.75);
       if (Math.hypot(x + 49, z + 68) < 9) c.lerp(new THREE.Color(0x8a8478), 0.6 * Math.min(1, (9 - Math.hypot(x + 49, z + 68)) / 3));   // gravel round the iron rocks
     }
@@ -118,6 +131,11 @@ const grassTex = (() => {
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(60, 60); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 })();
 const groundMesh = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ map: grassTex, color: 0xffffff, vertexColors: true, roughness: 1, metalness: 0 }));
+/* the grass texture is stretched into streaks up a steep face, so on the cave's cliff it fades to plain rock */
+groundMesh.material.onBeforeCompile = sh => {
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vGSteep;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvGSteep = (position.x > ' + (NORTH.cave.x - 1.5).toFixed(1) + ' && abs(position.z - (' + NORTH.cave.z.toFixed(1) + ')) < ' + (NORTH.cave.hw + 4).toFixed(1) + ') ? 1.0 - normal.y : 0.0;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGSteep;').replace('#include <map_fragment>', 'vec4 sampledDiffuseColor = texture2D( map, vMapUv ); sampledDiffuseColor.rgb = mix(sampledDiffuseColor.rgb, vec3(0.82), smoothstep(0.3, 0.55, vGSteep)); diffuseColor *= sampledDiffuseColor;');
+};
 town.add(groundMesh);
 // the river ripples: a moving wave pattern with sparkles where the sun catches it
 const riverTex = (() => {

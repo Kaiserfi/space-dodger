@@ -191,7 +191,7 @@ function grassMaskTexture(){
   { const rows = Math.ceil(Z(-20.5)), img = g.createImageData(W, rows), d = img.data;
     for (let py = 0; py < rows; py++) for (let px = 0; px < W; px++) {
       const x = GM.x0 + (px + 0.5) / GM.ppu, z = GM.z0 + (py + 0.5) / GM.ppu;
-      const dry = Math.min(1, Math.max(0, (-z - 35) / 50)), hill = 1 - Math.min(1, Math.max(0, (hillH(x, z) - 0.15) / 0.9)), ir = Math.hypot(x + 49, z + 68);
+      const dry = Math.min(1, Math.max(0, (-z - 35) / 50)), hill = (1 - Math.min(1, Math.max(0, (Math.max(hillH(x, z), spurH(x, z), spurH(x + 1, z), spurH(x, z + 1), spurH(x, z - 1)) - 0.15) / 0.9))) * (x < NORTH.cave.x + 0.5 && Math.hypot((x - NORTH.cave.x) * 1.4, z - NORTH.cave.z) < 5 ? 0 : 1), ir = Math.hypot(x + 49, z + 68);
       const k = hill * (1 - 0.3 * dry) * (ir < 9 ? Math.min(1, Math.max(0, (ir - 6) / 3)) : 1), i = (py * W + px) * 4;
       d[i] = 255 * k; d[i + 1] = 255; d[i + 2] = 0; d[i + 3] = 255; }
     g.putImageData(img, 0, 0); }

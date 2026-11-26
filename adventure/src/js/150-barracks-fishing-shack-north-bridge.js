@@ -193,6 +193,27 @@ function lakeShore(a, off){
   for (let i = 0; i < 40; i++) { const x = P.x + dx * k, z = P.z + dz * k; if (northWaterSD(x, z) > 0) break; k += 0.025; }   // walk out to the edge
   const L = Math.hypot(dx, dz); return [P.x + dx * k + dx / L * off, P.z + dz * k + dz / L * off];
 }
+/* the cave in the east hills: a ragged dark opening laid on the spur's face (the ground is a 1-unit grid, so the face runs from the
+   last flat column to the next; the opening follows that slope), ferns at its foot, and solid rock. Clicking it: coming soon. */
+function buildCaveMouth(){
+  const C = NORTH.cave, MZ = C.z, col = Math.floor(C.x + 0.001), slope = spurH(col + 1, MZ);
+  const edge = [[-1.75, 0], [-1.6, 1.4], [-1.8, 2.6], [-1.35, 3.6], [-0.9, 4.25], [-0.2, 4.7], [0.5, 4.5], [1.05, 4.0], [1.45, 3.1], [1.4, 2.0], [1.7, 0.9], [1.65, 0]];
+  const onFace = (u, v, out) => [col - out + Math.min(1, v / slope), v, MZ + u];
+  const g = new THREE.Group(); town.add(g);
+  const mouth = (k, out, colr) => { const pos = [], pts = edge.map(([u, v]) => onFace(u * k, 2.2 + (v - 2.2) * k, out)), ctr = onFace(0, 2.0, out);
+    for (let i = 0; i < pts.length; i++) pos.push(...ctr, ...pts[i], ...pts[(i + 1) % pts.length]);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colr, side: THREE.DoubleSide })); g.add(m); return m; };
+  mouth(1.1, 0.04, 0x231b14);   // a slightly lighter lip round the edge
+  const dark = mouth(1.0, 0.08, 0x0b0806);
+  dark.userData = { action: 'Enter', name: 'Cave', rec: { kind: 'cave', onClick: () => showToast('Coming soon....') } }; trees.push(dark);
+  const fern = mat(0x3f7a2e); fern.side = THREE.DoubleSide;
+  for (const [x, z, s2] of [[col - 0.2, MZ - 4.6, 1], [col - 0.1, MZ + 4.5, 0.9], [col - 1.1, MZ + 2.4, 0.6], [col - 1.0, MZ - 2.6, 0.55]]) {
+    const f = new THREE.Group(); f.position.set(x, 0.02, z); g.add(f);
+    for (let i = 0; i < 6; i++) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s2, 1.1 * s2, 3), fern); const piv = new THREE.Group(); piv.rotation.y = i * 1.05; leaf.rotation.x = 0.9; leaf.position.set(0, 0.35 * s2, 0.35 * s2); piv.add(leaf); f.add(piv); } }
+  /* the spur is solid: one strip per unit of its width, from its face back into the hill */
+  for (let z = MZ - C.hw - 2.5; z < MZ + C.hw + 2.5; z += 1) { let x0 = null; for (let x = C.x - 1; x < C.x + 12; x += 0.25) if (spurH(x, z + 0.5) > 0.8) { x0 = x; break; }
+    if (x0 !== null) solidBoxes.push({ x0: x0 - 0.1, x1: C.x + 14, z0: z, z1: z + 1 }); }
+}
 function buildNorth(){
   const bins = new Map(), wood = texMat(woodTex(), 1, 3), dark = mat(0x4a3220), stoneM = mat(0x7a766c), bushM = mat(0x3e6a2e), bushL = mat(0x5a8a3a), flowerM = mat(0xe0d070), heath = mat(0x8a5a7a);
   const put = (m, geo, x, y, z, ry = 0, sc = null) => { if (sc) geo.scale(...sc); if (ry) geo.rotateY(ry); geo.translate(x, y, z); if (!bins.has(m)) bins.set(m, []); bins.get(m).push(geo.index ? geo.toNonIndexed() : geo); };
@@ -217,7 +238,9 @@ function buildNorth(){
     else if (kind < 0.8) { for (let k = 0; k < 4; k++) put(up > 0.4 ? heath : flowerM, new THREE.IcosahedronGeometry(0.1, 0), x + (r() - 0.5), 0.12, z + (r() - 0.5)); }
   }
   // boulders on the hillsides, so the hills read as rocky
-  for (let i = 0; i < 160; i++) { const x = -118 + r() * 236, z = -20 - r() * 99, h = hillH(x, z); if (h < 0.8 || h > 12) continue; const s = 0.8 + r() * 1.6; put(stoneM, new THREE.DodecahedronGeometry(s, 0), x, h + s * 0.2, z, r() * 6, [1, 0.7, 1]); }
+  for (let i = 0; i < 160; i++) { const x = -118 + r() * 236, z = -20 - r() * 99, h = hillH(x, z); if (h < 0.8 || h > 12) continue; if (Math.hypot(x - NORTH.cave.x - 5, z - NORTH.cave.z) < 18) { r(); r(); continue; }   /* none round the cave; the same draws, so every other boulder stays put */
+    const s = 0.8 + r() * 1.6; put(stoneM, new THREE.DodecahedronGeometry(s, 0), x, h + s * 0.2, z, r() * 6, [1, 0.7, 1]); }
+  buildCaveMouth();
   // reeds along the lake shore, and a few on the island
   const reedM = mat(0x5a7a2e);
   for (let a = 0; a < Math.PI * 2; a += 0.05) { if (r() < 0.45) continue; const [x, z] = lakeShore(a, -0.3 + r() * 0.6); if (Math.hypot(x - bx, z + 22) < 4) continue;
