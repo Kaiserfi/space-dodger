@@ -142,6 +142,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **The watering can in the bag** opens a menu (`openCanMenu`): Fill (any water within `CAN_REACH`, found by `nearestWater`: the river, stream, pond, the north's water, the farm trough, the cave pool; walks up and plays the fill pose), Put on toolbelt, Cancel. Unhook it from the belt with the × in the gear tab.
 - **The toolbelt** holds one of each skilling tool. Check tools with `hasTool(name)` (bag or belt), never `hasItem`, and add new tool types to `beltSlotFor` and `TOOLBELT_SLOTS`.
 - **Never hand items over into a full bag.** `addItem` quietly gives only what fits. Before a quest, reward or NPC gives anything, check there's room (`bagRoomFor`). If there isn't, the NPC says so and nothing moves on. And if a player is on a step without the thing they were given, let the NPC hand it over again.
+- **Database keys must be whole:** `SNOW()` (server time) can carry half a millisecond, and a key with a dot in it is refused (dropped items were never shared because of this). Use `Math.floor` before turning a time into a key.
 - **Items on the ground** (`GROUND`, `dropToGround`) work as in RuneScape: monster drops land where the monster fell (never straight into the bag), and dropped items, rewards and anything that doesn't fit go on the ground too. Only the owner sees a pile for the first minute (`GROUND_PRIV`), then everyone up top does. Monster drops last two minutes, everything else three. They're shared at `adventure/live/ground/<key>`, and picking one up is first come, first served: the game takes it in the database first, with an ETag `if-match`. Cellar drops stay private. Each item should have a small 3D model in `groundModel` (no bones on meat); anything without one shows as a cloth bundle.
 - **Every new item needs** an icon in `ICON_FOR`, a price in `SELL` if it can be sold, and a shop that buys it.
 - **New skills** go in `SKILL_XP`. They show in the skills panel automatically, and old saves start them at level 1.
@@ -271,8 +272,23 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 
 - **Every browser signs in anonymously** to Firebase Auth through the REST API (`signIn`, `FB_KEY` is the project's public web key). The refresh token is in `itapAuth` and renewed every 45 minutes, and the live stream reopens with the new token (also on `auth_revoked`). A `fetch` wrapper adds `?auth=` to every database request, and `ONLINE.id` is the account's uid.
 - **Old saves move once:** the first load claims `adventure/claimed/<old id>` (write-once) and copies `saves/<old id>` to `saves/<uid>`. If that fails, the player keeps the old id for that session and it tries again (`itapOld`).
-- **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. The console still has old top-level copies of players, nodes, event, graves and mobs, so keep them in any rules you hand over. `database.rules.next.json` is the strict step: only your own account writes your save, presence and grave; everything else needs a sign-in. It's not published yet; check with the owner before telling them to publish it.
-- Anything deeper (stopping players editing their own save or one-shotting monsters) needs a server: Cloud Functions on the Blaze plan, checking actions instead of trusting the browser. That's discussed but not started; shops and coins would go first.
+- **Rules rollout:** `database.rules.json` is what's published now: the owner's console rules plus `claimed` and `ground`. `database.rules.next.json` is the strict set, tested against the emulators. Not published yet:
+  - only your own account writes your save, presence and grave; everything else needs a sign-in
+  - every write is refused for an account listed in `banned/<uid>`
+  - the arcade boards (`scores`, `snake`, `crawler`) are written only by the server
+  - `arcade/` and `banned/` are closed to browsers
+  - the old top-level copies are read-only
+  
+  The order matters:
+  1. the owner deploys the functions
+  2. the arcade page change (which posts scores through them) is merged
+  3. the owner publishes the strict rules
+- **A save may have no `bag`:** Firebase drops an empty list, so rules must never require one (a `hasChildren(['bag', ...])` rule once refused every save with an empty bag, caught in the emulator test before it was published).
+- **The server (`functions/`, Cloud Functions, the owner is on the Blaze plan):** `arcadeStart` / `arcadeSubmit`; see `functions/README.md` for deploying, banning and the emulator tests.
+  - **What it checks:** a server-timed run, and a score cap per game per second (`GAMES`, generous for 240 Hz screens, where the games run faster). Names belong to the first account that posts them (`arcade/names`). The name filter is copied from `index.html` and `word-filter.js` into `functions/filter.js` by `tools/build-functions.js`; CI checks the copy.
+  - **What it records:** impossible scores in `arcade/flags/<uid>`, and each entry's `secs` (game length), for tightening the caps later.
+  - **Rules:** `firebase.json` has no database rules on purpose, so a deploy never publishes them. The emulator config `firebase.emu.json` loads `database.rules.next.json`.
+- **Next steps agreed with the owner:** a save watchdog (a function that rolls back impossible jumps in ITAP saves), then server-run coins, shops and trades.
 
 ### Presence notes
 
