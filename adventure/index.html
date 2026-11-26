@@ -132,6 +132,13 @@
   .splat small { position:absolute; top:100%; font:bold 12px Georgia,serif; white-space:nowrap; color:#e8f0ff; }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
   #questTrack b { color:#f0c35a; font-weight:normal; }
+  /* the map: opens beside the tab bar, with the compass on its top left corner */
+  #mapPanel { position:fixed; right:56px; top:52px; width:min(264px, calc(100vw - 84px)); aspect-ratio:1; border:2px solid #a07a3c; border-radius:10px; background:#16120c; box-shadow:0 6px 18px rgba(0,0,0,.55); z-index:8; }
+  #mapPanel[hidden] { display:none; }
+  #mapCanvas { width:100%; height:100%; border-radius:8px; display:block; }
+  #mapCompass { position:absolute; left:-12px; top:-12px; width:44px; height:44px; padding:0; border:none; background:none; cursor:pointer; filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
+  #mapCompass svg { width:44px; height:44px; display:block; }
+  body:has(#mapPanel:not([hidden])) #questTrack { display:none; }
   #waveHud { position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:8; padding:6px 14px 7px; text-align:center; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.94), rgba(22,16,9,.94)); border:1px solid #a07a3c; border-radius:6px; box-shadow:0 3px 10px rgba(0,0,0,.45); pointer-events:none; max-width:calc(100vw - 32px); box-sizing:border-box; }
   #waveHud[hidden] { display:none; }
   #waveHud .wTitle { color:#f0c35a; font-size:15px; letter-spacing:.5px; }
@@ -211,6 +218,7 @@
 <body>
 <div id="tip" style="position:fixed;display:none;pointer-events:none;background:rgba(0,0,0,.78);color:#fff;font:14px Georgia,serif;padding:3px 7px;border-radius:4px;z-index:7;white-space:nowrap"></div>
 <div id="tabbar">
+  <button class="tabIcon" id="tabMap" title="Map"><svg viewBox="0 0 16 16" style="shape-rendering:auto"><path d="M1.5 4 L5.5 2.5 L10.5 4 L14.5 2.5 L14.5 12 L10.5 13.5 L5.5 12 L1.5 13.5 Z" fill="#d9c48a" stroke="#6b4524" stroke-width="0.8" stroke-linejoin="round"/><path d="M5.5 2.5V12M10.5 4V13.5" stroke="#9a7a44" stroke-width="0.7"/><path d="M3 9.5 Q5 7.5 7.5 9 T12.5 7" fill="none" stroke="#b5522e" stroke-width="0.9" stroke-dasharray="1.4 1"/><circle cx="12.6" cy="6.4" r="1.3" fill="#d64b3c"/></svg></button>
   <button class="tabIcon" id="tabStats" title="Stats"><svg viewBox="0 0 16 16"><rect x="2" y="9" width="3" height="5" fill="#d64b3c"/><rect x="6" y="5" width="3" height="9" fill="#4bc24b"/><rect x="10" y="2" width="3" height="12" fill="#3b7fd6"/><rect x="1" y="14" width="14" height="1" fill="#c9b27a"/></svg></button>
   <button class="tabIcon" id="tabBag" title="Bag"><svg viewBox="0 0 16 16"><path d="M5 5 Q5 2 8 2 Q11 2 11 5" fill="none" stroke="#c9b27a" stroke-width="1.5"/><rect x="3" y="5" width="10" height="9" rx="2" fill="#9a6b3a"/><rect x="3" y="8" width="10" height="1" fill="#6b4524"/><rect x="7" y="7" width="2" height="2" fill="#f0c35a"/></svg></button>
   <button class="tabIcon" id="tabGear" title="Gear"><svg viewBox="0 0 16 16"><path d="M3 9 Q3 3 8 3 Q13 3 13 9 L13 12 L3 12 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="3" y="9" width="10" height="1.5" fill="#434a53"/></svg></button>
@@ -277,6 +285,7 @@
   <button data-cam="right" title="Turn right">&#x27F3;</button><button data-cam="out" title="Zoom out">&minus;</button>
 </div>
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
+<div id="mapPanel" hidden><canvas id="mapCanvas"></canvas><button id="mapCompass" title="Face north"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14.5" fill="#1c140a" stroke="#c9a24e" stroke-width="1.6"/><g id="mapRose"><g stroke="#8a7648" stroke-width="1.2"><path d="M16 26.5v3M2.5 16h3M26.5 16h3"/></g><path d="M16 8.5 L12.2 16 L19.8 16 Z" fill="#d64b3c"/><path d="M16 25 L12.2 16 L19.8 16 Z" fill="#d9d2bd"/><circle cx="16" cy="16" r="1.6" fill="#3a2a16"/><text x="16" y="7.6" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="7" fill="#f0c35a">N</text></g></svg></button></div>
 <div id="questTrack" hidden></div>
 <div id="waveHud" hidden></div>
 <div id="caveHud" hidden></div>
@@ -3636,7 +3645,7 @@ function renderStats(){
 // Only one side panel is open at a time; each tab button toggles its own panel.
 function togglePanel(panelId, btnId) {
   const open = document.getElementById(panelId).hidden;
-  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#beltPanel,#setPanel').forEach(p => p.hidden = true);
+  document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#beltPanel,#setPanel,#mapPanel').forEach(p => p.hidden = true);
   document.querySelectorAll('.tabIcon').forEach(b => b.classList.remove('on'));
   if (open) { document.getElementById(panelId).hidden = false; document.getElementById(btnId).classList.add('on'); }
 }
@@ -6774,6 +6783,7 @@ function frame(){
   riverTex.offset.x = now * 0.00004; riverTex.offset.y = Math.sin(now * 0.0007) * 0.05;
   clouds.rotation.y = now * 0.000006;
   sky.position.copy(camera.position);
+  updateMap(now);
   if (shouldDraw(now)) { farSweep(); if (bloom.enabled) composer.render(); else renderer.render(scene, camera); }   /* without the glow, skip the extra passes entirely */
   requestAnimationFrame(frame);
 }
@@ -9827,6 +9837,61 @@ function caveAmbience(on){
   if (!on) return;
   caveAmbTick(ctx, CAVE_AMB.g, ctx.currentTime + 0.02, performance.now());
 }
+// ----- the map: the button at the top of the tab bar opens a small map centred on you -----
+// It turns with the camera, so up on the map is always the way you are looking. You are the gold arrow; other players nearby are white dots
+// with their names. The compass on its corner turns with it, and tapping the compass swings the camera round to face north.
+// The picture is taken once, from straight above with everyone taken out (bakeMap), so the map costs no extra drawing of the world afterwards.
+// It covers the surface only: there is no map in the Root Cellar or the cave.
+const MAPUI = { half: 125, size: 1500, span: 88, shot: null, goal: null, last: 0, t: 0, panel: document.getElementById('mapPanel'), cv: document.getElementById('mapCanvas'), rose: document.getElementById('mapRose') };
+const mapUnder = () => !!(DELVE || CAVE || (hero && hero.position.z > 300));
+function bakeMap(){
+  const S = MAPUI.size, H = MAPUI.half, shot = document.createElement('canvas'); shot.width = shot.height = S;
+  const cam = new THREE.OrthographicCamera(-H, H, H, -H, 1, 800); cam.position.set(0, 400, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0);   /* north (-z) at the top */
+  const hid = [hero, clouds, ...MONSTERS.map(m => m.g), ...WANDER.map(w => w.sp), ...Object.values(remote).map(r => r.sprite)]; scene.traverse(o => { if (o.isPoints) hid.push(o); });   /* no people, creatures, clouds, pollen or fireflies */
+  for (let i = hid.length - 1; i >= 0; i--) if (!hid[i] || !hid[i].visible) hid.splice(i, 1); hid.forEach(o => o.visible = false);
+  const keep = { fn: scene.fog.near, ff: scene.fog.far, sp: sun.position.clone(), st: sun.target.position.clone(), sc: sun.color.clone(), si: sun.intensity, hc: hemi.color.clone(), hg: hemi.groundColor.clone(), hi: hemi.intensity, pr: renderer.getPixelRatio() };
+  scene.fog.near = 1e5; scene.fog.far = 1e6;   /* no fog, and noon light whatever the hour */
+  sun.target.position.set(0, 5000, 0); sun.position.set(18, 5033, 12); sun.target.updateMatrixWorld();   /* the shadow box is moved off into the sky, so the picture has no patch of shadows round where you stood */
+  sun.color.set(0xffe7c2); sun.intensity = 2.1; hemi.color.set(0xdff0ff); hemi.groundColor.set(0x4a5a2a); hemi.intensity = 1.1;
+  for (const o of FARCULL.list) o.layers.mask = 1;   /* far things too: farSweep hides them again before the next frame is drawn */
+  renderer.setPixelRatio(1); renderer.setSize(S, S, false); renderer.render(scene, cam); shot.getContext('2d').drawImage(renderer.domElement, 0, 0, S, S);
+  scene.fog.near = keep.fn; scene.fog.far = keep.ff; sun.position.copy(keep.sp); sun.target.position.copy(keep.st); sun.target.updateMatrixWorld(); sun.color.copy(keep.sc); sun.intensity = keep.si; hemi.color.copy(keep.hc); hemi.groundColor.copy(keep.hg); hemi.intensity = keep.hi;
+  hid.forEach(o => o.visible = true); renderer.setPixelRatio(keep.pr); fitView();
+  POWER.last = 0;   /* draw the game again this very frame, so the top-down picture never shows on screen */
+  return shot;
+}
+function drawMap(){
+  const cv = MAPUI.cv, want = Math.round(cv.clientWidth * Math.min(devicePixelRatio || 1, 2)); if (!want) return; if (cv.width !== want) cv.width = cv.height = want;
+  const ctx = cv.getContext('2d'), W = cv.width, c = W / 2, k = W / MAPUI.span, K = MAPUI.size / (MAPUI.half * 2), hx = hero.position.x, hz = hero.position.z, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#16120c'; ctx.fillRect(0, 0, W, W);
+  ctx.translate(c, c); ctx.rotate(yaw); ctx.scale(k / K, k / K); ctx.drawImage(MAPUI.shot, -(hx + MAPUI.half) * K, -(hz + MAPUI.half) * K);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const u = W / 264; ctx.font = `bold ${Math.round(10 * u)}px Georgia, serif`; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+  for (const id in remote) { const r = remote[id]; if (!r.sprite || !r.sprite.visible) continue;
+    const rx = r.sprite.position.x - hx, rz = r.sprite.position.z - hz, x = c + (rx * cy - rz * sy) * k, y = c + (rx * sy + rz * cy) * k; if (x < 0 || y < 0 || x > W || y > W) continue;
+    ctx.beginPath(); ctx.arc(x, y, 4 * u, 0, 7); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 1.5 * u; ctx.strokeStyle = '#1c140a'; ctx.stroke();
+    if (r.name) { ctx.lineWidth = 2.5 * u; ctx.strokeStyle = 'rgba(20,14,8,.85)'; ctx.strokeText(r.name, x, y - 7 * u); ctx.fillStyle = '#fff'; ctx.fillText(r.name, x, y - 7 * u); } }
+  ctx.save(); ctx.translate(c, c); ctx.rotate(Math.PI - (hero.rotation.y - yaw)); ctx.beginPath(); ctx.moveTo(0, -8.5 * u); ctx.lineTo(6 * u, 6.5 * u); ctx.lineTo(0, 3 * u); ctx.lineTo(-6 * u, 6.5 * u); ctx.closePath();
+  ctx.fillStyle = '#f0c35a'; ctx.fill(); ctx.lineWidth = 1.75 * u; ctx.strokeStyle = '#1c140a'; ctx.stroke(); ctx.restore();
+  const g = ctx.createRadialGradient(c, c, W * 0.42, c, c, W * 0.72); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.45)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
+}
+// every frame: ease the camera round to north if the compass was tapped, and redraw the open map about twenty times a second
+function updateMap(now){
+  const dt = Math.min(0.1, (now - MAPUI.t) / 1000); MAPUI.t = now;
+  if (MAPUI.goal !== null) { yaw += (MAPUI.goal - yaw) * (1 - Math.exp(-dt * 9)); if (Math.abs(MAPUI.goal - yaw) < 0.003) { yaw = MAPUI.goal; MAPUI.goal = null; } POWER.input = now; }
+  if (MAPUI.panel.hidden) return;
+  if (!hero || mapUnder()) { MAPUI.panel.hidden = true; document.getElementById('tabMap').classList.remove('on'); return; }
+  if (now - MAPUI.last < 50) return; MAPUI.last = now;
+  if (!MAPUI.shot) MAPUI.shot = bakeMap();
+  MAPUI.rose.setAttribute('transform', `rotate(${(yaw * 180 / Math.PI).toFixed(1)} 16 16)`);
+  drawMap();
+}
+document.getElementById('tabMap').addEventListener('click', () => {
+  if (MAPUI.panel.hidden && mapUnder()) { showToast("There's no map down here."); return; }
+  togglePanel('mapPanel', 'tabMap');
+});
+document.getElementById('mapCompass').addEventListener('click', e => { e.stopPropagation(); MAPUI.goal = Math.round(yaw / (Math.PI * 2)) * Math.PI * 2; });   /* the shortest way round to north */
+renderer.domElement.addEventListener('pointerdown', () => { MAPUI.goal = null; });   /* turning the camera yourself takes over */
 // ----- each frame: the whole night, worked out from the shared state and the time since it began -----
 let evWasActive = false, raidSys = '';
 function updateBonfire(){

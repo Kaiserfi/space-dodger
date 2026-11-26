@@ -125,6 +125,13 @@
   .splat small { position:absolute; top:100%; font:bold 12px Georgia,serif; white-space:nowrap; color:#e8f0ff; }
   #questTrack { position:fixed; left:12px; top:54px; z-index:8; max-width:min(300px,60vw); padding:6px 10px; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.92), rgba(22,16,9,.92)); border:1px solid #a07a3c; border-radius:6px; }
   #questTrack b { color:#f0c35a; font-weight:normal; }
+  /* the map: opens beside the tab bar, with the compass on its top left corner */
+  #mapPanel { position:fixed; right:56px; top:52px; width:min(264px, calc(100vw - 84px)); aspect-ratio:1; border:2px solid #a07a3c; border-radius:10px; background:#16120c; box-shadow:0 6px 18px rgba(0,0,0,.55); z-index:8; }
+  #mapPanel[hidden] { display:none; }
+  #mapCanvas { width:100%; height:100%; border-radius:8px; display:block; }
+  #mapCompass { position:absolute; left:-12px; top:-12px; width:44px; height:44px; padding:0; border:none; background:none; cursor:pointer; filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
+  #mapCompass svg { width:44px; height:44px; display:block; }
+  body:has(#mapPanel:not([hidden])) #questTrack { display:none; }
   #waveHud { position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:8; padding:6px 14px 7px; text-align:center; font:13px Georgia,serif; color:#e8efe6; background:linear-gradient(180deg, rgba(48,36,20,.94), rgba(22,16,9,.94)); border:1px solid #a07a3c; border-radius:6px; box-shadow:0 3px 10px rgba(0,0,0,.45); pointer-events:none; max-width:calc(100vw - 32px); box-sizing:border-box; }
   #waveHud[hidden] { display:none; }
   #waveHud .wTitle { color:#f0c35a; font-size:15px; letter-spacing:.5px; }

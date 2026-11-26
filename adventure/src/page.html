@@ -11,6 +11,7 @@
 <body>
 <div id="tip" style="position:fixed;display:none;pointer-events:none;background:rgba(0,0,0,.78);color:#fff;font:14px Georgia,serif;padding:3px 7px;border-radius:4px;z-index:7;white-space:nowrap"></div>
 <div id="tabbar">
+  <button class="tabIcon" id="tabMap" title="Map"><svg viewBox="0 0 16 16" style="shape-rendering:auto"><path d="M1.5 4 L5.5 2.5 L10.5 4 L14.5 2.5 L14.5 12 L10.5 13.5 L5.5 12 L1.5 13.5 Z" fill="#d9c48a" stroke="#6b4524" stroke-width="0.8" stroke-linejoin="round"/><path d="M5.5 2.5V12M10.5 4V13.5" stroke="#9a7a44" stroke-width="0.7"/><path d="M3 9.5 Q5 7.5 7.5 9 T12.5 7" fill="none" stroke="#b5522e" stroke-width="0.9" stroke-dasharray="1.4 1"/><circle cx="12.6" cy="6.4" r="1.3" fill="#d64b3c"/></svg></button>
   <button class="tabIcon" id="tabStats" title="Stats"><svg viewBox="0 0 16 16"><rect x="2" y="9" width="3" height="5" fill="#d64b3c"/><rect x="6" y="5" width="3" height="9" fill="#4bc24b"/><rect x="10" y="2" width="3" height="12" fill="#3b7fd6"/><rect x="1" y="14" width="14" height="1" fill="#c9b27a"/></svg></button>
   <button class="tabIcon" id="tabBag" title="Bag"><svg viewBox="0 0 16 16"><path d="M5 5 Q5 2 8 2 Q11 2 11 5" fill="none" stroke="#c9b27a" stroke-width="1.5"/><rect x="3" y="5" width="10" height="9" rx="2" fill="#9a6b3a"/><rect x="3" y="8" width="10" height="1" fill="#6b4524"/><rect x="7" y="7" width="2" height="2" fill="#f0c35a"/></svg></button>
   <button class="tabIcon" id="tabGear" title="Gear"><svg viewBox="0 0 16 16"><path d="M3 9 Q3 3 8 3 Q13 3 13 9 L13 12 L3 12 Z" fill="#8a9099" stroke="#434a53" stroke-width="0.8"/><rect x="3" y="9" width="10" height="1.5" fill="#434a53"/></svg></button>
@@ -77,6 +78,7 @@
   <button data-cam="right" title="Turn right">&#x27F3;</button><button data-cam="out" title="Zoom out">&minus;</button>
 </div>
 <div id="smeltBar" style="position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:none;width:220px;z-index:9;background:rgba(20,16,10,.92);border:2px solid #a07a3c;border-radius:6px;padding:5px 8px;font:13px Georgia,serif;color:#f0c35a;text-align:center"><span id="smeltLabel">Smelting bronze...</span><div style="margin-top:4px;height:8px;background:#120d07;border:1px solid #5b4324;border-radius:4px;overflow:hidden"><div id="smeltFill" style="height:100%;width:0;background:linear-gradient(90deg,#c0601a,#ffb040)"></div></div></div>
+<div id="mapPanel" hidden><canvas id="mapCanvas"></canvas><button id="mapCompass" title="Face north"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14.5" fill="#1c140a" stroke="#c9a24e" stroke-width="1.6"/><g id="mapRose"><g stroke="#8a7648" stroke-width="1.2"><path d="M16 26.5v3M2.5 16h3M26.5 16h3"/></g><path d="M16 8.5 L12.2 16 L19.8 16 Z" fill="#d64b3c"/><path d="M16 25 L12.2 16 L19.8 16 Z" fill="#d9d2bd"/><circle cx="16" cy="16" r="1.6" fill="#3a2a16"/><text x="16" y="7.6" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="7" fill="#f0c35a">N</text></g></svg></button></div>
 <div id="questTrack" hidden></div>
 <div id="waveHud" hidden></div>
 <div id="caveHud" hidden></div>
