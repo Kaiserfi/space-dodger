@@ -6878,7 +6878,7 @@ function dropToGround(name, qty, x, z, quiet, mob){
   const near = GROUND.find(gi => gi.name === name && gi.by === ONLINE.id && SNOW() < gi.pub && Math.hypot(gi.x - x, gi.z - z) < 0.8);
   if (near) { near.qty += qty; near.until = Math.max(near.until, SNOW() + (mob ? GROUND_MOB_MS : GROUND_MS)); groundShare(near); return; }   // onto your own pile
   const now = SNOW();
-  return groundMake({ key: 'g' + String(ONLINE.id || 'x').slice(-6) + now.toString(36) + (groundK++).toString(36), name, qty, x, z, by: ONLINE.id, pub: now + GROUND_PRIV, until: now + (mob ? GROUND_MOB_MS : GROUND_MS) }, quiet, true);
+  return groundMake({ key: 'g' + String(ONLINE.id || 'x').slice(-6) + Math.floor(now).toString(36) + (groundK++).toString(36),   /* whole milliseconds: the server clock can carry a half, and a dot in a key is refused */ name, qty, x, z, by: ONLINE.id, pub: now + GROUND_PRIV, until: now + (mob ? GROUND_MOB_MS : GROUND_MS) }, quiet, true);
 }
 // builds a pile, yours (share it) or someone else's from the live feed
 function groundMake(o, quiet, share){

@@ -2,11 +2,12 @@
 # This checks every push and pull request: the script parses, no top-level name is defined twice,
 # and the committed adventure/index.html matches its sources (nobody edited it directly or forgot to rebuild).
 name: Adventure build check
+# It also checks that functions/filter.js (the server's copy of the arcade's name filter) matches index.html and word-filter.js.
 on:
   push:
-    paths: ['adventure/**', 'tools/build-adventure.js', '.github/workflows/adventure-build.yml']
+    paths: ['adventure/**', 'tools/build-adventure.js', 'tools/build-functions.js', 'index.html', 'word-filter.js', 'functions/**', '.github/workflows/adventure-build.yml']
   pull_request:
-    paths: ['adventure/**', 'tools/build-adventure.js', '.github/workflows/adventure-build.yml']
+    paths: ['adventure/**', 'tools/build-adventure.js', 'tools/build-functions.js', 'index.html', 'word-filter.js', 'functions/**', '.github/workflows/adventure-build.yml']
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -16,3 +17,4 @@ jobs:
         with:
           node-version: 20
       - run: node tools/build-adventure.js --check
+      - run: node tools/build-functions.js --check
