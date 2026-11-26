@@ -209,6 +209,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 
 ### Lessons from these sessions
 
+- **Monster homes must be clear ground.** A home inside a tree, a hill or the lake leaves that monster stuck there for good (`mobSpot` finds no clear line out). The north's trees are scattered at random, so after moving trees or homes, check every home with `monsterHit(x, z)` and that `mobSpot` finds spots away from it.
 - **Check placement against what's already there.** Before placing a prop or a villager stop, make sure it doesn't cover a fishing spot or a talk spot, and isn't inside a house. Fenwick's jetty once covered the shrimp spot, and Ysolde's river stop was inside the north house (she fished through the wall). Test with `houses.findIndex(h => Math.abs(x - h.x) < h.hw && Math.abs(z - h.z) < h.hd)` and `fishSpots` distances.
 - **No flat dark discs on the ground** for ash, puddles or shadows: from the game camera they read as round blobs. Tint the ground's vertex colours, with ragged edges, instead.
 - **Chibi arms are short.** They reach about 0.45 from the shoulder, and armour makes the chest about 0.44 deep, so two hands can't meet on one object in front of the body without clipping. Grid-search the arm angles in a test, and measure forearm and hand points against the torso box with armour on, before posing hands on anything.
