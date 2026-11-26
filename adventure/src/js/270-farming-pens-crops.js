@@ -218,7 +218,7 @@ function patchClick(pt, auto){
     farmAct(pt, 2000, 'harvest', () => { const n = cr.n[0] + Math.floor(Math.random() * (cr.n[1] - cr.n[0] + 1)); addItem(cr.item, n, ICON_FOR[cr.item]); p.s = 'tilled'; p.g = 0; p.w = false; addXp('Farming', cr.xpEach * n); farmSound('harvest'); if (cr.item === 'Wheat') rtAdvance(3, 4, 'Show Tilly your harvest.'); showToast(`You harvest ${n} ${cr.item.toLowerCase()}.  +${cr.xpEach * n} Farming XP`); });
   } else if (p.s === 'planted' && !p.w) {
     if (!hasTool('Watering can')) { showToast('These need watering. You need a watering can. Tilly sells them at the farmers\' market.'); return; }
-    if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the water trough by the gate.'); return; }
+    if (FARM_CAN.n <= 0) { showToast('Your watering can is empty. Fill it at the trough by the gate, or at any water nearby.'); return; }
     farmAct(pt, 1300, 'water', () => { FARM_CAN.n--; p.w = true; p.t = Date.now(); renderBag(); renderGear(); addXp('Farming', 3); farmSound('water'); showToast(`You water the ${(CROPS[p.c] || CROPS.Wheat).say}. (${FARM_CAN.n} waterings left in the can)  +3 Farming XP`); });
   } else {
     const left = Math.max(0, Math.ceil((GROW_S * 1000 - (Date.now() - p.t)) / 1000));
