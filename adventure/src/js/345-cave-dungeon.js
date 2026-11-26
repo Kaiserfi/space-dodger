@@ -592,7 +592,7 @@ function askCave(){
   if (!bagRoomFor(kept)) { showToast(`Your bag is full. You need ${slotsFor(kept)} free spaces for the things you left in the cave.`); return; }   /* the things you left down there come back with you, so there must be room */
   startCave();   /* no warning: the owner wants people to just go in and explore */
 }
-function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1, v: 2, fb: CAVE_P.fb || 0 }); }
+function caveFresh(){ if (CAVE_P.done) caveLoadP(Object.assign({ runs: CAVE_P.runs || 1, v: 2 }, CAVE_P.fb ? { fb: CAVE_P.fb } : {}));   /* keeps the count of Fable's cave beaten */ }
 function startCave(){
   caveFresh(); buildCave(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
