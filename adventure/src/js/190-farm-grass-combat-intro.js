@@ -186,8 +186,16 @@ function grassMaskTexture(){
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   for (let pz = -20; pz < 98; pz += 0.5) for (let px = pz > -9 ? -118 : GM.x0; px < (pz > -9 ? -64 : GM.x1); px += 0.5) {   // the water and its muddy banks
     if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1); }
-  /* the north, across the river: grass everywhere but its lake, stream and their banks, and its dirt tracks */
-  g.fillStyle = 'rgb(255,255,0)'; g.fillRect(0, 0, W, Z(-20.5)); g.fillStyle = '#000';
+  /* the north, across the river: grass on the meadow, thinning as it gets drier and stonier towards the hills, none on the hills
+     themselves (their bare rock shows) or the gravel round the iron rocks; then its lake, stream, banks and dirt tracks are cut out */
+  { const rows = Math.ceil(Z(-20.5)), img = g.createImageData(W, rows), d = img.data;
+    for (let py = 0; py < rows; py++) for (let px = 0; px < W; px++) {
+      const x = GM.x0 + (px + 0.5) / GM.ppu, z = GM.z0 + (py + 0.5) / GM.ppu;
+      const dry = Math.min(1, Math.max(0, (-z - 35) / 50)), hill = 1 - Math.min(1, Math.max(0, (hillH(x, z) - 0.15) / 0.9)), ir = Math.hypot(x + 49, z + 68);
+      const k = hill * (1 - 0.3 * dry) * (ir < 9 ? Math.min(1, Math.max(0, (ir - 6) / 3)) : 1), i = (py * W + px) * 4;
+      d[i] = 255 * k; d[i + 1] = 255; d[i + 2] = 0; d[i + 3] = 255; }
+    g.putImageData(img, 0, 0); }
+  g.fillStyle = '#000';
   for (let pz = GM.z0; pz < -20; pz += 0.5) for (let px = GM.x0; px < GM.x1; px += 0.5) if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1);
   g.strokeStyle = '#000'; g.lineWidth = 2.8 * GM.ppu; for (const pts of NORTH_PATHS) { g.beginPath(); pts.forEach(([x, z], i) => i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))); g.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
