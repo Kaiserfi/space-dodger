@@ -2358,7 +2358,12 @@ function updateTrees(){
     heroFacing = facing;
     setHeroSwing(phase, rec.kind === 'rock' ? 'pick' : 'axe', yawTo(hero.position.x, hero.position.z, rec.x, rec.z));   // face the node: the arms wind up, strike and recover
     if (chop.t % 45 === 25) { if (rec.kind === 'rock') mineSound(); else chopSound(); }   // the blow lands as the tool comes down
-    if (chop.t >= chopFrames(rec)) {
+    if (chop.t >= chopFrames(rec) && rec.kind !== 'rock' && rec.level >= 15 && Math.random() >= OAK_FELL_CHANCE) {
+      /* an oak, as in OSRS: each log has a 1 in 8 chance to fell it, otherwise the tree stands and you keep chopping */
+      chop.t = 0; rec.g.rotation.z = 0;
+      if (!bagRoomFor(['Oak logs'])) { chop.rec = null; setAct(null); showToast('Your bag is full.'); return; }
+      giveLogs(rec);
+    } else if (chop.t >= chopFrames(rec)) {
       // the node is claimed on the server first: if someone else got there, nothing falls
       chop.rec = null; rec.g.rotation.z = 0; rec.state = 'claiming'; setAct(null);
       claimNode(rec).then(until => {
@@ -2397,6 +2402,7 @@ function applyNodeStates(nodes, animate){
     else hideNode(rec);
   }
 }
+const OAK_FELL_CHANCE = 1 / 8;   /* OSRS: an oak falls on 1 log in 8 */
 function giveLogs(rec){
   const oak = rec.level >= 15, name = oak ? 'Oak logs' : 'Logs';   /* oaks give oak logs */
   if (addItem(name, 1, oak ? OAK_LOG_ICON : LOG_ICON)) { addXp('Woodcutting', rec.xp); showToast(`You get some ${oak ? 'oak logs' : 'logs'}.  +${rec.xp} Woodcutting XP`); }
