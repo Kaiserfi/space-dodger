@@ -158,7 +158,7 @@ function animalSound(kind, vol = 1){
 // A mask painted over the map keeps grass off paths, floors, the green, the river and the farm field, and shortens it round the village.
 let grass = null;
 const GRASS_Q = { low: { n: 16000, r: 20 }, high: { n: 48000, r: 30 } };
-const GM = { x0: -124, x1: 110, z0: -20, z1: 96, ppu: 2 };
+const GM = { x0: -124, x1: 110, z0: -112, z1: 96, ppu: 2 };   /* z0 reaches the north's hills, so its lake and stream can be kept clear */
 let grassMask = null;
 const WOODS_PATH = [[-84, 6], [-88, 7.2], [-91.5, 11.5], [-94, 16], [-97.2, 19.4], [-101, 17.6], [-104.4, 19.4]];   // the worn footpath in the western woods, out to the stream's stepping stones
 function grassMaskTexture(){
@@ -187,6 +187,10 @@ function grassMaskTexture(){
   if (FARMLAND) for (const pt of FARMLAND.patches) g.fillRect(X(pt.x - 2.2), Z(pt.z - 2.2), 4.4 * GM.ppu, 4.4 * GM.ppu);   // the farming patches
   for (let pz = -20; pz < 98; pz += 0.5) for (let px = pz > -9 ? -118 : GM.x0; px < (pz > -9 ? -64 : GM.x1); px += 0.5) {   // the water and its muddy banks
     if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1); }
+  /* the north: its grass is what it always was (the mask used to stop at z -20, so the north grew in strips copied from that edge row);
+     that row is still copied north, but now the lake, the stream and their muddy banks are cut out, as the river and pond are */
+  g.drawImage(cv, 0, Z(-20), W, 1, 0, 0, W, Z(-20));
+  for (let pz = GM.z0; pz < -20; pz += 0.5) for (let px = 28; px < 94; px += 0.5) if (waterSD(px, pz) < 0.4) g.fillRect(X(px), Z(pz), GM.ppu * 0.5 + 1, GM.ppu * 0.5 + 1);
   const t = new THREE.CanvasTexture(cv); t.flipY = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return grassMask = t;
 }
