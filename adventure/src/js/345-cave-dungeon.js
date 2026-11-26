@@ -678,20 +678,9 @@ function caveReverb(ctx){ const sr = ctx.sampleRate, n = Math.floor(sr * 3.2), b
   const cv = ctx.createConvolver(); cv.buffer = b; return cv; }
 function caveAmbBed(ctx, out){
   const loop = (buf, f0, type, q, vol) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = f0; f.Q.value = q; const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(out); s.start(); return { f, g }; };
-  const brown = caveNoise(ctx, 6, true), white = caveNoise(ctx, 5, false);
+  const brown = caveNoise(ctx, 6, true);   /* no wind and no trickle: the owner turned both down */
   loop(brown, 110, 'lowpass', 0.5, 0.55);   // the room tone: the deep, still hum of a big space underground
-  const draught = loop(brown, 260, 'bandpass', 1.4, 0.35);   // air moving through the passages, rising and falling
-  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.045; lg.gain.value = 0.25; lfo.connect(lg); lg.connect(draught.g.gain); lfo.start();
-  const sw = ctx.createOscillator(), sg = ctx.createGain(); sw.frequency.value = 0.023; sg.gain.value = 90; sw.connect(sg); sg.connect(draught.f.frequency); sw.start();
-  loop(white, 5200, 'lowpass', 0.3, 0.004);   // a faint hiss of distance
   const rv = caveReverb(ctx), wet = ctx.createGain(); wet.gain.value = 0.9; rv.connect(wet); wet.connect(out); CAVE_AMB.rv = rv;   /* the drips and the shifting rock ring in this */
-  // a trickle somewhere in the rock: hundreds of tiny bubbles (a ringing note that rises as it dies, as real ones do), looped quietly behind everything
-  { const sr = ctx.sampleRate, n = sr * 7, b = ctx.createBuffer(1, n, sr), d = b.getChannelData(0);
-    for (let k = 0; k < 7 * 22; k++) { const at = Math.floor(Math.random() * (n - sr * 0.03)), f = 500 + Math.random() * 700, len = Math.floor(sr * (0.008 + Math.random() * 0.014)), a = 0.2 + Math.random() * 0.5;
-      let ph = 0; for (let i = 0; i < len; i++) { const k2 = i / len; ph += 2 * Math.PI * f * (1 + 0.6 * k2) / sr; d[at + i] += Math.sin(ph) * a * (1 - k2) * (1 - k2); } }
-    const tr = ctx.createBufferSource(); tr.buffer = b; tr.loop = true; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600; const g = ctx.createGain(); g.gain.value = 0.05;
-    const sway = ctx.createOscillator(), swg = ctx.createGain(); sway.frequency.value = 0.06; swg.gain.value = 0.025; sway.connect(swg); swg.connect(g.gain); sway.start();
-    tr.connect(lp); lp.connect(g); g.connect(out); g.connect(rv); tr.start(); }
 }
 function caveDrip(ctx, out, t, near = 0, pitch = 0){   // a drop hitting a pool somewhere: a tiny tick of noise, ringing at the water's note, mostly heard in the echo
   const rv = CAVE_AMB.rv, s = ctx.createBufferSource(); s.buffer = caveNoise(ctx, 0.05, false);
