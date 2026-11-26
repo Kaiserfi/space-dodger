@@ -172,6 +172,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - **Drafting a new sound:** build it with Web Audio in a blank page, render it with an `OfflineAudioContext` to a WAV, and send the file for the owner to listen to before putting it in the game (you can't hear it yourself). Keep it soft: no rising pitch into high frequencies, sparkles and chimes around 500 to 1300 Hz, quiet overall. Time it to the action it goes with (the bandage sound stretches to `BANDAGE_MS`), and make it stoppable when the action is cancelled.
 - Sound effects are made in code (`sfx`, `nz`, oscillators). An audio file the owner gives you for a sound effect is embedded as base64 and decoded once through Web Audio (see `EAT_MP3`); don't make the browser fetch it.
 - **Sounds from elsewhere fade with distance.** Any sound caused by another player or happening away from the hero (their rocks and trees, their fights, raid goblins) must be played through `soundAt(x, z, () => ...)`: full volume within 8 units, silent beyond 40. Only your own actions play at full volume everywhere.
+- **Approved drafts waiting for their feature** live in `tools/sound-drafts/`. `archery.html` holds the bow: the draw creak, the release "thwip" (raised 30%), a "thock" for a hit and a soft ground thud for a miss. The arrow's flight is silent (the owner removed the whistle).
 - Music levels: the battle theme plays at 30% of the music setting, the boss theme at 80%.
 - Headless tests have no audio, so say when a sound hasn't been heard.
 
