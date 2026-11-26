@@ -94,6 +94,17 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 - Farm monsters are passive and drop no coins (meat and feathers only). Their stats come from ITAP's farm biome (`MONSTER_TYPES`).
 - **Fighting distance depends on the monster's size** (`reachOf`: farmer 3.0, cow 2.8, others 2.3), so a full-sized foe never stands inside the hero's head.
 
+### Planned: Fletching and Archery (agreed with the owner, not built yet)
+
+- **Order:** Fletching first (bowstrings spun from silk thread, shafts from logs, arrowtips at the anvil, 15 per bar as in ITAP, a feather per arrow, bows from logs and oak logs), then Archery.
+- **Match ITAP:** an ammo slot, one arrow per shot ("You have run out of arrows!"), Accurate / Rapid / Longrange styles, ITAP's archery damage formula and bow bonuses, a two-handed bow (no shield). Combat level uses the higher of Melee and Archery.
+- **The shot:** a draw pose (bow in the left hand pointing at the target, the right hand pulled back under the chin, the string drawn from the bow tips to the hand), hit and damage rolled at release and applied when the arrow lands (flight about 0.35 s at 7 units). One pooled, merged arrow mesh flies a gentle arc, about 1.6x life size so it reads from the game camera. A hit sticks where the shot meets the body (raycast) and fades; a miss sticks in the ground beside it. About 80% of arrows drop at the monster's feet as a ground pile. The mock-ups are in the session history; check the arrow size from the real game camera.
+- **Sounds** are in `tools/sound-drafts/archery.html` (see Sound and music). The flight is silent.
+- **Range and line of sight:** shoot from about 7 units (10 on Longrange). Solid boxes have no height, so mark low ones (fences, troughs, hay bales, low rocks, pen walls) `low: true`: they block walking but not arrows. Tall ones (walls, trees, buildings, hills) block the shot, and the hero steps to the nearest spot with a clear line.
+- **Safespotting is allowed up top**, as in RuneScape: in a fight a monster walks straight at you (as `chaseStep` does) and only hits once it's within reach, so a fence can hold it off. Shooting into the farm pens is fine.
+- **Never in delves:** in the Root Cellar and any future challenge delve, nothing may stop a creature reaching its target. Creatures there route round obstacles (`findPath`), and delve arenas stay free of anything that makes a safespot.
+- **Party roles:** archers, melee and bandage healers should work together in a party delve. Keep the existing threat system and add: melee hits count 1.5x towards threat (so a fighter holds creatures), and healing adds 0.5 threat per point healed on each creature attacking the healed player. Tune both in play. Arrows, swings and heals all go through `partyFx`; the no-carrying rule already counts damage plus healing.
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
