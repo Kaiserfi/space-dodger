@@ -8988,9 +8988,9 @@ function caveLoadP(d){ CAVE_P = d && typeof d === 'object' && !Array.isArray(d) 
   if (P.v !== 2) {   /* saves from the first version kept these as flags, not items */
     if (P.fish) add('Raw cave fish'); if (P.cooked) add('Cave fish'); if (P.spores) { add('Glowcap spores'); P.fed = 1; }
     if (P.webs && !P.rope && !P.tideDown) add('Cave web', [0, 1, 2].filter(k => P.webs & (1 << k)).length); if (P.rope && !P.tideDown) add('Web rope');
-    if (P.ironMade) P.iron = 1; if (P.tideDown) P.tide = 1; if (P.glow) P.fed = 1;
+    if (P.tideDown) P.tide = 1; if (P.glow) P.fed = 1;
     if (!P.door) for (const k in KEY_ITEM) if (P[k]) add(KEY_ITEM[k]);
-    delete P.fish; delete P.cooked; delete P.spores; delete P.rope; delete P.ironMade; delete P.tideDown; P.v = 2; } }
+    delete P.fish; delete P.cooked; delete P.spores; delete P.rope; delete P.tideDown; P.v = 2; } }
 caveLoadP({ v: 2 });
 // the things you find down here are real items in your bag, but they stay in the cave: leaving (or dying) puts them away in CAVE_P.inv, coming back hands them over again
 const CAVE_ITEMS = new Set(['Raw cave fish', 'Cave fish', 'Burnt cave fish', 'Glowcap spores', 'Cave web', 'Web rope', 'Ember key', 'Iron key', 'Tide key']);
@@ -9179,6 +9179,7 @@ function buildCave(){
     add(new THREE.BoxGeometry(0.7, 0.9, 0.7), 0x3a2a1a, 0, 0.45, 0, A); add(new THREE.BoxGeometry(1.5, 0.35, 0.6), mat(0x3a3f46), 0, 1.05, 0, A); add(new THREE.ConeGeometry(0.3, 0.6, 4).rotateZ(Math.PI / 2), mat(0x3a3f46), 1.0, 1.05, 0, A);
     solidBoxes.push({ x0: ax - 0.8, x1: ax + 0.8, z0: az - 0.5, z1: az + 0.5 });
     cvClick(A, 'Smith', 'Goblin anvil', anvilClick, ax, az);
+    CV.ironKey = caveKey(0xa8aeb6, ax, 1.9, az, () => takeKey('iron'));   /* the key you smith floats over the anvil until you take it */
     const [vx, vz] = CV_AT.vein, parts = [];   /* a slab of the wall itself, sunk into the floor, with ore glinting on its face */
     { const g = new THREE.IcosahedronGeometry(1, 1); g.scale(0.9, 1.7, 2.1); g.translate(vx + 0.35, 0.9, vz); parts.push(colour(g, 0x4e4840)); }
     for (const [dz, y, sc] of [[-1.4, 0.3, 0.7], [1.5, 0.35, 0.65], [0.2, 2.3, 0.6]]) { const g = new THREE.IcosahedronGeometry(1, 0); g.scale(sc, sc * 0.8, sc); g.translate(vx + 0.2, y, vz + dz); parts.push(colour(g, 0x45403a)); }
@@ -9392,14 +9393,14 @@ function veinClick(){
   caveWork(...CV_AT.vein, 2.3, 3200, 'Mining...', 'pick', () => { caveGive('Iron ore', 1); addXp('Mining', 35); CAVE.veinAt = performance.now() + 20000; showToast('You mine some iron ore. The seam needs a little while before there\'s more.  +35 Mining XP'); });
 }
 function anvilClick(){
-  if (CAVE_P.iron) { showToast("You've already made the iron key."); return; }
+  if (CAVE_P.iron || CAVE_P.ironMade) { showToast("You've already made the iron key."); return; }
   if (CAVE.mons.some(m => m.croom === 'forge' && m.state !== 'dying' && m.state !== 'dead')) { showToast("The goblins won't let you near their anvil!"); return; }
   if (!hasTool('Hammer')) { showToast('You need a hammer to work the metal.'); return; }
   if (!caveNeed('Smithing', 15, 'forge this key')) return;
   if (!hasItem('Iron bar')) { showToast('A key mould sits on the anvil. An iron key takes 1 iron bar: smelt the ore in their furnace.'); return; }
   caveWork(...CV_AT.anvil, 2.2, 3600, 'Smithing...', 'anvil', () => {
     if (!removeItem('Iron bar')) return;
-    addXp('Smithing', 60); CAVE_P.iron = 1; addItem('Iron key', 1, ICON_FOR['Iron key']); caveChime(); showToast('You hammer the iron bar into the mould and knock out an iron key.  +60 Smithing XP');
+    addXp('Smithing', 60); CAVE_P.ironMade = 1; CV.ironKey.visible = true; caveChime(); showToast('You hammer the iron bar into the mould and knock out an iron key.  +60 Smithing XP');
   });
 }
 function poolClick(){
@@ -9562,9 +9563,10 @@ function caveSync(entering){
   CV.plates.forEach((p, i) => { p.glow.emissiveIntensity = P.seal || P.pl[i] ? 2.2 : 0; });
   CV.sealM.opacity = 0.85;
   CV.emberKey.visible = !!P.k_braz && !P.ember;
-  if (CAVE) for (const k in KEY_ITEM) if (P[k] && !P.door && !hasItem(KEY_ITEM[k]) && !GROUND.some(g => g.name === KEY_ITEM[k])) P[k] = 0;   /* a key gone missing goes back where it came from */
+  if (CAVE) for (const k in KEY_ITEM) if (P[k] && !P.door && !hasItem(KEY_ITEM[k]) && !GROUND.some(g => g.name === KEY_ITEM[k])) { P[k] = 0; if (k === 'iron') P.ironMade = 1; }   /* a key gone missing goes back where it came from */
   if (CAVE && P.webs === 7 && !P.tide && !hasItem('Web rope') && countOf('Cave web') < 3) P.webs = 0;   /* and so do the webs, if the rope can't be made any more */
   CV.emberKey.visible = !!P.k_braz && !P.ember;
+  CV.ironKey.visible = !!P.ironMade && !P.iron;
   CV.ledgeRope.visible = !!P.tide; CV.ledgeLid.rotation.x = P.tide ? -1.7 : 0;
   if (P.glow && !solidBoxes.includes(CV.capBox)) solidBoxes.push(CV.capBox);
   if (P.door) { const i = trees.indexOf(CV.doorHit); if (i >= 0) trees.splice(i, 1); }
@@ -9602,7 +9604,7 @@ function updateCave(){
     if (!on && b.lit) { brazierOut(); if (CAVE.room === 'braz') showToast('A brazier burns out, and the others die with it.'); } }
   if (CAVE_P.glow) { const k = Math.min(1, (Date.now() - CAVE_P.glow) / 12000); CV.cap.scale.setScalar(Math.max(0.01, k)); if (k >= 1 && !CAVE.capTold && CAVE.room === 'grotto') { CAVE.capTold = true; if (!CAVE_P.tide) showToast('The glowcap is fully grown. Its light reaches the ledge above, where a little chest sits.'); } if (k > 0.3 && !LIGHT_SPOTS.includes(CV.capSpot)) { LIGHT_SPOTS.push(CV.capSpot); updateDayNight.next = 0; } } else CV.cap.scale.setScalar(0.01);
   CV.fishGlints.forEach((f, i) => { const a = now / (1400 + i * 300) + i * 2; f.position.set(CV_AT.pool[0] + Math.cos(a) * (1.2 + i * 0.5), 0.05, CV_AT.pool[1] + Math.sin(a) * (1.2 + i * 0.5)); f.rotation.y = -a; f.visible = !CAVE_P.fed || i > 0; });
-  for (const k of [CV.emberKey]) if (k.visible) { k.rotation.y = now / 600; k.position.y = k.baseY + Math.sin(now / 400) * 0.12; }
+  for (const k of [CV.emberKey, CV.ironKey]) if (k.visible) { k.rotation.y = now / 600; k.position.y = k.baseY + Math.sin(now / 400) * 0.12; }
   if (CV.bossChest) { const C = CV.bossChest, k = Math.min(1, (now - C.born) / 900); C.g.scale.setScalar(1.5 * Math.max(0.01, 1 - Math.pow(1 - k, 3))); animRewardChest(C, now); }   /* the cellar's chest: pops up, then the lid swings open */
   caveMobs(now, dt);
 }
