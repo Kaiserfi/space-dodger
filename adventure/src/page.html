@@ -37,6 +37,8 @@
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
   <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
   <div class="setRow"><label style="width:auto;flex:1">Battery saver</label><div class="grassOpts" id="saverOpts"><button data-s="off">Off</button><button data-s="on">On</button></div></div>
+  <div class="setRow"><label style="width:auto;flex:1">Profile</label><div class="grassOpts"><button id="xferGet">Get code</button><button id="xferEnter">Enter code</button></div></div>
+  <div id="xferBox" hidden></div>
 </div>
 <div id="beltPanel" hidden>
   <div class="bagHead">Toolbelt</div>
@@ -68,6 +70,7 @@
       <input id="nameInput" maxlength="12" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:7px;font:15px Georgia,serif;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;">
       <button id="joinBtn" style="margin-top:10px;width:100%;font:15px Georgia,serif;padding:7px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Enter the village</button>
     </div>
+    <button id="playHereBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Play here</button>
     <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
   </div>
 </div>

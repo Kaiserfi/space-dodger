@@ -15,6 +15,8 @@ A score that's impossible for its game's length is turned down and recorded in `
 - **What it always allows:** losses, and climbing back to your own best. An account's first save is just noted.
 - **Exempting an account:** add `watch/trust/<uid> = true`, for example before giving someone coins by hand in the console, or the watchdog will take them back.
 
+**Moving a profile to another device** (`transfer.js`): `transferCreate` gives a one-time code, kept for 10 minutes in `transfer/codes`, and `transferRedeem` swaps it for that account's sign-in on the other device. Browsers can't read `transfer/`.
+
 The name filter in `filter.js` is copied from `index.html` and `word-filter.js` by `node tools/build-functions.js`. Don't edit it by hand: the build check fails if it's out of date.
 
 ## Deploying (from your own computer)
@@ -58,6 +60,7 @@ Then serve the repository on port 8123 and run the tests:
 - `tools/tests/emulator/arcade.js`: the arcade page
 - `tools/tests/emulator/itap.js`: ITAP Adventure with two players, including a faked-coins check
 - `tools/tests/emulator/watchdog.js`: the save watchdog
+- `tools/tests/emulator/transfer.js` and `transfer-page.js`: moving a profile to another device
 
 The tests rewrite every live Firebase address to the emulators and abort anything still aimed at the live project.
 

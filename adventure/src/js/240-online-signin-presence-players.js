@@ -104,7 +104,7 @@ async function enterVillage(name){
   ONLINE.saveJson = JSON.stringify(currentSave());
   cleanStalePlayers();
   startStreams();
-  ONLINE.ready = true;
+  ONLINE.ready = true; ONLINE.readyAt = Date.now();
   document.getElementById('online').hidden = true;
 }
 // log out: save everything, including where you are, and leave the village
@@ -140,9 +140,9 @@ function openSpotNear(x, z){
   return { x: START.x, z: START.z };
 }
 function applySave(d){
+  if (d && (d.bag || typeof d.co === 'number')) COINS = typeof d.co === 'number' ? d.co : 0;   /* the purse loads even with an empty bag, which Firebase leaves out of the save */
   if (d && d.bag) {
     bag.length = 0;
-    COINS = typeof d.co === 'number' ? d.co : 0;
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
       if (it && it.name === 'Fly fishing rod') it = { ...it, name: 'Fishing rod' };   /* one rod for bait and flies now */
       if (it && OLD_DAGGERS[it.name]) it = { ...it, name: OLD_DAGGERS[it.name] };   /* a single dagger is a pair now */
@@ -202,7 +202,8 @@ function writePresence(force){
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), dl: cellarOpen() ? 1 : 0, pt: PARTY.id || null, t: now };   // e: what you're wearing and holding, so others see it
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), dl: cellarOpen() ? 1 : 0, pt: PARTY.id || null, t: now };
+  xferMark(body);   // which session this is (only one device plays a profile at a time)   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -236,6 +237,7 @@ function sweepPresence(id){
 }
 // the other players: a sprite with their look, and their name above it
 function setRemote(id, p){
+  if (id === ONLINE.id) xferCheck(p);
   if (!p || id === ONLINE.id) return;
   if (p.t && Date.now() - p.t > 30000) { removeRemote(id); sweepPresence(id); return; }   // a left-behind entry from a closed browser (and tidy it out of the database)
   let r = remote[id];
@@ -331,7 +333,7 @@ function startStreams(){
   ns.addEventListener('patch', e => applyNodes('patch', JSON.parse(e.data)));
   startEventStreams();
   window.addEventListener('pagehide', () => {
-    try { fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}
+    if (ONLINE.ready) try { fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}   /* a game stopped for another device leaves that device's note alone */
     saveNow(true);
   });
 }

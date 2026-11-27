@@ -99,6 +99,11 @@
   #setPanel[hidden] { display:none; }
   .setRow { display:flex; align-items:center; gap:8px; padding:8px 10px; }
   .setRow label { width:78px; flex:none; }   /* wide enough for "Brightness", so the sliders all start in one line */
+  #xferBox { padding:0 10px 10px; text-align:center; } #xferBox[hidden] { display:none; }
+  .xferCode { font:22px/1.3 monospace; letter-spacing:2px; color:#f0c35a; user-select:all; }
+  .xferNote { font-size:12px; color:#c9b27a; margin-top:4px; }
+  #xferIn { width:110px; padding:5px; font:16px monospace; text-transform:uppercase; background:#1d150b; color:#e8efe6; border:1px solid #5b4324; border-radius:5px; }
+  #xferGo { margin-left:6px; font:13px Georgia,serif; padding:5px 10px; background:#1d150b; color:#f0c35a; border:1px solid #5b4324; border-radius:5px; cursor:pointer; }
   .setRow input[type=range] { flex:1; min-width:0; width:100%; margin:0; accent-color:#f0c35a; }
   .muteBtn { width:30px; height:30px; flex:none; padding:0; background:#1d150b; border:1px solid #5b4324; border-radius:5px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .muteBtn svg { width:18px; height:18px; }
@@ -244,6 +249,8 @@
   <div class="setRow"><button class="muteBtn" id="muteSfx" title="Mute sounds"></button><label for="volSfx">Sounds</label><input type="range" id="volSfx" min="0" max="100"></div>
   <div class="setRow"><span class="muteBtn" style="visibility:hidden"></span><label for="volBright">Brightness</label><input type="range" id="volBright" min="0" max="100"></div>
   <div class="setRow"><label style="width:auto;flex:1">Battery saver</label><div class="grassOpts" id="saverOpts"><button data-s="off">Off</button><button data-s="on">On</button></div></div>
+  <div class="setRow"><label style="width:auto;flex:1">Profile</label><div class="grassOpts"><button id="xferGet">Get code</button><button id="xferEnter">Enter code</button></div></div>
+  <div id="xferBox" hidden></div>
 </div>
 <div id="beltPanel" hidden>
   <div class="bagHead">Toolbelt</div>
@@ -275,6 +282,7 @@
       <input id="nameInput" maxlength="12" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:7px;font:15px Georgia,serif;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;">
       <button id="joinBtn" style="margin-top:10px;width:100%;font:15px Georgia,serif;padding:7px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Enter the village</button>
     </div>
+    <button id="playHereBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#f0c35a;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Play here</button>
     <button id="retryBtn" hidden style="margin-top:6px;font:14px Georgia,serif;padding:6px 14px;background:#1d150b;color:#e8efe6;border:1px solid #5b4324;border-radius:6px;cursor:pointer">Try again</button>
   </div>
 </div>
@@ -6429,7 +6437,7 @@ async function enterVillage(name){
   ONLINE.saveJson = JSON.stringify(currentSave());
   cleanStalePlayers();
   startStreams();
-  ONLINE.ready = true;
+  ONLINE.ready = true; ONLINE.readyAt = Date.now();
   document.getElementById('online').hidden = true;
 }
 // log out: save everything, including where you are, and leave the village
@@ -6465,9 +6473,9 @@ function openSpotNear(x, z){
   return { x: START.x, z: START.z };
 }
 function applySave(d){
+  if (d && (d.bag || typeof d.co === 'number')) COINS = typeof d.co === 'number' ? d.co : 0;   /* the purse loads even with an empty bag, which Firebase leaves out of the save */
   if (d && d.bag) {
     bag.length = 0;
-    COINS = typeof d.co === 'number' ? d.co : 0;
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
       if (it && it.name === 'Fly fishing rod') it = { ...it, name: 'Fishing rod' };   /* one rod for bait and flies now */
       if (it && OLD_DAGGERS[it.name]) it = { ...it, name: OLD_DAGGERS[it.name] };   /* a single dagger is a pair now */
@@ -6527,7 +6535,8 @@ function writePresence(force){
   if (!force && sig === ONLINE.sig && now - ONLINE.lastWrite < 2000) return;
   if (!force && now - ONLINE.lastWrite < 100) return;
   ONLINE.sig = sig; ONLINE.lastWrite = now;
-  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), dl: cellarOpen() ? 1 : 0, pt: PARTY.id || null, t: now };   // e: what you're wearing and holding, so others see it
+  const body = { n: ONLINE.name, x, z, f: heroFacing, w: walkTarget ? 1 : 0, l: look, c: ONLINE.chat || null, a: ONLINE.act || null, st: EV.seat >= 0 ? EV.seat : null, rd: ONLINE.rd || null, e: Object.fromEntries(Object.entries(equipped).filter(([k, v]) => v)), tr: TRADE.tr || null, hp: [HP.cur, maxHp()], cb: combatLevel(), dl: cellarOpen() ? 1 : 0, pt: PARTY.id || null, t: now };
+  xferMark(body);   // which session this is (only one device plays a profile at a time)   // e: what you're wearing and holding, so others see it
   fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'PUT', body: JSON.stringify(body), keepalive: force }).catch(() => {});
 }
 function sendChat(text){
@@ -6561,6 +6570,7 @@ function sweepPresence(id){
 }
 // the other players: a sprite with their look, and their name above it
 function setRemote(id, p){
+  if (id === ONLINE.id) xferCheck(p);
   if (!p || id === ONLINE.id) return;
   if (p.t && Date.now() - p.t > 30000) { removeRemote(id); sweepPresence(id); return; }   // a left-behind entry from a closed browser (and tidy it out of the database)
   let r = remote[id];
@@ -6656,7 +6666,7 @@ function startStreams(){
   ns.addEventListener('patch', e => applyNodes('patch', JSON.parse(e.data)));
   startEventStreams();
   window.addEventListener('pagehide', () => {
-    try { fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}
+    if (ONLINE.ready) try { fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE', keepalive: true }); } catch (e) {}   /* a game stopped for another device leaves that device's note alone */
     saveNow(true);
   });
 }
@@ -6726,6 +6736,66 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// ----- moving your profile to another device (Settings: "Get code" here, "Enter code" there). The server keeps this
+// device's sign-in under a one-time code for 10 minutes (functions/transfer.js); the other device swaps the code for it and
+// becomes the same account, so it loads the same save. Only one device plays a profile at a time: every game marks its
+// presence note with its own session (ss) and when it started (s0, server time); a game that sees a newer session of
+// its own account stops, so two devices never overwrite each other's saves.
+const FN_URL = 'https://us-central1-space-dodger-1a558.cloudfunctions.net';
+const XFER = { ss: Math.random().toString(36).slice(2, 10), s0: 0, kicked: false };
+async function fnCall(name, data){
+  const r = await fetch(FN_URL + '/' + name, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + AUTH.token }, body: JSON.stringify({ data }) });
+  const j = await r.json().catch(() => ({}));
+  if (j.error) throw new Error(j.error.message || 'Something went wrong.');
+  if (!r.ok) throw new Error("Can't reach the server.");
+  return j.result;
+}
+function xferBox(html){ const b = document.getElementById('xferBox'); b.innerHTML = html; b.hidden = !html; return b; }
+document.getElementById('xferGet').addEventListener('click', async () => {
+  if (!ONLINE.ready || !AUTH.token) { showToast("You're not connected."); return; }
+  xferBox('<div class="xferNote">Getting a code...</div>');
+  try {
+    ONLINE.saveJson = ''; await saveNow(false);   // the other device loads everything up to now
+    const r = await fnCall('transferCreate', { rt: AUTH.rt, name: ONLINE.name });
+    xferBox(`<div class="xferCode">${r.code.slice(0, 4)}-${r.code.slice(4)}</div><div class="xferNote">Enter this on your other device. It works once, within 10 minutes.</div>`);
+  } catch (e) { xferBox(''); showToast(e.message); }
+});
+document.getElementById('xferEnter').addEventListener('click', () => {
+  const b = xferBox('<input id="xferIn" maxlength="9" placeholder="Code" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="xferGo">Log in</button><div class="xferNote">This device\'s own progress will be replaced.</div>');
+  const inp = b.querySelector('#xferIn'), go = b.querySelector('#xferGo');
+  inp.focus();
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') go.click(); });
+  go.addEventListener('click', async () => {
+    if (!AUTH.token) { showToast("You're not connected."); return; }
+    go.disabled = true;
+    try {
+      const r = await fnCall('transferRedeem', { code: inp.value });
+      ONLINE.ready = false;   // stop saving this device's own progress
+      try { await fetch(`${DB}/adventure/live/players/${ONLINE.id}.json`, { method: 'DELETE' }); } catch (e) {}
+      try {
+        localStorage.setItem('itapAuth', JSON.stringify({ rt: r.rt, uid: r.uid }));
+        localStorage.setItem('itapId', r.uid); localStorage.removeItem('itapOld');
+        if (r.name) localStorage.setItem('itapName', r.name);
+      } catch (e) {}
+      location.reload();
+    } catch (e) { go.disabled = false; showToast(e.message); }
+  });
+});
+// presence: who this session is (s0 waits a few seconds, until the server clock is known)
+function xferMark(body){
+  if (!XFER.s0 && ONLINE.readyAt && Date.now() - ONLINE.readyAt > 5000) XFER.s0 = Math.floor(SNOW());
+  body.ss = XFER.ss; if (XFER.s0) body.s0 = XFER.s0;
+}
+// our own account's note, written by another device: the newer session plays on, the older one stops
+function xferCheck(p){
+  if (XFER.kicked || !ONLINE.ready || !p || !p.ss || p.ss === XFER.ss || !p.s0) return;
+  if (!XFER.s0 || p.s0 <= XFER.s0) return;   /* a game just started is the newest; an older session never stops this one */
+  XFER.kicked = true; ONLINE.ready = false;
+  showJoin('Your profile is now playing on another device.', false);
+  document.getElementById('retryBtn').hidden = true;
+  document.getElementById('playHereBtn').hidden = false;
+}
+document.getElementById('playHereBtn').addEventListener('click', () => location.reload());
 // ----- battery saver: fewer pixels, no glow, smaller shadows, and the scene drawn less often (the game itself still runs every frame) -----
 const POWER = { last: 0, input: 0, applied: null };
 function applyPower(){
