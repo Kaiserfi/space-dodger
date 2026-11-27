@@ -268,6 +268,34 @@ A 3D version of ITAP's molten hound sprite. The approved look is `tools/mockups/
 - The owner asked for a menu at the cave mouth with a second dungeon beside this one ("Fable's cave", the Ember Deep: a mirror-and-beam puzzle and the Molten Hound as a boss you douse with sluice levers). It shipped in #206 and was reverted at the owner's request: it was much shorter than this cave (four rooms, a few minutes, nothing saved), so they rated this one higher. They did like the mirror puzzle and the lever boss fight; the code is in #206's history if either is wanted again.
 - **Lessons:** match the length and weight of what's already there before adding an alternative to it. And scale a boss to where this game's players are: the hound went in with ITAP's level 45 numbers, which a first-tier player can't beat and which barely hurt a strong one (max hit 5 against 37 health).
 
+### Planned: the village expansion (agreed with the owner, not built yet)
+
+Seven additions, each placed where that trade would really sit and joined to the existing roads by short winding lanes. The spots below were checked in the game: no road or water under them, and every lane clear of water and solid boxes, checked every half unit. Re-check before building, and move any single tree or prop in the way. Mock up each building first (CLAUDE.md "Before you build"); show it from street level and the game camera, inside and out.
+
+- **Where they go** (x, z):
+  - Tavern on its own little square off the back lane (-4, 46).
+  - Chapel and graveyard at the end of a quiet lane south between the jail and the quarry (-6, 92); the lane runs (-6, 56) → (-6, 62) → (-7, 74) → (-5, 84) → (-6, 86).
+  - Granary by the fields and the windmill (58, 22).
+  - Tanner past Jory's shack, round the pond's south shore (-80, 106); its lane runs (-63, 97.6) → (-70, 102) → (-76, 104). Never across the pond.
+  - Carpenter and fletcher at the edge of the western woods (-80, 26).
+  - Potter, cooper and alchemist by the quarry, near the smithy (30, 68).
+  - Orchard and beehives: the trees round (34, 24) become apple trees.
+- **What each one is for:**
+  - **Tavern:** the social hub. A landlady NPC (warm and nosy, a gossip rival to Wenna) and regulars. Food and drink that heal more than shrimp (cider, stew), a room to set your respawn point, rumours that start quests, and a board of small paid jobs. First quest idea: the landlord's lost barrel, which leads to the cooper and cellar rats.
+  - **Chapel and graveyard:** a gentle old priest NPC. Unclaimed gravestones end up here, with a paid second chance to get items back (like RuneScape's Death's office). Quest idea: something digging up graves at night, tied to the burnt farm's cellar.
+  - **Granary:** a stern reeve NPC. Players donate wheat and flour to a shared village total; filling it starts a festival (double Farming XP and a feast at the bonfire).
+  - **Tanner:** cowhide (a new cow drop) is tanned into leather for leather armour, the archer's light set. It sits under Crafting.
+  - **Carpenter and fletcher:** the home of **Fletching**, the step before Archery (see the archery plan above). A bowyer-carpenter teaches it and sells knives, bowstrings and shafts. Quest idea: the guards need bows, which unlocks Archery.
+  - **Potter, cooper and alchemist:** the cooper makes barrels (tavern and granary quests). The potter makes vials, which makes this yard the way into **Alchemy** (as in ITAP): an herbalist alchemist turns herbs (aloe plus new ones), honey and fruit into potions (heal over time, Melee boosts).
+  - **Orchard and beehives:** apples (cider, apple pie for Cooking) and honey and wax (candles, Alchemy).
+- **Order to build:**
+  1. Tavern.
+  2. Carpenter and fletcher, with Fletching.
+  3. Tanner and leather.
+  4. Potter, alchemist and Alchemy.
+  5. Chapel, granary and orchard.
+- **Later idea from the owner:** tree growing. Plant saplings, grown from seeds or bought, that become choppable trees or fruit trees over time; it would tie the orchard to Farming and Woodcutting.
+
 ### The Root Cellar delve
 
 - It is a solo instance far off the map (around z = 400). Saves never put the player there; they load at the cellar doors.
