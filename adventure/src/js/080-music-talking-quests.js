@@ -252,6 +252,7 @@ function updateQuest(){
   const title = rtOn ? 'Roots and Threads' : gwOn ? 'Gone for Willow' : 'A Hearty Welcome';
   const text = rtOn ? rtObjective() : gwOn ? gwObjective() : QUEST.hw >= HW_STEPS ? '' : questObjective();
   gwVillageFrame(performance.now());   /* Hollis at Tobin's yard, once he's home */
+  playLevelQueue(performance.now());   /* level-ups a reward gave, once its scroll is closed */
   if (text + title !== questShown) { questShown = text + title; const el = document.getElementById('questTrack'); el.hidden = !text; el.innerHTML = text ? `<b>${title}</b><br>${text}` : ''; if (statsSub === 'quests') renderStats(); }
   if (!qMark) { qMark = document.createElement('div'); qMark.id = 'qMark'; qMark.textContent = '!'; document.body.appendChild(qMark); }
   const rs = QUEST.rt || 0, who = (rs === 2 || rs === 4 || rs === 8 || (rs === 0 && QUEST.hw >= HW_STEPS)) ? 'Tilly' : questTarget(), b0 = who && BARKERS.find(x => x.rec.name === who);

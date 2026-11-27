@@ -342,6 +342,7 @@ Seven additions, each placed where that trade would really sit and joined to the
 - An NPC's quest lines come from `questTalk(name)` before their normal chat; return `null` when they have nothing to say for this step, so their usual chat and "Let's trade." stay available.
 - Steps the player completes by doing something (planting, harvesting, spinning) move on with a one-line `rtAdvance(from, to, text)`-style call at that action. Steps that are a conversation move on in the dialogue's `run()`.
 - Give tools only if the player has none in the bag or on the toolbelt (`giveFarmTool`), check bag room first, and replace anything a player lost on a step.
+- **Level-ups from a reward wait for the scroll to close.** Give reward XP inside `quietLevelUps = true` ... `false`: `addXp` then queues each skill's level-up (`LEVEL_Q`, one entry per skill with its final level) instead of playing it under the scroll. Once the reward scroll is closed, `playLevelQueue` (from `updateQuest`) plays each one like a normal level-up, the fanfare and the message, 3.2 s apart. Tested in `tools/tests/reward-levelups.js`.
 - The tracker (`updateQuest`), the quests tab and the "!" marker all need the new quest added. The completion screen reuses the quest scroll through `showRewardScroll`; `restoreQuestScroll` puts the welcome quest's own text back.
 
 ### What's in the game (so you don't rebuild it)
