@@ -32,6 +32,9 @@ function drawMap(){
     const rx = r.sprite.position.x - hx, rz = r.sprite.position.z - hz, x = c + (rx * cy - rz * sy) * k, y = c + (rx * sy + rz * cy) * k; if (x < 0 || y < 0 || x > W || y > W) continue;
     ctx.beginPath(); ctx.arc(x, y, 4 * u, 0, 7); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 1.5 * u; ctx.strokeStyle = '#1c140a'; ctx.stroke();
     if (r.name) { ctx.lineWidth = 2.5 * u; ctx.strokeStyle = 'rgba(20,14,8,.85)'; ctx.strokeText(r.name, x, y - 7 * u); ctx.fillStyle = '#fff'; ctx.fillText(r.name, x, y - 7 * u); } }
+  if (walkFinal && (walkTarget || walkQueue.length)) { const fx = walkFinal.x - hx, fz = walkFinal.z - hz, x = c + (fx * cy - fz * sy) * k, y = c + (fx * sy + fz * cy) * k;   /* where you're walking to: a little red flag */
+    if (x > 0 && y > 0 && x < W && y < W) { ctx.lineWidth = 1.6 * u; ctx.strokeStyle = '#1c140a'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 11 * u); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y - 11 * u); ctx.lineTo(x + 7 * u, y - 8.5 * u); ctx.lineTo(x, y - 6 * u); ctx.closePath(); ctx.fillStyle = '#e8322a'; ctx.fill(); ctx.lineWidth = 1 * u; ctx.stroke(); } }
   ctx.save(); ctx.translate(c, c); ctx.rotate(Math.PI - (hero.rotation.y - yaw)); ctx.beginPath(); ctx.moveTo(0, -8.5 * u); ctx.lineTo(6 * u, 6.5 * u); ctx.lineTo(0, 3 * u); ctx.lineTo(-6 * u, 6.5 * u); ctx.closePath();
   ctx.fillStyle = '#f0c35a'; ctx.fill(); ctx.lineWidth = 1.75 * u; ctx.strokeStyle = '#1c140a'; ctx.stroke(); ctx.restore();
   const g = ctx.createRadialGradient(c, c, W * 0.42, c, c, W * 0.72); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.45)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
@@ -53,3 +56,10 @@ document.getElementById('tabMap').addEventListener('click', () => {
 });
 document.getElementById('mapCompass').addEventListener('click', e => { e.stopPropagation(); MAPUI.goal = Math.round(yaw / (Math.PI * 2)) * Math.PI * 2; });   /* the shortest way round to north */
 renderer.domElement.addEventListener('pointerdown', () => { MAPUI.goal = null; });   /* turning the camera yourself takes over */
+// tapping the map walks you there, the same as tapping the ground (the map turns with the camera, so the tap is turned back by yaw)
+MAPUI.cv.addEventListener('click', e => {
+  if (!hero || !creator.hidden || mapUnder()) return;
+  const r = MAPUI.cv.getBoundingClientRect(), k = r.width / MAPUI.span, dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const x = hero.position.x + (dx * cy + dy * sy) / k, z = hero.position.z + (-dx * sy + dy * cy) / k;
+  walkToGround(new THREE.Vector3(x, 0, z)); MAPUI.last = 0;
+});

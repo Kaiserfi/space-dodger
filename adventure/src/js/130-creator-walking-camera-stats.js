@@ -114,9 +114,13 @@ renderer.domElement.addEventListener('pointerup', e => {
     if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
   }
   clickMark(e.clientX, e.clientY, false);
+  if (ray.ray.intersectPlane(groundPlane, hit)) walkToGround(hit); else { cancelChop(); if (FIGHT) endFight('You run away.'); }
+});
+// a click on the ground, in the world or on the map: stop what's in hand, run from a fight, and walk there
+function walkToGround(hit){
   cancelChop();
   if (FIGHT) { endFight('You run away.'); }
-  if (ray.ray.intersectPlane(groundPlane, hit)) {
+  {
     // a click on a house (even on its roof) goes to its door, or walks in if the door is already open
     const inside = houses.find(h => Math.abs(hit.x - h.x) < h.hw && Math.abs(hit.z - h.z) < h.hd);
     const here = houses.find(h => Math.abs(hero.position.x - h.x) < h.hw && Math.abs(hero.position.z - h.z) < h.hd);
@@ -128,7 +132,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     }
     else walkStart(hit, null);
   }
-});
+}
 function updateWalk(){
   if (!hero || !walkTarget) { if (!chop.rec && !smelting && !cooking && !smithing && !fishing && !farmBusy && !milling) setHeroFrame(0, heroFacing); return; }   // the chopping pose is not overwritten by idle
   const dx = walkTarget.x - hero.position.x, dz = walkTarget.z - hero.position.z, dist = Math.hypot(dx, dz);
