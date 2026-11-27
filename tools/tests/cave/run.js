@@ -91,13 +91,13 @@ let fails = 0; const check = (ok, what, extra) => { if (!ok) fails++; log((ok ? 
   await t('go', -45, 667); await wait(1500); s = await t('state'); check(s.room === 'cell', 'into the jail, west of the grotto', s.toast); check((await t('path', -45, 667, -53, 667)).end[0] > -48.5, 'the bars keep you out of his cell');
   await snap('10c jail', [-44, 5, 671, -52, 1.5, 666]);
   await t('go', -47.4, 667); await t('call', 'hollisClick'); await wait(1500);
-  for (let i = 0; i < 8 && await t('dlg'); i++) { log('   ', await t('dlg')); await t('dlgNext'); }
+  for (let i = 0; i < 20 && await t('dlg'); i++) { log('   ', await t('dlg')); await t('dlgNext'); }
   for (let tries = 0; tries < 6 && !(s => s.bag.some(x => x.startsWith('Raw cave fish x')))(await t('state')); tries++) { await t('go', -25.6, 671.5); await t('call', 'poolClick'); await until(s => !s.job, 20000); await wait(400); }
   s = await t('state'); check(s.bag.some(x => x.startsWith('Raw cave fish x')), 'caught a cave fish, in the bag', s.toast);
   for (let tries = 0; tries < 8 && !(s => s.bag.some(x => x.startsWith('Cave fish x')))(await t('state')); tries++) { if (!(s => s.bag.some(x => x.startsWith('Raw cave fish x')))(await t('state'))) { await t('go', -25.6, 671.5); await t('call', 'poolClick'); await until(s => !s.job, 20000); await wait(400); continue; } await t('go', -19.5, 669.4); await t('call', 'fireClick'); await until(s => !s.job, 20000); await wait(400); log('    cook try:', (await t('state')).toast); }
   s = await t('state'); check(s.bag.some(x => x.startsWith('Cave fish x')), 'cooked it, in the bag', s.toast);
   await t('go', -47.4, 667); await t('call', 'hollisClick'); await wait(1500);
-  for (let i = 0; i < 8 && await t('dlg'); i++) { log('   ', await t('dlg')); await t('dlgNext'); }
+  for (let i = 0; i < 20 && await t('dlg'); i++) { log('   ', await t('dlg')); await t('dlgNext'); }
   s = await t('state'); check(s.bag.some(x => x.startsWith('Glowcap spores x')) && !s.bag.some(x => x.startsWith('Cave fish x')), 'Hollis takes the fish and gives the spores', s.bag);
   await t('call', 'ledgeClick'); s = await t('state'); check(/pitch black/.test(s.toast), 'the ledge is dark', s.toast);
   await t('go', -21, 662.8); await t('call', 'capPatchClick'); s = await until(s => s.P.glow, 15000); check(s.P.glow, 'planted the glowcap');

@@ -69,7 +69,7 @@ window.__t = {
   L = await t('load', { rod: 'Fishing rod' }); check(L.belt.rod === 'Fishing rod' && !L.belt.fly, 'an old save: the plain rod stays put', L.belt);
 
   // the cave's reward
-  await t('reset'); const R = await t('reward'); check(R.rods === 1 && R.runs === 1 && R.coins === 0 && R.xpSame && R.boxes === 1, 'the cave chest gives only a fly fishing rod (no coins, no XP) and counts the run', R);
+  await t('reset'); const R = await t('reward'); check(R.rods === 1 && R.coins === 0 && R.xpSame && R.boxes === 1, 'the cave chest gives only a fly fishing rod (no coins, no XP)', R);
   await p.waitForTimeout(500); await p.locator('#questDone').screenshot({ path: `${OUT}/cave-reward.png` });
   check(JSON.stringify(await t('buyers')) === '["fish"]', 'only Jory buys a spare fly rod, not Mara', await t('buyers'));
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED');

@@ -268,6 +268,8 @@ function renderStats(){
       <div class="qStep">${done ? 'Completed. Brenna\'s oven roars again.' : questObjective()}</div>
       <div class="qRow ${QUEST.rt >= RT_DONE ? 'qDone' : QUEST.rt ? 'qOn' : ''}">${QUEST.rt >= RT_DONE ? '&#10003;' : QUEST.rt ? '&#9679;' : '&#9675;'} Roots and Threads</div>
       <div class="qStep">${QUEST.rt >= RT_DONE ? 'Completed. Tilly says you have a knack for it.' : rtObjective()}</div>
+      <div class="qRow ${QUEST.gw >= GW_DONE ? 'qDone' : QUEST.gw ? 'qOn' : gwReady() ? '' : 'qLock'}">${QUEST.gw >= GW_DONE ? '&#10003;' : QUEST.gw ? '&#9679;' : gwReady() ? '&#9675;' : '&#128274;'} Gone for Willow</div>
+      <div class="qStep">${QUEST.gw >= GW_DONE ? 'Completed. Hollis is home, for now.' : gwReady() || QUEST.gw ? gwObjective() : 'Finish A Hearty Welcome and Roots and Threads first.'}</div>
       <div class="qRow qLock">&#128274; More quests are coming</div>
       <div class="statRow" style="margin-top:8px"><span>Quest points</span><b>${QUEST.qp || 0}</b></div>`;
     return;

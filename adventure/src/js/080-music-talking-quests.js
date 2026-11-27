@@ -104,7 +104,7 @@ addEventListener('pointerdown', startMusic, { once: true });   // browsers only 
 let dlg = null;
 // ----- quests -----
 // A Hearty Welcome: Brenna's oven is cold. A walk round the village that hands out each tool as it is needed.
-const QUEST = { hw: 0, qp: 0, rt: 0 };
+const QUEST = { hw: 0, qp: 0, rt: 0, gw: 0 };   /* gw: Gone for Willow, Tobin's quest (346) */
 const HW_STEPS = 9;   // 9 means done
 /* Roots and Threads, Tilly's farming quest: 0 not started, 1 plant wheat, 2 talk to Tilly, 3 grow and harvest, 4 show Tilly, 5 feed the silkworms,
    6 collect the cocoons, 7 spin silk, 8 show Tilly the thread, 9 done */
@@ -168,7 +168,8 @@ function completeRootsAndThreads(){
   renderStats(); saveNow(false);
 }
 function questTalk(name){
-  if (name === 'Hollis') return hollisTalk();   /* the prisoner in the cave */
+  if (name === 'Hollis') return CAVE ? hollisTalk() : gwTalk('Hollis');   /* the prisoner in the cave, or home at Tobin's yard */
+  if (name === 'Tobin') { const g = gwTalk('Tobin'); if (g) return g; }
   if (name === 'Tilly') { const r = rtTalk(); if (r) return r; }
   const s = QUEST.hw, me = t => ({ me: t }), run = f => ({ run: f });
   if (s >= HW_STEPS) return null;
@@ -247,11 +248,14 @@ function rtObjective(){ return ['Talk to Tilly at the farmers\' market, east of 
   'Collect the cocoons from the hutch when the silkworms are done.', 'Spin a cocoon into silk thread at the spinning wheel.', 'Show Tilly your silk thread.', 'Complete!'][Math.min(QUEST.rt || 0, RT_DONE)]; }
 function updateQuest(){
   const rtOn = (QUEST.rt || 0) > 0 && QUEST.rt < RT_DONE;   /* Tilly's quest, once started, takes the tracker */
-  const title = rtOn ? 'Roots and Threads' : 'A Hearty Welcome';
-  const text = rtOn ? rtObjective() : QUEST.hw >= HW_STEPS ? '' : questObjective();
+  const gwOn = !rtOn && (QUEST.gw || 0) > 0 && QUEST.gw < GW_DONE;   /* then Tobin's */
+  const title = rtOn ? 'Roots and Threads' : gwOn ? 'Gone for Willow' : 'A Hearty Welcome';
+  const text = rtOn ? rtObjective() : gwOn ? gwObjective() : QUEST.hw >= HW_STEPS ? '' : questObjective();
+  gwVillageFrame(performance.now());   /* Hollis at Tobin's yard, once he's home */
   if (text + title !== questShown) { questShown = text + title; const el = document.getElementById('questTrack'); el.hidden = !text; el.innerHTML = text ? `<b>${title}</b><br>${text}` : ''; if (statsSub === 'quests') renderStats(); }
   if (!qMark) { qMark = document.createElement('div'); qMark.id = 'qMark'; qMark.textContent = '!'; document.body.appendChild(qMark); }
-  const rs = QUEST.rt || 0, who = (rs === 2 || rs === 4 || rs === 8 || (rs === 0 && QUEST.hw >= HW_STEPS)) ? 'Tilly' : questTarget(), b = who && BARKERS.find(x => x.rec.name === who);
+  const rs = QUEST.rt || 0, who = (rs === 2 || rs === 4 || rs === 8 || (rs === 0 && QUEST.hw >= HW_STEPS)) ? 'Tilly' : questTarget(), b0 = who && BARKERS.find(x => x.rec.name === who);
+  const gsp = gwMarkTarget(), b = b0 || (gsp ? { sp: gsp } : null);   /* Tobin's quest only marks someone once it has something for you */
   if (!b || dlg) { qMark.style.display = 'none'; return; }
   b.sp.getWorldPosition(qV); qV.y += 5.2 * (b.sp.scale.x / CHIBI_SCALE) + Math.sin(performance.now() / 250) * 0.15;
   qV.project(camera);
