@@ -44,7 +44,7 @@ W.camAt = (x, z) => { target.set(x, 1, z); return true; };`;
   const shot = async name => { await p.waitForTimeout(400); await p.screenshot({ path: `${OUT}/${name}.png` }); };
 
   check(JSON.stringify(await t('names')) === JSON.stringify(['Cave goblin', 'Goblin', "The goblin's den"]), 'the boss is the Cave goblin, the others plain Goblins', await t('names'));
-  await t('setup');
+  await t('setup'); await t('setQ', { gw: 0 });   /* the cave tests' setup opens the cave; this test starts the quest from the beginning */
   // 1. locked until the first two quests are done
   check(!(await t('mark')), 'before the first two quests, no mark over Tobin');
   let said = await t('talk', 'Tobin'); check(!said.some(l => /lend a hand/.test(l)), "and Tobin doesn't ask yet", said[1]);

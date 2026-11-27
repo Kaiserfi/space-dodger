@@ -31,15 +31,15 @@ function gwTalk(name){
     if (s === 1) {
       if (cnt('Logs') < GW_LOGS) return ["Twenty logs, when you've got them. No hurry. Well. Some hurry. It's getting cold."];
       return [me("Here's your wood."), run(() => { for (let i = 0; i < GW_LOGS; i++) removeItem('Logs'); renderBag(); }), "That's a lovely stack. Thank you.",
-        "Can I ask you something? My little brother Hollis went north a week back. After willow logs, he said.",
-        "There's willow just past the bridge. He should've been home by supper.", "I've walked the meadow twice. Nothing. Folk say there's a cave in the east hills.",
+        "Can I ask you something? My little brother Hollis went north a week back. Said he was off to cut willow logs.",
+        "There are willow trees just past the bridge. A morning's work. He should've been home by supper.", "I've walked the meadow twice. Nothing. Folk say there's a cave in the east hills.",
         "If anyone can find him, it's you. Would you look?", me("I'll find him."), run(() => gwStep(2, 'Look for Hollis in the cave in the east hills, past the north lake.'))];
     }
     if (s === 2) return ["Any sign of Hollis? The cave in the east hills, past the lake. Please."];
     if (s === 3 || s === 4) return [me('I found Hollis. Goblins have him locked in a cell.'), "Goblins! What was he doing in a cave?", me('Picking glowcaps, apparently.'),
       "Glowcaps. Of course it was.", "Get him out of there. I'd come, but I'd only fall asleep on the way."];
     if (s === 5) return [me('Hollis is home.'), "He is. Turned up at the yard looking like something the cat dragged in.",
-      "Told me the truth about the willow, too. Took him an hour to get to it.", "Thank you. Truly. Here, this is for you.", run(() => completeGoneForWillow())];
+      "Told me the truth about the willow logs, too. Took him an hour to get to it.", "Thank you. Truly. Here, this is for you.", run(() => completeGoneForWillow())];
     return null;
   }
   if (name === 'Hollis') {   /* at Tobin's woodyard, after he's free */
@@ -54,8 +54,8 @@ function gwCellTalk(){
   if (s >= 2 && s < 5 && hasItem('Cell key')) return [me("I've got the key to your cell."), "You've got it! Quick, before something else decides I'm dinner.",
     run(() => gwFree()), "I'm going straight home to Tobin. Come and find us at his yard. I owe you."];
   if (s === 2) {
-    const intro = [me('Hollis? Tobin sent me.'), "Tobin? Oh, thank goodness. He's worried, isn't he. He's always worried.", me('He says you went for willow.'),
-      "Willow. Yes. Well. I may have stretched that a bit.", "I came down after glowcaps. Tobin thinks they're daft. He's not wrong. There were goblins."];
+    const intro = [me('Hollis? Tobin sent me.'), "Tobin? Oh, thank goodness. He's worried, isn't he. He's always worried.", me('He says you went north to cut willow logs.'),
+      "Willow logs. Yes. Well. I may have stretched that a bit.", "I came down after glowcaps. Tobin thinks they're daft. He's not wrong. There were goblins."];
     const tail = P.met ? ["The big cave goblin in the den keeps the key to this cell. Get past that and I'm a free man."]
       : ["They've had me locked up for days. I'm so hungry I could eat my own boots.", "There's fish in the pool next door, if you've got the gear. Blind as moles, but they taste alright cooked.",
         "And the big cave goblin in the den keeps the key to this cell.", me("I'll see what I can do.")];
@@ -118,9 +118,9 @@ function completeGoneForWillow(){
   quietLevelUps = true; addXp('Woodcutting', 600); addXp('Firemaking', 200); quietLevelUps = false;
   questJingle();
   const row = (icon, text) => `<div class="qr"><span class="qi">${icon}</span>${text}</div>`;
-  showRewardScroll({ banner: 'Quest complete', title: 'Gone for Willow', sub: "Hollis is home, and Tobin knows the truth about the willow.",
+  showRewardScroll({ banner: 'Quest complete', title: 'Gone for Willow', sub: "Hollis is home, and Tobin knows the truth about the willow logs.",
     rewards: row(COIN_ICON, '150 coins') + row('<span style="color:#a07a2c">&#9733;</span>', '1 quest point'),
     xp: '<div class="qr">Woodcutting<b>+600</b></div><div class="qr">Firemaking<b>+200</b></div>',
-    quote: '&ldquo;Willow. Honestly. Next time just tell me, and I\'ll come with you.&rdquo; &mdash; Tobin' });
+    quote: '&ldquo;Willow logs. Honestly. Next time just tell me, and I\'ll come with you.&rdquo; &mdash; Tobin' });
   renderBag(); renderStats(); saveNow(false);
 }
