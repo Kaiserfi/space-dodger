@@ -101,8 +101,9 @@ function populateVillage(){
   const out = (h, n = 3) => { const dx = h.door.x - h.x, dz = h.door.z - h.z, L = Math.hypot(dx, dz) || 1;
     const fx = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) : 0, fz = fx ? 0 : Math.sign(dz);   // the door faces along one axis
     return [h.door.x + fx * n, h.door.z + fz * n]; };
-  cobbleDisc(G[0], G[1], 5);                                           // the cobbled green round the well
-  for (const h of [h1, h2, h3, h4, smithyHouse, store]) cobbleDisc(h.door.x, h.door.z, 1.3);   // a stone step at every door
+  greenSquare(G[0], G[1]);                                             // the cobbled green round the well
+  for (const h of [h1, h2, h3, h4, smithyHouse, store]) { const dx = h.door.x - h.x, dz = h.door.z - h.z, fx = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) : 0;
+    doorStep(h.door.x, h.door.z, fx, fx ? 0 : Math.sign(dz)); }   // a stone step at every door
   roadPath([G, [-48, 7], out(h1), D(h1)]);                             // the far west house
   roadPath([G, [-28, 5], out(h3), D(h3)]);                             // the north house
   roadPath([G, [-42, 20], [-42, 44], [-46, 47], out(h2), D(h2)]);      // the south-west house, between the two southern houses
@@ -117,7 +118,7 @@ function populateVillage(){
   roadPath([[-58, 51], [-61, 60], [-66, 69], [-72.5, 78]]);            // south from the back lane to the pond
   roadPath([[-66, 69], [-57, 80], [-55.5, 90], [-56.5, 97.6], [-63, 97.6]]);   // round the east side of Jory's shack to his counter
   roadPath([[-46, 47], [-58, 51], out(store), D(store)]);
-  roadPath([[-40, 52], [-38, 55], [-38, 58.6]]); cobbleDisc(-38, 58.4, 2.2);   // off the back lane to the barracks door           // Mara's store, off the back lane to the south-west
+  roadPath([[-40, 52], [-38, 55], [-38, 58.6]]); doorStep(-38, 60, 0, -1, 3.2); buildDoorSteps();   // off the back lane to the barracks door           // Mara's store, off the back lane to the south-west
   // the woodland, far to the west
   [[-96, -6], [-92, 4], [-98, 14], [-90, 24], [-94, 34], [-86, -12], [-100, 44], [-88, 30]].forEach(([x, z]) => makeTree(x, z, 1.6));
   buildQuarry();
