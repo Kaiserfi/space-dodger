@@ -473,7 +473,7 @@ function anvilClick(){
 }
 function poolClick(){
   if (!caveNeed('Fishing', 10, 'catch the fish here')) return;
-  const tool = hasTool('Fishing rod') ? 'rod' : hasTool('Small fishing net') ? 'net' : null;
+  const tool = hasTool('Fishing rod') || hasTool('Fly fishing rod') ? 'rod' : hasTool('Small fishing net') ? 'net' : null;
   if (!tool) { showToast('You need a fishing net or a rod to fish here.'); return; }
   if (caveHas('Raw cave fish') || caveHas('Cave fish') || CAVE_P.fed) { showToast(CAVE_P.fed ? "Hollis has had his fish." : "You've got one already. One's plenty."); return; }
   if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
@@ -559,20 +559,16 @@ function bossDoorClick(){
 }
 function bossChestClick(){
   if (!CAVE || !CAVE.won || CAVE.opened || CAVE_P.done) return;
-  if (!bagRoomFor(['Iron bar', 'Feathers'])) { showToast(`Your bag is full. You need ${slotsFor(['Iron bar', 'Feathers'])} free spaces for what's in the chest.`); return; }
-  caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest || !bagRoomFor(['Iron bar', 'Feathers'])) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
+  if (!bagRoomFor(['Fly fishing rod'])) { showToast('Your bag is full.'); return; }
+  caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest || !bagRoomFor(['Fly fishing rod'])) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
 }
-function grantCaveRewards(){
-  const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1)), coins = r(400, 700), rows = [];
-  quietLevelUps = true; addXp('Melee', 600); addXp('Hitpoints', 600); for (const s of ['Woodcutting', 'Mining', 'Fishing', 'Smithing', 'Cooking', 'Firemaking', 'Farming', 'Crafting']) addXp(s, 150); quietLevelUps = false;
-  addItem('Coins', coins); rows.push(`<div class="qr"><span class="qi">${ICON_FOR.Coins || ''}</span>${coins} coins</div>`);
-  for (const [name, n] of [['Iron bar', 3], ['Feathers', r(30, 60)]]) { const before = countOf(name); addItem(name, n, ICON_FOR[name]); const ok = countOf(name) - before >= n; if (!ok) dropToGround(name, n - (countOf(name) - before), hero.position.x, hero.position.z, true);
-    rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name] || ''}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(on the ground)</small>'}</div>`); }
-  CAVE_P.done = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1;   /* the next trip down starts fresh (caveFresh) */
+function grantCaveRewards(){   /* the cave's one reward: a fly fishing rod, the only way to get one (trout need it) */
+  addItem('Fly fishing rod', 1, ICON_FOR['Fly fishing rod']);
+  CAVE_P.done = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1;   /* the next trip down starts fresh (caveFresh); runs > 0 means the cave has been beaten */
   questJingle(); renderStats(); renderBag(); saveNow(false);
   showRewardScroll({ banner: 'Dungeon complete', title: 'The Cave', sub: 'Three keys found, the great door opened, and the cave troll beaten.',
-    rewards: rows.join(''), xp: '<div class="qr">Melee<b>+600</b></div><div class="qr">Hitpoints<b>+600</b></div><div class="qr">Every other skill<b>+150</b></div>',
-    quote: '&ldquo;You got rid of the troll? And the goblins? I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
+    rewards: `<div class="qr"><span class="qi">${ICON_FOR['Fly fishing rod']}</span>A fly fishing rod</div>`, xp: '',
+    quote: '&ldquo;You got rid of the troll? Then that rod\'s yours. Trout won\'t look at anything else. I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
   addSystemLine('Climb the rope out of the den when you\'re ready.');
 }
 

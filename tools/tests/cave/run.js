@@ -121,7 +121,7 @@ let fails = 0; const check = (ok, what, extra) => { if (!ok) fails++; log((ok ? 
   await t('kill', 'boss'); s = await until(s => s.P.k_boss, 10000); check(s.P.k_boss, 'the troll is beaten');
   { let bad = 0; for (let i = 0; i < 12; i++) { if (await t('music') === 'battle_theme') bad++; await wait(500); } check(!bad, 'no battle theme after the troll', bad); }
   await wait(2500); const c0 = (await t('state')).coins;
-  await t('call', 'bossChestClick'); s = await until(s => s.P.done, 60000); log('    chest:', s.toast, s.hero); check(s.P.done && s.coins > c0, 'the chest pays out', { coins: s.coins - c0 });
+  await t('call', 'bossChestClick'); s = await until(s => s.P.done, 60000); log('    chest:', s.toast, s.hero); check(s.P.done && s.coins === c0 && s.bag.some(x => x.startsWith('Fly fishing rod')), 'the chest gives the fly fishing rod (and nothing else)', { coins: s.coins - c0, bag: s.bag });
   await wait(1200); await game('14 reward');
   await p.evaluate(() => { document.getElementById('questDone').hidden = true; });
   await t('call', 'leaveCave', 'out'); s = await t('state'); check(!s.cave && Object.keys(s.P).length <= 4 && !s.P.door, 'out, and the next trip starts fresh', s.P);

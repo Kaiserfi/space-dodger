@@ -66,7 +66,7 @@ const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx
 const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironHead(AXE_ICON), 'Iron pickaxe': ironHead(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron daggers': ITEMS['Iron daggers'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
   'Bronze bar': BAR_ICON, 'Bronze daggers': DAGGERS_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON, 'Raw bream': BREAM_ICON, 'Bream': COOKED_BREAM_ICON, 'Burnt bream': BURNT_BREAM_ICON, 'Worms': WORMS_ICON, 'Tinderbox': TINDER_ICON,
-  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
+  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Fly fishing rod': FLY_ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
   'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON,
   'Feathers': FEATHER_ICON, 'Raw chicken': RAW_CHICKEN_ICON, 'Cooked chicken': COOKED_CHICKEN_ICON, 'Burnt chicken': BURNT_MEAT_ICON, 'Raw beef': RAW_BEEF_ICON, 'Cooked beef': COOKED_BEEF_ICON, 'Burnt beef': BURNT_MEAT_ICON };
@@ -144,7 +144,6 @@ function applySave(d){
   if (d && d.bag) {
     bag.length = 0;
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
-      if (it && it.name === 'Fly fishing rod') it = { ...it, name: 'Fishing rod' };   /* one rod for bait and flies now */
       if (it && OLD_DAGGERS[it.name]) it = { ...it, name: OLD_DAGGERS[it.name] };   /* a single dagger is a pair now */
       if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
@@ -163,7 +162,8 @@ function applySave(d){
   if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0, c: CROPS[p.c] ? p.c : 'Wheat' }); });
   if (d && d.hu && typeof d.hu.n === 'number') SILK.hutch = { n: d.hu.n, t: d.hu.t || 0 };   /* the leaves in your silkworm hutch */   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
-  for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? (d.tb[k] === 'Fly fishing rod' ? 'Fishing rod' : d.tb[k]) : null;
+  for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? d.tb[k] : null;
+  if (toolbelt.rod === 'Fly fishing rod') { if (!toolbelt.fly) toolbelt.fly = 'Fly fishing rod'; toolbelt.rod = null; }   /* a fly rod from an old save, hung in the plain rod's place */
   if (d && d.dv && typeof d.dv.m === 'number' && !DELVE) {   /* you left mid-delve: that counts as fleeing */
     const lost = Math.floor(COINS * 0.25); COINS -= lost; const lm = Math.max(0, SKILL_XP.Melee - d.dv.m), lh = Math.max(0, SKILL_XP.Hitpoints - d.dv.h);
     SKILL_XP.Melee = Math.min(SKILL_XP.Melee, d.dv.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, d.dv.h);

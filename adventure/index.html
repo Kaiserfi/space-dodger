@@ -1593,7 +1593,7 @@ function clickNode(rec){
   if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec && !(rec.delve && (DELVE || CAVE))) { showToast("You're already in combat!"); return; } startFight(rec); return; }   /* the cellar is multi-combat: clicking another creature switches to it */
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && levelOf(SKILL_XP.Fishing) < FISHES[rec.fish].lvl) { showToast(`You need Fishing ${FISHES[rec.fish].lvl} to catch ${FISHES[rec.fish].word} here.`); return; }
-  if (rec.kind === 'fish' && !hasTool(FISHES[rec.fish].tool)) { showToast(`You need ${FISHES[rec.fish].need} to fish here. Jory sells them, at his shack by the pond.`); return; }
+  if (rec.kind === 'fish' && !hasTool(FISHES[rec.fish].tool)) { showToast(`You need ${FISHES[rec.fish].need} to fish here.` + (rec.fish === 'trout' ? '' : ' Jory sells them, at his shack by the pond.')); return; }
   if (rec.kind === 'fish' && FISHES[rec.fish].bait && !hasItem(FISHES[rec.fish].bait)) { showToast(FISHES[rec.fish].noBait); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast(nothingToCookMsg()); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }
@@ -1863,7 +1863,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
   if (it && caveItemClick(it, e.clientX + 6, e.clientY - 10)) return;   /* the cave's things: what they're for */
   if (it && it.name === 'Watering can') { openCanMenu(it, e.clientX + 6, e.clientY - 10); return; }   /* fill it at any water nearby, or hang it on the belt */
-  if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
+  if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } BELT_TAB = beltTabOf(sl); toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
   if (it && FOOD[it.name]) { eatReadyAt = performance.now() + EAT_DELAY; if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + EAT_DELAY);   /* and eating in a fight holds back your next swing */
     startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast((/'s /.test(it.name) ? `You eat ${it.name}.` : `You eat the ${it.name.toLowerCase()}.`) + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
@@ -1920,7 +1920,7 @@ function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; if (CUR
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const OLD_DAGGERS = { 'Bronze dagger': 'Bronze daggers', 'Iron dagger': 'Iron daggers' };
-const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Iron ore': 8, 'Iron bar': 18, 'Iron daggers': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze daggers': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Fly fishing rod': 20, 'Iron ore': 8, 'Iron bar': 18, 'Iron daggers': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze daggers': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -1986,8 +1986,19 @@ function renderGear(){
   }).join('') + `<div class="gearRow" style="border:0;margin-top:4px"><span>Total</span><b>+${gearBonus('atk')} Attack, +${gearBonus('def')} Defence</b></div>`;
   renderBelt();
 }
+// the toolbelt's tabs: a skill (or two related ones) each, its tools in order. The tab shows a tool's icon; the panel opens on the last tab used
+const BELT_TABS = [
+  { name: 'Woodcutting & Firemaking', icon: 'Bronze axe', slots: ['axe', 'tinder'] },
+  { name: 'Mining & Smithing', icon: 'Bronze pickaxe', slots: ['pick', 'hammer'] },
+  { name: 'Fishing', icon: 'Fishing rod', slots: ['net', 'rod', 'fly'] },
+  { name: 'Farming', icon: 'Hoe', slots: ['hoe', 'can'] } ];
+let BELT_TAB = 0;
+const beltTabOf = sl => Math.max(0, BELT_TABS.findIndex(t => t.slots.includes(sl)));
 function renderBelt(){
-  document.getElementById('beltList').innerHTML = Object.keys(TOOLBELT_SLOTS).map(sl => {
+  const T = BELT_TABS[BELT_TAB] || BELT_TABS[0];
+  const tabs = BELT_TABS.map((t, i) => { const on = i === BELT_TAB, n = t.slots.filter(sl => toolbelt[sl]).length;
+    return `<button data-belttab="${i}" title="${t.name}" style="flex:1;padding:4px 2px 2px;cursor:pointer;border:1px solid #5b4324;border-radius:6px 6px 0 0;border-bottom:${on ? 'none' : '1px solid #5b4324'};background:${on ? '#3a2a14' : '#1d150b'};color:${on ? '#f0c35a' : '#c9b27a'};font:11px Georgia,serif;line-height:1">${ICON_FOR[t.icon] || ''}<br>${n}/${t.slots.length}</button>`; }).join('');
+  document.getElementById('beltList').innerHTML = `<div style="display:flex;gap:3px;margin-bottom:4px">${tabs}</div><div style="color:#f0c35a;font-size:12px;padding:2px 2px 4px">${T.name}</div>` + T.slots.map(sl => {
     const t = toolbelt[sl];
     return `<div class="gearRow"><span>${TOOLBELT_SLOTS[sl]}</span>${t ? `<b data-unbelt="${sl}" title="Put in bag" style="cursor:pointer;text-align:right">${t}${sl === 'can' ? ` <small style="color:#7ab8f0">(${FARM_CAN.n}/${CAN_MAX})</small>` : ''} &times;</b>` : '<span style="color:#7a6a4a">empty</span>'}</div>`;
   }).join('') + `<div style="color:#9a8a6a;font-size:12px;padding:4px 2px">Click a tool in your bag to hang it here.</div>`;
@@ -2008,7 +2019,7 @@ document.getElementById('gearList').addEventListener('click', e => {
   const b = e.target.closest('[data-unequip]'); if (b) unequip(b.dataset.unequip);
 });
 document.getElementById('tabGear').addEventListener('click', () => { togglePanel('gearPanel', 'tabGear'); renderGear(); });
-document.getElementById('beltList').addEventListener('click', e => { const u = e.target.closest('[data-unbelt]'); if (u) unbelt(u.dataset.unbelt); });
+document.getElementById('beltList').addEventListener('click', e => { const tb = e.target.closest('[data-belttab]'); if (tb) { BELT_TAB = +tb.dataset.belttab; renderBelt(); return; } const u = e.target.closest('[data-unbelt]'); if (u) unbelt(u.dataset.unbelt); });
 document.getElementById('tabBelt').addEventListener('click', () => { togglePanel('beltPanel', 'tabBelt'); renderBelt(); });
 
 // ----- village music: a soft loop made from synthesised notes (no sound files) -----
@@ -3710,6 +3721,8 @@ const NET_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
   <rect x="7" y="9" width="1.4" height="6" fill="#7a4d22"/><path d="M3 2 Q8 0 13 2 L11 9 L5 9 Z" fill="none" stroke="#d8c890" stroke-width="1"/><path d="M4 4 L12 4 M4.6 6.5 L11.4 6.5 M6 2 L6.5 9 M8 1.5 L8 9 M10 2 L9.5 9" stroke="#b8a870" stroke-width="0.6"/></svg>`;
 const ROD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M2 14 L13 2" stroke="#7a4d22" stroke-width="1.3"/><path d="M13 2 Q15 7 12 12" fill="none" stroke="#e8e0c8" stroke-width="0.6"/><rect x="11" y="11.5" width="2" height="1.5" fill="#e04a3a"/><rect x="3.5" y="11" width="2" height="2" fill="#5a5a60"/></svg>`;
+const FLY_ROD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 14 L13 2" stroke="#3e2a18" stroke-width="1.1"/><path d="M13 2 Q15 7 12 12" fill="none" stroke="#e8e0c8" stroke-width="0.6"/><rect x="11" y="11.5" width="2" height="1.5" fill="#f0c35a"/><rect x="12.5" y="10.5" width="1.5" height="1" fill="#4a8ac8"/><rect x="3.5" y="11" width="2" height="2" fill="#b08a3a"/></svg>`;   /* the fly rod: a darker, slimmer rod with a feathered fly and a brass reel */
 const COOKED_SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#e8622a" stroke="#7a2a12" stroke-width="0.8"/><path d="M6 6.5 L8 8 M5.5 8.5 L7.5 10" stroke="#a83a12" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
 const TROUT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -3828,9 +3841,9 @@ function addItem(name, qty = 1, icon = '') {
 function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.slot === i)) return i; return -1; }
 function hasItem(name){ if (name === 'Coins') return COINS > 0; return bag.some(i => i.name === name); }
 /* the toolbelt: one of each skilling tool, kept out of the bag; skilling works from the bag or the belt */
-const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', rod: 'Fishing rod', hoe: 'Hoe', can: 'Watering can', tinder: 'Tinderbox' };
-const toolbelt = { axe: null, pick: null, hammer: null, net: null, rod: null, hoe: null, can: null, tinder: null };
-function beltSlotFor(name){ return /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : /fishing rod$/.test(name) ? 'rod' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : name === 'Tinderbox' ? 'tinder' : null; }
+const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', rod: 'Fishing rod', fly: 'Fly fishing rod', hoe: 'Hoe', can: 'Watering can', tinder: 'Tinderbox' };
+const toolbelt = { axe: null, pick: null, hammer: null, net: null, rod: null, fly: null, hoe: null, can: null, tinder: null };
+function beltSlotFor(name){ return name === 'Fly fishing rod' ? 'fly' : /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : name === 'Fishing rod' ? 'rod' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : name === 'Tinderbox' ? 'tinder' : null; }
 function hasTool(name){ return hasItem(name) || Object.values(toolbelt).includes(name); }
 function renderBag() {
   let html = '';
@@ -4250,7 +4263,7 @@ const TOWNSFOLK = [
       ["Fenwick says he caught a fish as long as a horse. He's been saying that since we were boys.", "It was a boot then, too."],
       ["Folk sell me their catch and I sell it on. A man's got to eat. And Wenna likes her ribbons."] ],
     asks: [
-      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Over the bridge and up north, there's a pool in the trees. Mind the rats up there, mind. Big as cats."] },
+      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Over the bridge and up north, there's a pool in the trees. Mind the rats up there, mind. Big as cats.", "They'll only rise to a fly, and I've no fly rods to sell. Hollis had the last one, and he went poking about in that cave in the hills."] },
       { q: 'How long have you and Wenna been married?', a: ["Forty-one years come spring. She'd say forty-two. She counts the courting.", "Asked her on that bench on the green. She said she'd think about it. Took her a week.", "Longest week of my life, that was."] } ],
     barks: ["Worms! Fresh worms! Well. Lively, anyway.", "Fresh fish on the slab! Fair prices, near enough.", "Nets, rods and bait. Everything but the patience."],
     choice: { question: 'What can I do for you?' } },
@@ -4321,7 +4334,7 @@ function splashSound(){ sfx((ctx, t, out) => { out.gain.value = 0.55;   // a sof
 let fishing = null;
 const FISH_MS = 3000;
 // what each spot gives: shrimp in the river, trout in the pond (Fishing 15 and 45 XP in the phone game, scaled to our shrimp)
-const FISHES = { shrimp: { raw: 'Raw shrimp', word: 'shrimp', lvl: 1, xp: 10, tool: 'Small fishing net', need: 'a fishing net' }, trout: { raw: 'Raw trout', word: 'trout', lvl: 15, xp: 25, tool: 'Fishing rod', need: 'a fishing rod', bait: 'Feathers', noBait: 'You need feathers to tie flies with. Chickens drop them.', out: 'You have run out of feathers.' },
+const FISHES = { shrimp: { raw: 'Raw shrimp', word: 'shrimp', lvl: 1, xp: 10, tool: 'Small fishing net', need: 'a fishing net' }, trout: { raw: 'Raw trout', word: 'trout', lvl: 15, xp: 25, tool: 'Fly fishing rod', need: 'a fly fishing rod', bait: 'Feathers', noBait: 'You need feathers to tie flies with. Chickens drop them.', out: 'You have run out of feathers.' },
   bream: { raw: 'Raw bream', word: 'bream', lvl: 10, xp: 20, tool: 'Fishing rod', need: 'a fishing rod', bait: 'Worms', noBait: 'You need worms for bait. Jory sells them by the pond.', out: 'You have run out of worms.' } };   /* trout take a fly: a rod, and a feather for each cast, as in RuneScape */
 function catchFish(rec){
   if (fishing) return;
@@ -4329,7 +4342,7 @@ function catchFish(rec){
   if (!roomForOne(FISHES[rec.fish].raw)) { showToast('Your bag is full.'); return; }
   fishing = { rec, t0: performance.now(), cast0: performance.now(), c: Date.now() }; fishing.will = fishRoll(FISHES[rec.fish]);
   showToast(FISHES[rec.fish].bait ? 'You cast your line out over the water...' : 'You dip your net in the water...'); splashSound();
-  setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool === 'Fishing rod' ? 1 : 0, c: fishing.c });
+  setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool !== 'Small fishing net' ? 1 : 0, c: fishing.c });
   document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
 }
 const fishRoll = F => Math.random() < Math.min(0.9, 0.45 + (levelOf(SKILL_XP.Fishing) - F.lvl + 1) * 0.02);   // a catch is more likely the better you are
@@ -4339,7 +4352,7 @@ function updateFishing(){
   const k = (performance.now() - fishing.t0) / FISH_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, fishing.rec.x, fishing.rec.z);
-  heroAnim.mode = FISHES[fishing.rec.fish].tool === 'Fishing rod' ? 'fish' : 'net';
+  heroAnim.mode = FISHES[fishing.rec.fish].tool !== 'Small fishing net' ? 'fish' : 'net';
   if (k < 1) return;
   // a catch is more likely the better you are at fishing
   const F = FISHES[fishing.rec.fish];
@@ -4350,7 +4363,7 @@ function updateFishing(){
     addXp('Fishing', F.xp); showToast(`You catch a raw ${F.word} (${countOf(F.raw)}).  +${F.xp} Fishing XP`);
   }
   if (!roomForOne(F.raw)) { stopFishing('Your bag is full.'); return; }
-  fishing.t0 = performance.now(); fishing.will = fishRoll(F); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool === 'Fishing rod' ? 1 : 0, c: fishing.c });   // the net goes in again
+  fishing.t0 = performance.now(); fishing.will = fishRoll(F); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool !== 'Small fishing net' ? 1 : 0, c: fishing.c });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
@@ -6107,7 +6120,7 @@ function showRewardScroll(o){
   const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
   if (!QD_ORIG) QD_ORIG = { banner: q('.qBanner').innerHTML, title: q('h1').innerHTML, sub: q('.qSub').innerHTML, cols: q('.qCols').innerHTML, quote: q('.qQuote').innerHTML };
   q('.qBanner').innerHTML = o.banner; q('h1').innerHTML = o.title; q('.qSub').innerHTML = o.sub;
-  q('.qCols').innerHTML = `<div class="qBox"><h3>Rewards</h3>${o.rewards}</div><div class="qBox"><h3>Experience</h3>${o.xp}</div>`; q('.qQuote').innerHTML = o.quote;
+  q('.qCols').innerHTML = `<div class="qBox"><h3>Rewards</h3>${o.rewards}</div>${o.xp ? `<div class="qBox"><h3>Experience</h3>${o.xp}</div>` : ''}`;   /* no Experience box for a reward that gives none */ q('.qQuote').innerHTML = o.quote;
   d.hidden = false;
 }
 function restoreQuestScroll(){ if (!QD_ORIG) return; const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
@@ -6404,7 +6417,7 @@ const BANDAGE_ICON = `<svg viewBox="0 0 16 16" width="26" height="26"><circle cx
 const ICON_FOR = { 'Oak logs': OAK_LOG_ICON, 'Aloe seeds': ALOE_SEED_ICON, 'Mulberry seeds': MULBERRY_SEED_ICON, 'Aloe leaf': ALOE_ICON, 'Mulberry leaves': MULBERRY_LEAF_ICON, 'Silk cocoon': COCOON_ICON, 'Silk thread': THREAD_ICON, 'Bandage': BANDAGE_ICON, 'Logs': LOG_ICON, 'Bronze axe': AXE_ICON, 'Bronze pickaxe': PICK_ICON, 'Copper ore': ORE_ICON, 'Tin ore': TIN_ICON, 'Iron ore': IRON_ORE_ICON, 'Iron axe': ironHead(AXE_ICON), 'Iron pickaxe': ironHead(PICK_ICON), 'Iron bar': IRON_BAR_ICON, 'Iron daggers': ITEMS['Iron daggers'].icon, 'Iron helmet': ITEMS['Iron helmet'].icon, 'Iron chestplate': ITEMS['Iron chestplate'].icon, 'Iron leg armour': ITEMS['Iron leg armour'].icon, 'Iron boots': ITEMS['Iron boots'].icon, 'Iron sword': ITEMS['Iron sword'].icon, 'Iron shield': ITEMS['Iron shield'].icon,
   'Bronze bar': BAR_ICON, 'Bronze daggers': DAGGERS_ICON, 'Bronze sword': SWORD_ICON, 'Bronze shield': SHIELD_ICON,
   'Bronze helmet': HELM_ICON, 'Bronze chestplate': CHEST_ICON, 'Bronze leg armour': LEGS_ICON, 'Bronze boots': BOOTS_ICON, 'Raw shrimp': SHRIMP_ICON, 'Raw trout': TROUT_ICON, 'Trout': COOKED_TROUT_ICON, 'Burnt trout': BURNT_TROUT_ICON, 'Raw bream': BREAM_ICON, 'Bream': COOKED_BREAM_ICON, 'Burnt bream': BURNT_BREAM_ICON, 'Worms': WORMS_ICON, 'Tinderbox': TINDER_ICON,
-  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
+  'Hammer': HAMMER_ICON, 'Coins': COIN_ICON, 'Small fishing net': NET_ICON, 'Fishing rod': ROD_ICON, 'Fly fishing rod': FLY_ROD_ICON, 'Shrimp': COOKED_SHRIMP_ICON, 'Burnt shrimp': BURNT_ICON,
   "Brenna's bread": BREAD_ICON, "Villager's cloak": CLOAK_ICON, 'Torch': TORCH_ICON,
   'Hoe': HOE_ICON, 'Watering can': CAN_ICON, 'Wheat seeds': SEED_ICON, 'Wheat': WHEAT_ICON, 'Flour': FLOUR_ICON, 'Bread dough': DOUGH_ICON, 'Bread': LOAF_ICON, 'Burnt bread': BURNT_LOAF_ICON,
   'Feathers': FEATHER_ICON, 'Raw chicken': RAW_CHICKEN_ICON, 'Cooked chicken': COOKED_CHICKEN_ICON, 'Burnt chicken': BURNT_MEAT_ICON, 'Raw beef': RAW_BEEF_ICON, 'Cooked beef': COOKED_BEEF_ICON, 'Burnt beef': BURNT_MEAT_ICON };
@@ -6482,7 +6495,6 @@ function applySave(d){
   if (d && d.bag) {
     bag.length = 0;
     d.bag.forEach(it => { if (it && it.name === 'Coins') { if (typeof d.co !== 'number') COINS += it.qty || 0; return; }   /* coins from older saves move out of the bag into the purse */
-      if (it && it.name === 'Fly fishing rod') it = { ...it, name: 'Fishing rod' };   /* one rod for bait and flies now */
       if (it && OLD_DAGGERS[it.name]) it = { ...it, name: OLD_DAGGERS[it.name] };   /* a single dagger is a pair now */
       if (it && ICON_FOR[it.name]) bag.push({ name: it.name, qty: it.qty || 1, icon: ICON_FOR[it.name], slot: (it.s >= 0 && it.s < BAG_SIZE && !bag.some(b => b.slot === it.s)) ? it.s : -1 }); });
     bag.forEach(b => { if (b.slot < 0) b.slot = freeSlot(); });
@@ -6501,7 +6513,8 @@ function applySave(d){
   if (d && Array.isArray(d.farm)) d.farm.forEach((p, i) => { if (FARM_PLOTS[i] && p) Object.assign(FARM_PLOTS[i], { s: p.s || 'grass', g: p.g || 0, w: !!p.w, t: p.t || 0, c: CROPS[p.c] ? p.c : 'Wheat' }); });
   if (d && d.hu && typeof d.hu.n === 'number') SILK.hutch = { n: d.hu.n, t: d.hu.t || 0 };   /* the leaves in your silkworm hutch */   // your crops, as you left them
   if (d && typeof d.wc === 'number') FARM_CAN.n = d.wc;
-  for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? (d.tb[k] === 'Fly fishing rod' ? 'Fishing rod' : d.tb[k]) : null;
+  for (const k in toolbelt) toolbelt[k] = d && d.tb && typeof d.tb[k] === 'string' ? d.tb[k] : null;
+  if (toolbelt.rod === 'Fly fishing rod') { if (!toolbelt.fly) toolbelt.fly = 'Fly fishing rod'; toolbelt.rod = null; }   /* a fly rod from an old save, hung in the plain rod's place */
   if (d && d.dv && typeof d.dv.m === 'number' && !DELVE) {   /* you left mid-delve: that counts as fleeing */
     const lost = Math.floor(COINS * 0.25); COINS -= lost; const lm = Math.max(0, SKILL_XP.Melee - d.dv.m), lh = Math.max(0, SKILL_XP.Hitpoints - d.dv.h);
     SKILL_XP.Melee = Math.min(SKILL_XP.Melee, d.dv.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, d.dv.h);
@@ -7000,7 +7013,7 @@ function groundModel(name){
   else if (name === 'Mulberry leaves') { for (const a of [-0.6, 0.1, 0.8]) { const l = P(new THREE.SphereGeometry(0.2, 8, 5), 0x5a9a3a, Math.cos(a) * 0.12, 0.03, Math.sin(a) * 0.12, false); l.scale.set(1, 0.12, 0.75); l.rotation.y = a; } }
   else if (name === 'Silk cocoon') { for (const x of [-0.12, 0.12]) P(new THREE.SphereGeometry(0.12, 8, 6), 0xf6f2e6, x, 0.1, 0).scale.set(0.75, 0.75, 1.3); }
   else if (name === 'Silk thread') { P(new THREE.CylinderGeometry(0.14, 0.14, 0.26, 10).rotateZ(Math.PI / 2), 0xf8f2e6, 0, 0.14, 0); for (const x of [-0.16, 0.16]) P(new THREE.CylinderGeometry(0.17, 0.17, 0.04, 10).rotateZ(Math.PI / 2), 0xa07848, x, 0.14, 0); }
-  else if (name === 'Fishing rod') { P(new THREE.CylinderGeometry(0.025, 0.04, 1.4, 6).rotateZ(Math.PI / 2), 0x7a4d22, 0, 0.05, 0); P(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 10).rotateX(Math.PI / 2), 0x5a5a60, -0.45, 0.08, 0.05); }
+  else if (name === 'Fishing rod' || name === 'Fly fishing rod') { P(new THREE.CylinderGeometry(0.025, 0.04, 1.4, 6).rotateZ(Math.PI / 2), 0x7a4d22, 0, 0.05, 0); P(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 10).rotateX(Math.PI / 2), 0x5a5a60, -0.45, 0.08, 0.05); }
   else if (name === 'Bandage') { P(new THREE.TorusGeometry(0.16, 0.08, 6, 12).rotateX(Math.PI / 2), 0xf4eee0, 0, 0.08, 0); }
   else if (/seeds/.test(name)) sack(name.startsWith('Aloe') ? 0xa8c8a0 : name.startsWith('Mulberry') ? 0xc8a8c0 : 0xc8a870, 0x6a5030);
   else if (name === 'Flour') sack(0xece4d0, 0x8a7a5a);
@@ -9571,7 +9584,7 @@ function anvilClick(){
 }
 function poolClick(){
   if (!caveNeed('Fishing', 10, 'catch the fish here')) return;
-  const tool = hasTool('Fishing rod') ? 'rod' : hasTool('Small fishing net') ? 'net' : null;
+  const tool = hasTool('Fishing rod') || hasTool('Fly fishing rod') ? 'rod' : hasTool('Small fishing net') ? 'net' : null;
   if (!tool) { showToast('You need a fishing net or a rod to fish here.'); return; }
   if (caveHas('Raw cave fish') || caveHas('Cave fish') || CAVE_P.fed) { showToast(CAVE_P.fed ? "Hollis has had his fish." : "You've got one already. One's plenty."); return; }
   if (bag.length >= BAG_SIZE) { showToast('Your bag is full.'); return; }
@@ -9657,20 +9670,16 @@ function bossDoorClick(){
 }
 function bossChestClick(){
   if (!CAVE || !CAVE.won || CAVE.opened || CAVE_P.done) return;
-  if (!bagRoomFor(['Iron bar', 'Feathers'])) { showToast(`Your bag is full. You need ${slotsFor(['Iron bar', 'Feathers'])} free spaces for what's in the chest.`); return; }
-  caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest || !bagRoomFor(['Iron bar', 'Feathers'])) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
+  if (!bagRoomFor(['Fly fishing rod'])) { showToast('Your bag is full.'); return; }
+  caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest || !bagRoomFor(['Fly fishing rod'])) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
 }
-function grantCaveRewards(){
-  const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1)), coins = r(400, 700), rows = [];
-  quietLevelUps = true; addXp('Melee', 600); addXp('Hitpoints', 600); for (const s of ['Woodcutting', 'Mining', 'Fishing', 'Smithing', 'Cooking', 'Firemaking', 'Farming', 'Crafting']) addXp(s, 150); quietLevelUps = false;
-  addItem('Coins', coins); rows.push(`<div class="qr"><span class="qi">${ICON_FOR.Coins || ''}</span>${coins} coins</div>`);
-  for (const [name, n] of [['Iron bar', 3], ['Feathers', r(30, 60)]]) { const before = countOf(name); addItem(name, n, ICON_FOR[name]); const ok = countOf(name) - before >= n; if (!ok) dropToGround(name, n - (countOf(name) - before), hero.position.x, hero.position.z, true);
-    rows.push(`<div class="qr"><span class="qi">${ICON_FOR[name] || ''}</span>${n} ${name.toLowerCase()}${ok ? '' : ' <small style="color:#c05030">(on the ground)</small>'}</div>`); }
-  CAVE_P.done = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1;   /* the next trip down starts fresh (caveFresh) */
+function grantCaveRewards(){   /* the cave's one reward: a fly fishing rod, the only way to get one (trout need it) */
+  addItem('Fly fishing rod', 1, ICON_FOR['Fly fishing rod']);
+  CAVE_P.done = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1;   /* the next trip down starts fresh (caveFresh); runs > 0 means the cave has been beaten */
   questJingle(); renderStats(); renderBag(); saveNow(false);
   showRewardScroll({ banner: 'Dungeon complete', title: 'The Cave', sub: 'Three keys found, the great door opened, and the cave troll beaten.',
-    rewards: rows.join(''), xp: '<div class="qr">Melee<b>+600</b></div><div class="qr">Hitpoints<b>+600</b></div><div class="qr">Every other skill<b>+150</b></div>',
-    quote: '&ldquo;You got rid of the troll? And the goblins? I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
+    rewards: `<div class="qr"><span class="qi">${ICON_FOR['Fly fishing rod']}</span>A fly fishing rod</div>`, xp: '',
+    quote: '&ldquo;You got rid of the troll? Then that rod\'s yours. Trout won\'t look at anything else. I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
   addSystemLine('Climb the rope out of the den when you\'re ready.');
 }
 

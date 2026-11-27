@@ -127,7 +127,7 @@ document.getElementById('bagGrid').addEventListener('click', e => {
   if (it && openItemMenu(it.name, e.clientX + 6, e.clientY - 10)) return;   // something you can make things from
   if (it && caveItemClick(it, e.clientX + 6, e.clientY - 10)) return;   /* the cave's things: what they're for */
   if (it && it.name === 'Watering can') { openCanMenu(it, e.clientX + 6, e.clientY - 10); return; }   /* fill it at any water nearby, or hang it on the belt */
-  if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
+  if (it && beltSlotFor(it.name) && !ITEMS[it.name]) { const sl = beltSlotFor(it.name); if (toolbelt[sl]) { showToast(`Your toolbelt already holds a ${toolbelt[sl].toLowerCase()}.`); return; } BELT_TAB = beltTabOf(sl); toolbelt[sl] = it.name; removeItem(it.name, it); renderBag(); renderGear(); showToast(`You hang the ${it.name.toLowerCase()} on your toolbelt.`); saveNow(false); return; }
   if (it && FOOD[it.name] && performance.now() < eatReadyAt) return;   /* as in RuneScape: one bite every 1.8 seconds, however fast you click */
   if (it && FOOD[it.name]) { eatReadyAt = performance.now() + EAT_DELAY; if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + EAT_DELAY);   /* and eating in a fight holds back your next swing */
     startEatAnim(); removeItem(it.name, it); /* the very piece you clicked */ const before = HP.cur; HP.cur = Math.min(maxHp(), HP.cur + (HEALS[it.name] || 0)); showToast((/'s /.test(it.name) ? `You eat ${it.name}.` : `You eat the ${it.name.toLowerCase()}.`) + (HP.cur > before ? ` (+${HP.cur - before} health)` : '')); eatSound(); if (FIGHT) FIGHT.nextP = Math.max(FIGHT.nextP, performance.now() + 1200); renderStats(); return; }
@@ -184,7 +184,7 @@ function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; if (CUR
 function coinCount(){ return COINS; }
 // what Mara buys: logs, ores, bars and the bronze weapons and shield, for coins
 const OLD_DAGGERS = { 'Bronze dagger': 'Bronze daggers', 'Iron dagger': 'Iron daggers' };
-const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Iron ore': 8, 'Iron bar': 18, 'Iron daggers': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze daggers': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
+const SELL = { 'Bronze axe': 6, 'Bronze pickaxe': 6, 'Iron axe': 16, 'Iron pickaxe': 16, 'Tinderbox': 1, 'Fly fishing rod': 20, 'Iron ore': 8, 'Iron bar': 18, 'Iron daggers': 22, 'Iron boots': 22, 'Iron helmet': 26, 'Iron sword': 50, 'Iron shield': 50, 'Iron leg armour': 75, 'Iron chestplate': 120, 'Raw trout': 5, 'Trout': 8, 'Raw bream': 4, 'Bream': 6, 'Aloe leaf': 4, 'Mulberry leaves': 3, 'Silk cocoon': 6, 'Silk thread': 10, 'Bandage': 14, 'Logs': 4, 'Oak logs': 9, 'Torch': 6, 'Wheat': 3, 'Flour': 4, 'Bread dough': 3, 'Bread': 6, 'Feathers': 1, 'Raw chicken': 2, 'Cooked chicken': 4, 'Raw beef': 2, 'Cooked beef': 5, 'Copper ore': 3, 'Tin ore': 3, 'Bronze bar': 8, 'Bronze daggers': 10, 'Bronze sword': 25, 'Bronze shield': 25, 'Bronze boots': 10, 'Bronze helmet': 12, 'Bronze leg armour': 36, 'Bronze chestplate': 60 };
 function countOf(name){ if (name === 'Coins') return COINS; let n = 0; for (const it of bag) if (it.name === name) n += it.qty; return n; }
 // how many of each item Mara has been sold lately: each sale lowers her price, and it recovers over time
 const DEMAND = {};   // name -> { n, t }
@@ -250,8 +250,19 @@ function renderGear(){
   }).join('') + `<div class="gearRow" style="border:0;margin-top:4px"><span>Total</span><b>+${gearBonus('atk')} Attack, +${gearBonus('def')} Defence</b></div>`;
   renderBelt();
 }
+// the toolbelt's tabs: a skill (or two related ones) each, its tools in order. The tab shows a tool's icon; the panel opens on the last tab used
+const BELT_TABS = [
+  { name: 'Woodcutting & Firemaking', icon: 'Bronze axe', slots: ['axe', 'tinder'] },
+  { name: 'Mining & Smithing', icon: 'Bronze pickaxe', slots: ['pick', 'hammer'] },
+  { name: 'Fishing', icon: 'Fishing rod', slots: ['net', 'rod', 'fly'] },
+  { name: 'Farming', icon: 'Hoe', slots: ['hoe', 'can'] } ];
+let BELT_TAB = 0;
+const beltTabOf = sl => Math.max(0, BELT_TABS.findIndex(t => t.slots.includes(sl)));
 function renderBelt(){
-  document.getElementById('beltList').innerHTML = Object.keys(TOOLBELT_SLOTS).map(sl => {
+  const T = BELT_TABS[BELT_TAB] || BELT_TABS[0];
+  const tabs = BELT_TABS.map((t, i) => { const on = i === BELT_TAB, n = t.slots.filter(sl => toolbelt[sl]).length;
+    return `<button data-belttab="${i}" title="${t.name}" style="flex:1;padding:4px 2px 2px;cursor:pointer;border:1px solid #5b4324;border-radius:6px 6px 0 0;border-bottom:${on ? 'none' : '1px solid #5b4324'};background:${on ? '#3a2a14' : '#1d150b'};color:${on ? '#f0c35a' : '#c9b27a'};font:11px Georgia,serif;line-height:1">${ICON_FOR[t.icon] || ''}<br>${n}/${t.slots.length}</button>`; }).join('');
+  document.getElementById('beltList').innerHTML = `<div style="display:flex;gap:3px;margin-bottom:4px">${tabs}</div><div style="color:#f0c35a;font-size:12px;padding:2px 2px 4px">${T.name}</div>` + T.slots.map(sl => {
     const t = toolbelt[sl];
     return `<div class="gearRow"><span>${TOOLBELT_SLOTS[sl]}</span>${t ? `<b data-unbelt="${sl}" title="Put in bag" style="cursor:pointer;text-align:right">${t}${sl === 'can' ? ` <small style="color:#7ab8f0">(${FARM_CAN.n}/${CAN_MAX})</small>` : ''} &times;</b>` : '<span style="color:#7a6a4a">empty</span>'}</div>`;
   }).join('') + `<div style="color:#9a8a6a;font-size:12px;padding:4px 2px">Click a tool in your bag to hang it here.</div>`;
@@ -272,6 +283,6 @@ document.getElementById('gearList').addEventListener('click', e => {
   const b = e.target.closest('[data-unequip]'); if (b) unequip(b.dataset.unequip);
 });
 document.getElementById('tabGear').addEventListener('click', () => { togglePanel('gearPanel', 'tabGear'); renderGear(); });
-document.getElementById('beltList').addEventListener('click', e => { const u = e.target.closest('[data-unbelt]'); if (u) unbelt(u.dataset.unbelt); });
+document.getElementById('beltList').addEventListener('click', e => { const tb = e.target.closest('[data-belttab]'); if (tb) { BELT_TAB = +tb.dataset.belttab; renderBelt(); return; } const u = e.target.closest('[data-unbelt]'); if (u) unbelt(u.dataset.unbelt); });
 document.getElementById('tabBelt').addEventListener('click', () => { togglePanel('beltPanel', 'tabBelt'); renderBelt(); });
 

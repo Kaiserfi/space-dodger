@@ -253,7 +253,7 @@ function showRewardScroll(o){
   const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
   if (!QD_ORIG) QD_ORIG = { banner: q('.qBanner').innerHTML, title: q('h1').innerHTML, sub: q('.qSub').innerHTML, cols: q('.qCols').innerHTML, quote: q('.qQuote').innerHTML };
   q('.qBanner').innerHTML = o.banner; q('h1').innerHTML = o.title; q('.qSub').innerHTML = o.sub;
-  q('.qCols').innerHTML = `<div class="qBox"><h3>Rewards</h3>${o.rewards}</div><div class="qBox"><h3>Experience</h3>${o.xp}</div>`; q('.qQuote').innerHTML = o.quote;
+  q('.qCols').innerHTML = `<div class="qBox"><h3>Rewards</h3>${o.rewards}</div>${o.xp ? `<div class="qBox"><h3>Experience</h3>${o.xp}</div>` : ''}`;   /* no Experience box for a reward that gives none */ q('.qQuote').innerHTML = o.quote;
   d.hidden = false;
 }
 function restoreQuestScroll(){ if (!QD_ORIG) return; const d = document.getElementById('questDone'), q = sel => d.querySelector(sel);
