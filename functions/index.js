@@ -16,6 +16,8 @@ setGlobalOptions({ region: 'us-central1', maxInstances: 5 });
 
 // the ITAP save watchdog (see watchdog.js)
 exports.watchSave = require('./watchdog').watchSave;
+// moving a profile to another device with a one-time code (see transfer.js)
+Object.assign(exports, require('./transfer'));
 
 // each game: its board in the database, the most points a second of play could give, and a head start for bonuses
 const GAMES = {
