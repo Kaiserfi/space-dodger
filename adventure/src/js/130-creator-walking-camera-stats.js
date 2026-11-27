@@ -111,7 +111,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   const treeHit = liveHit(ray.intersectObjects(trees, true));
   if (treeHit) {
     let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
-    if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
+    if (g && g.userData.rec !== chop.rec) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }   /* the tree you're already chopping is walked away from: an oak's crown fills the screen round you */
   }
   clickMark(e.clientX, e.clientY, false);
   if (ray.ray.intersectPlane(groundPlane, hit)) walkToGround(hit); else { cancelChop(); if (FIGHT) endFight('You run away.'); }

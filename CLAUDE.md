@@ -156,6 +156,7 @@ It is a RuneScape-style village game based on the owner's phone game, **Idle Tap
 ### Actions, timers and loops
 
 - **Walking away cancels whatever is in hand.** `walkStart` stops the farming chain and the current farming job, but only for a walk the player starts: the game re-planning a stuck route (`replan`) must never cancel anything. Any new timed action (a `setTimeout` that finishes a job) must check it wasn't cancelled before doing anything, and every action with a progress bar must stop when the player walks.
+- **Tapping the tree you're already chopping walks you away** (the ground under the tap), and every walk you start ends the chop (`walkStart`). An oak's crown covers about a quarter of the screen round you and an oak rarely falls, so taps meant for the ground kept you chopping. Tested in `tools/tests/oak-walk-away.js`.
 - **One progress bar at a time.** Smelting, cooking, milling, spinning and bandaging share `#smeltBar`, so starting one must stop the others.
 - **Never automate a choice the player should make.** The farming loop only waters and harvests by itself; planting always goes through the seed menu.
 - **Movement must not depend on frame rate.** Scale per-frame movement by the elapsed time (`dt`), and approach targets with a small tolerance (`d > want + 0.1`), or a mover can creep forever without arriving.

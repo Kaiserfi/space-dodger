@@ -122,6 +122,7 @@ function walkStart(point, then, replan = false){
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   if (!replan && typeof stopLighting === 'function') stopLighting();
   if (!replan && typeof stopCaveJob === 'function') stopCaveJob();   /* walking off stops a job in the cave */
+  if (!replan && chop.rec) { if (chop.rec.state === 'standing') chop.rec.g.rotation.z = 0; if (ONLINE.act) setAct(null); chop.rec = null; }   /* and stops chopping or mining: an oak rarely falls, so the swing would follow you away */
   unstick();
   const path = findPath(hero.position, point);
   if (!replan) walkTries = 0;   // a new click starts with fresh re-plans
