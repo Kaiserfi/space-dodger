@@ -105,7 +105,7 @@ function clickNode(rec){
   if (rec.kind === 'monster') { if (FIGHT && FIGHT.m !== rec && !(rec.delve && (DELVE || CAVE))) { showToast("You're already in combat!"); return; } startFight(rec); return; }   /* the cellar is multi-combat: clicking another creature switches to it */
   if (rec.kind === 'fish' && fishing) return;   // already fishing: extra clicks do nothing
   if (rec.kind === 'fish' && levelOf(SKILL_XP.Fishing) < FISHES[rec.fish].lvl) { showToast(`You need Fishing ${FISHES[rec.fish].lvl} to catch ${FISHES[rec.fish].word} here.`); return; }
-  if (rec.kind === 'fish' && !hasTool(FISHES[rec.fish].tool)) { showToast(`You need ${FISHES[rec.fish].need} to fish here. Jory sells them, at his shack by the pond.`); return; }
+  if (rec.kind === 'fish' && !hasTool(FISHES[rec.fish].tool)) { showToast(`You need ${FISHES[rec.fish].need} to fish here.` + (rec.fish === 'trout' ? '' : ' Jory sells them, at his shack by the pond.')); return; }
   if (rec.kind === 'fish' && FISHES[rec.fish].bait && !hasItem(FISHES[rec.fish].bait)) { showToast(FISHES[rec.fish].noBait); return; }
   if (rec.kind === 'range' && !nextToCook()) { showToast(nothingToCookMsg()); return; }
   if (rec.kind === 'anvil' || rec.kind === 'npc' || rec.kind === 'fish' || rec.kind === 'door' || rec.kind === 'range' || rec.kind === 'animal') { /* no tool needed */ }

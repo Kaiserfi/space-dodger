@@ -31,7 +31,7 @@ function groundModel(name){
   else if (name === 'Mulberry leaves') { for (const a of [-0.6, 0.1, 0.8]) { const l = P(new THREE.SphereGeometry(0.2, 8, 5), 0x5a9a3a, Math.cos(a) * 0.12, 0.03, Math.sin(a) * 0.12, false); l.scale.set(1, 0.12, 0.75); l.rotation.y = a; } }
   else if (name === 'Silk cocoon') { for (const x of [-0.12, 0.12]) P(new THREE.SphereGeometry(0.12, 8, 6), 0xf6f2e6, x, 0.1, 0).scale.set(0.75, 0.75, 1.3); }
   else if (name === 'Silk thread') { P(new THREE.CylinderGeometry(0.14, 0.14, 0.26, 10).rotateZ(Math.PI / 2), 0xf8f2e6, 0, 0.14, 0); for (const x of [-0.16, 0.16]) P(new THREE.CylinderGeometry(0.17, 0.17, 0.04, 10).rotateZ(Math.PI / 2), 0xa07848, x, 0.14, 0); }
-  else if (name === 'Fishing rod') { P(new THREE.CylinderGeometry(0.025, 0.04, 1.4, 6).rotateZ(Math.PI / 2), 0x7a4d22, 0, 0.05, 0); P(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 10).rotateX(Math.PI / 2), 0x5a5a60, -0.45, 0.08, 0.05); }
+  else if (name === 'Fishing rod' || name === 'Fly fishing rod') { P(new THREE.CylinderGeometry(0.025, 0.04, 1.4, 6).rotateZ(Math.PI / 2), 0x7a4d22, 0, 0.05, 0); P(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 10).rotateX(Math.PI / 2), 0x5a5a60, -0.45, 0.08, 0.05); }
   else if (name === 'Bandage') { P(new THREE.TorusGeometry(0.16, 0.08, 6, 12).rotateX(Math.PI / 2), 0xf4eee0, 0, 0.08, 0); }
   else if (/seeds/.test(name)) sack(name.startsWith('Aloe') ? 0xa8c8a0 : name.startsWith('Mulberry') ? 0xc8a8c0 : 0xc8a870, 0x6a5030);
   else if (name === 'Flour') sack(0xece4d0, 0x8a7a5a);

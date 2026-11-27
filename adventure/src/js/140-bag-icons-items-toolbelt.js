@@ -43,6 +43,8 @@ const NET_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-renderin
   <rect x="7" y="9" width="1.4" height="6" fill="#7a4d22"/><path d="M3 2 Q8 0 13 2 L11 9 L5 9 Z" fill="none" stroke="#d8c890" stroke-width="1"/><path d="M4 4 L12 4 M4.6 6.5 L11.4 6.5 M6 2 L6.5 9 M8 1.5 L8 9 M10 2 L9.5 9" stroke="#b8a870" stroke-width="0.6"/></svg>`;
 const ROD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M2 14 L13 2" stroke="#7a4d22" stroke-width="1.3"/><path d="M13 2 Q15 7 12 12" fill="none" stroke="#e8e0c8" stroke-width="0.6"/><rect x="11" y="11.5" width="2" height="1.5" fill="#e04a3a"/><rect x="3.5" y="11" width="2" height="2" fill="#5a5a60"/></svg>`;
+const FLY_ROD_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
+  <path d="M2 14 L13 2" stroke="#3e2a18" stroke-width="1.1"/><path d="M13 2 Q15 7 12 12" fill="none" stroke="#e8e0c8" stroke-width="0.6"/><rect x="11" y="11.5" width="2" height="1.5" fill="#f0c35a"/><rect x="12.5" y="10.5" width="1.5" height="1" fill="#4a8ac8"/><rect x="3.5" y="11" width="2" height="2" fill="#b08a3a"/></svg>`;   /* the fly rod: a darker, slimmer rod with a feathered fly and a brass reel */
 const COOKED_SHRIMP_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
   <path d="M4 11 Q6 4 11 5 Q9 7 9 9 Q7 12 4 11 Z" fill="#e8622a" stroke="#7a2a12" stroke-width="0.8"/><path d="M6 6.5 L8 8 M5.5 8.5 L7.5 10" stroke="#a83a12" stroke-width="0.8"/><rect x="10" y="4" width="2" height="2" fill="#1a1a1a"/></svg>`;
 const TROUT_ICON = `<svg viewBox="0 0 16 16" width="26" height="26" shape-rendering="crispEdges">
@@ -161,9 +163,9 @@ function addItem(name, qty = 1, icon = '') {
 function freeSlot(){ for (let i = 0; i < BAG_SIZE; i++) if (!bag.some(it => it.slot === i)) return i; return -1; }
 function hasItem(name){ if (name === 'Coins') return COINS > 0; return bag.some(i => i.name === name); }
 /* the toolbelt: one of each skilling tool, kept out of the bag; skilling works from the bag or the belt */
-const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', rod: 'Fishing rod', hoe: 'Hoe', can: 'Watering can', tinder: 'Tinderbox' };
-const toolbelt = { axe: null, pick: null, hammer: null, net: null, rod: null, hoe: null, can: null, tinder: null };
-function beltSlotFor(name){ return /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : /fishing rod$/.test(name) ? 'rod' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : name === 'Tinderbox' ? 'tinder' : null; }
+const TOOLBELT_SLOTS = { axe: 'Axe', pick: 'Pickaxe', hammer: 'Hammer', net: 'Fishing net', rod: 'Fishing rod', fly: 'Fly fishing rod', hoe: 'Hoe', can: 'Watering can', tinder: 'Tinderbox' };
+const toolbelt = { axe: null, pick: null, hammer: null, net: null, rod: null, fly: null, hoe: null, can: null, tinder: null };
+function beltSlotFor(name){ return name === 'Fly fishing rod' ? 'fly' : /axe$/.test(name) && !/pickaxe$/.test(name) ? 'axe' : /pickaxe$/.test(name) ? 'pick' : name === 'Hammer' ? 'hammer' : /fishing net$/.test(name) ? 'net' : name === 'Fishing rod' ? 'rod' : name === 'Hoe' ? 'hoe' : name === 'Watering can' ? 'can' : name === 'Tinderbox' ? 'tinder' : null; }
 function hasTool(name){ return hasItem(name) || Object.values(toolbelt).includes(name); }
 function renderBag() {
   let html = '';

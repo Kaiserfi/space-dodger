@@ -126,7 +126,7 @@ const TOWNSFOLK = [
       ["Fenwick says he caught a fish as long as a horse. He's been saying that since we were boys.", "It was a boot then, too."],
       ["Folk sell me their catch and I sell it on. A man's got to eat. And Wenna likes her ribbons."] ],
     asks: [
-      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Over the bridge and up north, there's a pool in the trees. Mind the rats up there, mind. Big as cats."] },
+      { q: 'What bites in the pond?', a: [() => sk('Fishing') < 10 ? "Bream. But they're canny old things. Get some practice in on the river shrimp first, then come and see me." : "Bream. A rod, a worm on the hook, and patience. I sell the first two.", "Trout? Not in here. Over the bridge and up north, there's a pool in the trees. Mind the rats up there, mind. Big as cats.", "They'll only rise to a fly, and I've no fly rods to sell. Hollis had the last one, and he went poking about in that cave in the hills."] },
       { q: 'How long have you and Wenna been married?', a: ["Forty-one years come spring. She'd say forty-two. She counts the courting.", "Asked her on that bench on the green. She said she'd think about it. Took her a week.", "Longest week of my life, that was."] } ],
     barks: ["Worms! Fresh worms! Well. Lively, anyway.", "Fresh fish on the slab! Fair prices, near enough.", "Nets, rods and bait. Everything but the patience."],
     choice: { question: 'What can I do for you?' } },
@@ -197,7 +197,7 @@ function splashSound(){ sfx((ctx, t, out) => { out.gain.value = 0.55;   // a sof
 let fishing = null;
 const FISH_MS = 3000;
 // what each spot gives: shrimp in the river, trout in the pond (Fishing 15 and 45 XP in the phone game, scaled to our shrimp)
-const FISHES = { shrimp: { raw: 'Raw shrimp', word: 'shrimp', lvl: 1, xp: 10, tool: 'Small fishing net', need: 'a fishing net' }, trout: { raw: 'Raw trout', word: 'trout', lvl: 15, xp: 25, tool: 'Fishing rod', need: 'a fishing rod', bait: 'Feathers', noBait: 'You need feathers to tie flies with. Chickens drop them.', out: 'You have run out of feathers.' },
+const FISHES = { shrimp: { raw: 'Raw shrimp', word: 'shrimp', lvl: 1, xp: 10, tool: 'Small fishing net', need: 'a fishing net' }, trout: { raw: 'Raw trout', word: 'trout', lvl: 15, xp: 25, tool: 'Fly fishing rod', need: 'a fly fishing rod', bait: 'Feathers', noBait: 'You need feathers to tie flies with. Chickens drop them.', out: 'You have run out of feathers.' },
   bream: { raw: 'Raw bream', word: 'bream', lvl: 10, xp: 20, tool: 'Fishing rod', need: 'a fishing rod', bait: 'Worms', noBait: 'You need worms for bait. Jory sells them by the pond.', out: 'You have run out of worms.' } };   /* trout take a fly: a rod, and a feather for each cast, as in RuneScape */
 function catchFish(rec){
   if (fishing) return;
@@ -205,7 +205,7 @@ function catchFish(rec){
   if (!roomForOne(FISHES[rec.fish].raw)) { showToast('Your bag is full.'); return; }
   fishing = { rec, t0: performance.now(), cast0: performance.now(), c: Date.now() }; fishing.will = fishRoll(FISHES[rec.fish]);
   showToast(FISHES[rec.fish].bait ? 'You cast your line out over the water...' : 'You dip your net in the water...'); splashSound();
-  setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool === 'Fishing rod' ? 1 : 0, c: fishing.c });
+  setAct({ k: 'fish', t: Date.now(), r: FISHES[rec.fish].tool !== 'Small fishing net' ? 1 : 0, c: fishing.c });
   document.getElementById('smeltLabel').textContent = 'Fishing...'; document.getElementById('smeltBar').style.display = 'block';
 }
 const fishRoll = F => Math.random() < Math.min(0.9, 0.45 + (levelOf(SKILL_XP.Fishing) - F.lvl + 1) * 0.02);   // a catch is more likely the better you are
@@ -215,7 +215,7 @@ function updateFishing(){
   const k = (performance.now() - fishing.t0) / FISH_MS;
   document.getElementById('smeltFill').style.width = Math.min(100, k * 100) + '%';
   if (hero) heroAnim.yaw = yawTo(hero.position.x, hero.position.z, fishing.rec.x, fishing.rec.z);
-  heroAnim.mode = FISHES[fishing.rec.fish].tool === 'Fishing rod' ? 'fish' : 'net';
+  heroAnim.mode = FISHES[fishing.rec.fish].tool !== 'Small fishing net' ? 'fish' : 'net';
   if (k < 1) return;
   // a catch is more likely the better you are at fishing
   const F = FISHES[fishing.rec.fish];
@@ -226,7 +226,7 @@ function updateFishing(){
     addXp('Fishing', F.xp); showToast(`You catch a raw ${F.word} (${countOf(F.raw)}).  +${F.xp} Fishing XP`);
   }
   if (!roomForOne(F.raw)) { stopFishing('Your bag is full.'); return; }
-  fishing.t0 = performance.now(); fishing.will = fishRoll(F); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool === 'Fishing rod' ? 1 : 0, c: fishing.c });   // the net goes in again
+  fishing.t0 = performance.now(); fishing.will = fishRoll(F); if (!F.bait) splashSound(); setAct({ k: 'fish', t: Date.now(), r: F.tool !== 'Small fishing net' ? 1 : 0, c: fishing.c });   // the net goes in again
 }
 function updateFish(){
   const pulse = 1 + 0.08 * Math.sin(performance.now() / 400);   // the ripples pulse
