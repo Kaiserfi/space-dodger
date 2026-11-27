@@ -20,26 +20,50 @@ const dirtTex = (() => {
   const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 })();
 const dirtMat = new THREE.MeshStandardMaterial({ map: dirtTex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-// cobblestones, for the village green round the well and the door steps
-const cobbleTex = (() => {
-  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d');
-  const r = (() => { let q = 5; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
-  g.fillStyle = '#4e4638'; g.fillRect(0, 0, S, S);
-  for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
-    const x = col * 16 + (row % 2) * 8 + 8, y = row * 16 + 8, c = 120 + r() * 50;
-    for (const dx of [-S, 0, S]) {
-      g.fillStyle = `rgb(${c},${c * 0.96},${c * 0.9})`; g.beginPath(); g.ellipse(x + dx + (r() - 0.5) * 2, y, 6.5 + r(), 6 + r(), r(), 0, 7); g.fill();
-      g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.ellipse(x + dx - 2, y - 2, 3, 2.4, 0, 0, 7); g.fill();
-    }
-  }
-  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
-})();
-const COBBLES = [];
-function cobbleDisc(x, z, rad){
-  COBBLES.push([x, z, rad]);
-  const t = cobbleTex.clone(); t.needsUpdate = true; t.repeat.set(rad / 1.5, rad / 1.5);
-  const m = new THREE.Mesh(new THREE.CircleGeometry(rad, 40).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: t, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
-  m.position.set(x, 0.045, z); town.add(m);
+// the green round the well: cobbles worn into packed earth the colour of the roads, thinning out at a ragged edge so the roads run in,
+// and a ring of big flagstones round the well's foot. Painted once into its own ground layer, like the roads. (It was a round flat disc of
+// repeating cobble pattern, which looked stuck on from the game camera.)
+const COBBLES = [];   /* the patches kept clear of the painted grass: [x, z, radius] */
+const sqRand = (() => { let q = 7; return () => (q = (q * 16807) % 2147483647) / 2147483647; })();
+const sqEdge = a => Math.sin(a * 3) * 0.35 + Math.sin(a * 7 + 1.3) * 0.22 + Math.sin(a * 13 + 0.4) * 0.12;   /* the ragged edge, round the circle */
+function greenSquare(cx, cz){
+  COBBLES.push([cx, cz, 5]);
+  const R = 5.6, PPU = 40, S = Math.ceil(R * 2 * PPU + 40), cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d'), r = sqRand;
+  // the bed: packed earth, the roads' own colour, fading out at the ragged edge
+  const img = g.createImageData(S, S), d = img.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const wx = (x - S / 2) / PPU, wz = (y - S / 2) / PPU, k = Math.max(0, Math.min(1, (R - 0.4 + sqEdge(Math.atan2(wz, wx)) * 0.9 - Math.hypot(wx, wz)) / 0.9));
+    const o = (y * S + x) * 4; d[o] = 150; d[o + 1] = 122; d[o + 2] = 82; d[o + 3] = k * 242; }
+  g.putImageData(img, 0, 0);
+  // the cobbles: rounded stones in loose rows, fewer towards the edge
+  for (let row = -R; row <= R; row += 0.3) for (let col = -R; col <= R; col += 0.33) {
+    const x = col + (Math.round(row / 0.3) % 2) * 0.165 + (r() - 0.5) * 0.1, z = row + (r() - 0.5) * 0.08, dd = Math.hypot(x, z), edge = R - 0.5 + sqEdge(Math.atan2(z, x)) * 0.9;
+    if (dd < 2.55 || dd > edge || (dd > edge - 1.2 && r() < (dd - edge + 1.2) / 1.2)) continue;
+    const X = S / 2 + x * PPU, Y = S / 2 + z * PPU, w = (0.13 + r() * 0.05) * PPU, h = (0.11 + r() * 0.04) * PPU, c = 108 + r() * 46, warm = r() * 16;
+    g.save(); g.translate(X, Y); g.rotate((r() - 0.5) * 0.5);
+    g.fillStyle = 'rgba(30,24,16,.45)'; g.beginPath(); g.ellipse(1.5, 2, w, h, 0, 0, 7); g.fill();
+    g.fillStyle = `rgb(${c + warm},${c * 0.96 + warm * 0.5},${c * 0.88})`; g.beginPath(); g.ellipse(0, 0, w, h, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,250,235,.16)'; g.beginPath(); g.ellipse(-w * 0.3, -h * 0.35, w * 0.45, h * 0.35, 0, 0, 7); g.fill(); g.restore(); }
+  // the flagstones round the well
+  const N = 14; for (let i = 0; i < N; i++) { const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2 - 0.05, r0 = 2.05, r1 = 2.6 + (i % 3) * 0.06, c = 150 + r() * 30;
+    g.fillStyle = 'rgba(30,24,16,.5)'; g.beginPath(); g.arc(S / 2 + 2, S / 2 + 2, r1 * PPU, a0, a1); g.arc(S / 2 + 2, S / 2 + 2, r0 * PPU, a1, a0, true); g.fill();
+    g.fillStyle = `rgb(${c},${c * 0.97},${c * 0.92})`; g.beginPath(); g.arc(S / 2, S / 2, r1 * PPU, a0, a1); g.arc(S / 2, S / 2, r0 * PPU, a1, a0, true); g.fill(); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(S / PPU, S / PPU).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  m.position.set(cx, 0.05, cz); m.receiveShadow = true; m.renderOrder = 2; town.add(m);
+}
+// a stone step at a door: a slab under the doorway and two smaller stones before it, all in one mesh. fx, fz: the way the door faces
+const STEPS = [];
+function doorStep(x, z, fx, fz, wide = 1.8){
+  COBBLES.push([x, z, 1.3]);
+  const ry = fx ? Math.PI / 2 : 0, r = sqRand, put = (geo, hex, px, pz, rot) => { geo.rotateY(rot); geo.translate(px, 0, pz); geo = geo.toNonIndexed();
+    const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); STEPS.push(geo); };
+  const slab = new THREE.BoxGeometry(wide, 0.1, 0.8); slab.translate(0, 0.05, 0); put(slab, 0x9a948a, x + fx * 0.5, z + fz * 0.5, ry);   /* low enough to walk over */
+  for (const [o, sz] of [[1.25, 0.55], [1.95, 0.45]]) { const st = new THREE.CylinderGeometry(sz, sz * 1.05, 0.08, 7); st.translate(0, 0.04, 0);
+    put(st, 0x8a847a, x + fx * o + (fz ? (o - 1.5) * 0.3 : 0), z + fz * o + (fx ? (o - 1.5) * 0.3 : 0), o + r() * 0.3); }
+}
+function buildDoorSteps(){   /* once every door has its step */
+  if (!STEPS.length) return;
+  const m = new THREE.Mesh(mergeGeometries(STEPS), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true })); m.receiveShadow = true; town.add(m); STEPS.length = 0;
 }
 // the paths: every path is painted onto one big ground layer, so joins blend together and the ends round off naturally
 const pathEdgeSpots = [], PATHS = [];
