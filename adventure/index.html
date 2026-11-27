@@ -10011,7 +10011,7 @@ function gwTalk(name){
       if (cnt('Logs') < GW_LOGS) return ["Twenty logs, when you've got them. No hurry. Well. Some hurry. It's getting cold."];
       return [me("Here's your wood."), run(() => { for (let i = 0; i < GW_LOGS; i++) removeItem('Logs'); renderBag(); }), "That's a lovely stack. Thank you.",
         "Can I ask you something? My little brother Hollis went north a week back. Said he was off to cut willow logs.",
-        "There are willow trees just past the bridge. A morning's work. He should've been home by supper.", "I've walked the meadow twice. Nothing. Folk say there's a cave in the east hills.",
+        "Swore there were willows up past the bridge. I've never seen one there, but he said a morning's work. He should've been home by supper.", "I've walked the meadow twice. Nothing. Folk say there's a cave in the east hills.",
         "If anyone can find him, it's you. Would you look?", me("I'll find him."), run(() => gwStep(2, 'Look for Hollis in the cave in the east hills, past the north lake.'))];
     }
     if (s === 2) return ["Any sign of Hollis? The cave in the east hills, past the lake. Please."];
