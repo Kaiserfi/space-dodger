@@ -17,7 +17,9 @@ window.__t.chest = () => !!(CV.bossChest && CV.bossChest.g && CV.bossChest.g.par
 /* closing the game down there: take the save as it was sent, throw the cave away as a closed tab would, and load the save again */
 window.__t.closeAndLoad = () => { const s = JSON.parse(JSON.stringify(currentSave())); stopCaveJob(); if (FIGHT) endFight(); clearCaveMonsters(); CAVE = null; applySave(s); return { at: !!(s.cd && s.cd.at), P: JSON.parse(JSON.stringify(CAVE_P)) }; };
 window.__t.loadCd = cd => { const s = JSON.parse(JSON.stringify(currentSave())); s.cd = cd; applySave(s); return JSON.parse(JSON.stringify(CAVE_P)); };
-window.__t.graveLogs = () => { const g = GRAVES[ONLINE.id]; return g ? (g.items || []).filter(i => i.name === 'Logs').reduce((a, i) => a + (i.qty || 1), 0) : null; };`;
+/* the stone as it was made: the offline database's empty live snapshot can clear GRAVES afterwards */
+dropOnDeath = (orig => () => { orig(); window.__grave = JSON.parse(JSON.stringify(GRAVES[ONLINE.id] || null)); })(dropOnDeath);
+window.__t.graveLogs = () => { const g = window.__grave; return g ? (g.items || []).filter(i => i.name === 'Logs').reduce((a, i) => a + (i.qty || 1), 0) : null; };`;
 (async () => {
   const b = await chromium.launch(); const p = await (await b.newContext()).newPage(); await offlineDb(p); p.on('pageerror', e => console.log('PAGEERROR', e.message));
   await p.addInitScript(() => { try { localStorage.setItem('itapSettings', JSON.stringify({ music: 0, sfx: 0 })); localStorage.setItem('itapName', 'Tester'); } catch (e) {} });
