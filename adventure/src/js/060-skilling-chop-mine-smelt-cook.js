@@ -65,7 +65,16 @@ function addXp(skill, amt){
   const before = levelOf(SKILL_XP[skill]);
   SKILL_XP[skill] += amt; renderStats();
   const after = levelOf(SKILL_XP[skill]);
-  if (after > before) { if (!quietLevelUps) levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${after}.`); }
+  if (after <= before) return;
+  if (quietLevelUps) { const q = LEVEL_Q.list.find(e => e.skill === skill); if (q) q.level = after; else LEVEL_Q.list.push({ skill, level: after }); return; }   /* a reward: saved for when its scroll is closed */
+  levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${after}.`);
+}
+// level-ups from a quest or the cellar's chest wait until the reward scroll is closed, then each skill gets its own fanfare and message, one at a time
+const LEVEL_Q = { list: [], next: 0 };
+function playLevelQueue(now){
+  if (!LEVEL_Q.list.length || now < LEVEL_Q.next || !document.getElementById('questDone').hidden) return;
+  const { skill, level } = LEVEL_Q.list.shift(); levelUpSound(); showToast(`Congratulations! Your ${skill} level is now ${level}.`);
+  LEVEL_Q.next = now + 3200;   /* the fanfare and the message have their moment before the next */
 }
 // a little brass fanfare: "duh duh du duhhhh"
 function levelUpSound(){
