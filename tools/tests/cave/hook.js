@@ -1,7 +1,7 @@
 window.__t = { ready: () => ONLINE.ready };
 (() => {
   const T = window.__t;
-  T.setup = () => { for (const k in SKILL_XP) SKILL_XP[k] = XP_AT[k === 'Smithing' ? 45 : 22]; HP.cur = maxHp();
+  T.setup = () => { QUEST.gw = Math.max(QUEST.gw || 0, 2);   /* the cave opens once Tobin asks you to find Hollis */ for (const k in SKILL_XP) SKILL_XP[k] = XP_AT[k === 'Smithing' ? 45 : 22]; HP.cur = maxHp();
     for (const n of [AXE_NAME, PICK_NAME, 'Hammer', 'Tinderbox', 'Small fishing net']) addItem(n, 1, ICON_FOR[n]); for (let i = 0; i < 4; i++) addItem('Shrimp', 1, ICON_FOR.Shrimp); renderBag(); renderStats(); return bag.map(b => b.name); };
   T.go = (x, z) => { hero.position.set(x, 0, z); heroShadow.position.set(x, 0.06, z); walkTarget = null; walkQueue = []; walkThen = null; target.set(x, 1, z); camEase = null; };
   T.mouth = () => { const s = caveExitSpot(); T.go(s.x + 0.5, s.z); return s; };

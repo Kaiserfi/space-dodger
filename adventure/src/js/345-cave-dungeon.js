@@ -15,7 +15,7 @@ const CAVE_ROOMS = {
   braz: { x0: -60, x1: -42, z0: 633, z1: 653, name: 'The fire shrine' },
   mine: { x0: 15, x1: 37, z0: 635, z1: 651, name: 'The old mine' },
   forge: { x0: 41, x1: 61, z0: 633, z1: 653, name: 'The goblin forge' },
-  boss: { x0: -14, x1: 14, z0: 600, z1: 628, name: "The troll's den" },
+  boss: { x0: -14, x1: 14, z0: 600, z1: 628, name: "The goblin's den" },
 };
 // the passages between the rooms, each 4.4 wide
 const CAVE_HALLS = [[-2.2, 2.2, 676, 680], [-2.2, 2.2, 654, 658], [-14, -10, 664.8, 669.2], [-40, -36, 664.8, 669.2], [-15, -11, 640.8, 645.2], [-42, -38, 640.8, 645.2], [11, 15, 640.8, 645.2], [37, 41, 640.8, 645.2], [-2.2, 2.2, 628, 632]];
@@ -28,10 +28,10 @@ const WEBS = [[-35.6, 673.6, -1], [-17, 675.6, 1], [-32.6, 658.4, 0]];   // [x, 
 const CV_AT = { arrive: [0, 688.5], rope: [0, 692.2], tree: [-22.8, 643], root: [-51, 651.4], altar: [-51, 635.2], wall: [39, 643], vein: [60.2, 637], furnace: [57.5, 650.5], anvil: [50.5, 650.5],
   pool: [-29.5, 671.5], fire: [-19.5, 671.5], hollis: [-52.6, 667], bars: -49, patch: [-21, 660.6], ledge: [-25.5, 658.4], bossChest: [0, 611], bossRope: [0, 602.5] };
 Object.assign(MONSTER_TYPES, {   /* the forest's level 15 to 20 range, ITAP's goblin numbers for the goblins */
-  caveGoblin: { name: 'Cave goblin', model: 'goblin', skin: 0x7c8a5e, shirt: 0x3a3430, pants: 0x2a2622, level: 15, hp: 35, melee: 15, atk: 15, def: 5, maxHit: 3, speed: 2600, respawn: 0, snd: 'goblin', coins: [8, 24] },
+  caveGoblin: { name: 'Goblin', model: 'goblin', skin: 0x7c8a5e, shirt: 0x3a3430, pants: 0x2a2622, level: 15, hp: 35, melee: 15, atk: 15, def: 5, maxHit: 3, speed: 2600, respawn: 0, snd: 'goblin', coins: [8, 24] },
   blindRat: { name: 'Blind rat', model: 'rat', level: 14, hp: 30, melee: 14, atk: 12, def: 8, maxHit: 3, speed: 2300, respawn: 0, snd: 'rat', coins: [0, 0], scale: 1.35 },
   goblinSmith: { name: 'Goblin smith', model: 'goblin', skin: 0x8a8a5a, shirt: 0x4a2a1a, pants: 0x2a1a12, level: 18, hp: 45, melee: 18, atk: 18, def: 12, maxHit: 4, speed: 2600, respawn: 0, snd: 'goblin', coins: [15, 40], scale: 1.15, metal: true },
-  caveTroll: { name: 'Cave troll', model: 'goblin', skin: 0x7c8088, shirt: 0x4a3a2a, pants: 0x3a3028, level: 20, hp: 60, melee: 20, atk: 16, def: 10, maxHit: 4, speed: 3200, respawn: 0, snd: 'goblin', coins: [0, 0], scale: 1.7, reach: 3.3, barY: 5.2 },
+  caveTroll: { name: 'Cave goblin', model: 'goblin', skin: 0x7c8088, shirt: 0x4a3a2a, pants: 0x3a3028, level: 20, hp: 60, melee: 20, atk: 16, def: 10, maxHit: 4, speed: 3200, respawn: 0, snd: 'goblin', coins: [0, 0], scale: 1.7, reach: 3.3, barY: 5.2 },
 });
 const CAVE_MONS = { gate: [['caveGoblin', -5, 664], ['caveGoblin', 5, 665]], chasm: [['caveGoblin', -34, 639]], mine: [['blindRat', 22, 639], ['blindRat', 31, 647]], forge: [['goblinSmith', 51, 644], ['caveGoblin', 56, 638]] };
 const caveRoomAt = (x, z) => Object.keys(CAVE_ROOMS).find(k => { const r = CAVE_ROOMS[k]; return x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1; }) || null;
@@ -47,7 +47,7 @@ function caveLoadP(d){ CAVE_P = d && typeof d === 'object' && !Array.isArray(d) 
   if ((P.runs || 0) > 0 || P.done) P.beat = 1; delete P.done; }   /* beaten once is beaten for good (saves from before kept a per-trip done) */
 caveLoadP({ v: 2 });
 // the things you find down here are real items in your bag, but they never leave the cave: leaving (or dying) takes them away (caveBin), and an unfinished run starts over
-const CAVE_ITEMS = new Set(['Raw cave fish', 'Cave fish', 'Burnt cave fish', 'Glowcap spores', 'Cave web', 'Web rope', 'Ember key', 'Iron key', 'Tide key']);
+const CAVE_ITEMS = new Set(['Raw cave fish', 'Cave fish', 'Burnt cave fish', 'Glowcap spores', 'Cave web', 'Web rope', 'Ember key', 'Iron key', 'Tide key', 'Cell key']);
 const KEY_ITEM = { ember: 'Ember key', iron: 'Iron key', tide: 'Tide key' };
 { const svg = b => `<svg viewBox="0 0 16 16" width="26" height="26">${b}</svg>`;
   const fish = (c, f) => svg(`<path d="M1.5 8 Q6 3 11 8 Q6 13 1.5 8 Z" fill="${c}" stroke="#2a2420" stroke-width="0.6"/><path d="M10.5 8 L15 4.8 L14 8 L15 11.2 Z" fill="${f}" stroke="#2a2420" stroke-width="0.6"/><circle cx="4.5" cy="7.4" r="0.6" fill="#2a2420"/>`);
@@ -59,11 +59,11 @@ const KEY_ITEM = { ember: 'Ember key', iron: 'Iron key', tide: 'Tide key' };
     'Glowcap spores': svg('<path d="M4 6 Q8 3.5 12 6 L13 13 Q8 15 3 13 Z" fill="#7a6040" stroke="#3a2a1a" stroke-width="0.6"/><path d="M5 5.6 Q8 7.4 11 5.6" fill="none" stroke="#3a2a1a" stroke-width="0.6"/><circle cx="6.5" cy="9.6" r="1.1" fill="#60f0d0"/><circle cx="9.6" cy="11.2" r="1" fill="#60f0d0"/><circle cx="9.2" cy="8.4" r="0.8" fill="#b0fff0"/>'),
     'Cave web': svg(`<g stroke="#e8e8f0" stroke-width="0.7">${web}</g>`),
     'Web rope': svg('<g fill="none" stroke-width="1.6"><ellipse cx="8" cy="9" rx="6" ry="3.2" stroke="#2a2420" stroke-width="2.4"/><ellipse cx="8" cy="9" rx="6" ry="3.2" stroke="#e4e0d2"/><ellipse cx="8" cy="7.6" rx="4.4" ry="2.3" stroke="#2a2420" stroke-width="2.4"/><ellipse cx="8" cy="7.6" rx="4.4" ry="2.3" stroke="#d8d2c0"/></g><path d="M13 10 Q15 12 13.5 14" fill="none" stroke="#e4e0d2" stroke-width="1.2"/>'),
-    'Ember key': key('#ff8a40'), 'Iron key': key('#b0b6be'), 'Tide key': key('#50aaff') });
+    'Ember key': key('#ff8a40'), 'Iron key': key('#b0b6be'), 'Tide key': key('#50aaff'), 'Cell key': key('#c8a050') });
 }
 const CAVE_ITEM_TEXT = { 'Raw cave fish': "A pale, blind cave fish. Hollis wants it cooked.", 'Cave fish': "A cooked cave fish, for Hollis.", 'Burnt cave fish': "Charcoal. Hollis won't want this.",
   'Glowcap spores': 'Plant them in the damp soil under the ledge in the grotto.', 'Cave web': 'Sticky and strong. Three of them twist into a rope.', 'Web rope': 'A rope of twisted web, for climbing up to the ledge in the grotto.',
-  'Ember key': 'An orange key, warm to the touch. It fits the great door in the rune hall.', 'Iron key': 'The iron key you smithed. It fits the great door in the rune hall.', 'Tide key': 'A sea-blue key from the ledge. It fits the great door in the rune hall.' };
+  'Ember key': 'An orange key, warm to the touch. It fits the great door in the rune hall.', 'Iron key': 'The iron key you smithed. It fits the great door in the rune hall.', 'Tide key': 'A sea-blue key from the ledge. It fits the great door in the rune hall.', 'Cell key': "A heavy brass key from the cave goblin. It opens Hollis's cell." };
 const caveHas = n => hasItem(n) || (CAVE_P.inv || {})[n] > 0;   /* in the bag, or still put away waiting for room */
 function caveItemClick(it, x, y){
   if (!CAVE_ITEMS.has(it.name)) return false;
@@ -280,10 +280,10 @@ function buildCave(){
     { const bars = []; for (let z = 660.25; z < 674; z += 0.45) { const g = new THREE.CylinderGeometry(0.06, 0.06, 4.3, 6); g.translate(bx, 2.15, z); bars.push(colour(g, 0x3a3a42, 0.04)); }   /* the bars, floor to beam, across the room */
       for (const y of [0.35, 2.2, 4.1]) { const g = new THREE.BoxGeometry(0.14, 0.14, 14); g.translate(bx, y, 667); bars.push(colour(g, 0x2e2e34, 0.02)); }
       for (const z of [665.6, 668.4]) { const g = new THREE.BoxGeometry(0.2, 4.3, 0.2); g.translate(bx, 2.15, z); bars.push(colour(g, 0x2a2a30, 0.02)); }   /* the cell door's frame */
-      { const g = new THREE.BoxGeometry(0.3, 0.42, 0.36); g.translate(bx + 0.12, 1.9, 667.8); bars.push(colour(g, 0x5a4a2a, 0.02)); }   /* a big padlock */
       for (let i = 0; i < 7; i++) { const g = new THREE.IcosahedronGeometry(1, 0); g.scale(0.7, 0.18, 0.6); g.translate(-54.6 + (i % 3) * 0.5, 0.1, 661.6 + i * 0.35); bars.push(colour(g, 0xa08a50, 0.15)); }   /* a heap of old straw */
       { const g = new THREE.CylinderGeometry(0.28, 0.22, 0.5, 10); g.translate(-54.8, 0.25, 672.6); bars.push(colour(g, 0x5a4030, 0.08)); }   /* a bucket */
       merged(bars); }
+    { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.36), mat(0x5a4a2a)); pl.position.set(bx + 0.12, 1.9, 667.8); scene.add(pl); CV.padlock = pl; }   /* a big padlock, its own mesh so it can come off */
     solidBoxes.push({ x0: bx - 0.3, x1: bx + 0.3, z0: 660, z1: 674 }, { x0: -55.3, x1: -54.3, z0: 672.1, z1: 673.1 });
     const H = makeChibi({ gender: 'male', skin: 0xe0b090, hair: 'short', hairCol: 0x6a5030, shirt: 0x6a7048, pants: 0x4a4030, ...LOOK_PLAIN, brows: 'soft' });   /* soft brows: with the frown he looks glum, not cross */
     H.scale.setScalar(CHIBI_SCALE); H.position.set(hx, 0.5, hz);   /* sat with the seat of his trousers on the rock (measured: sat, his lowest point is 0.5 above the group) */ H.rotation.y = Math.PI / 2; scene.add(H); CV.hollis = H;   /* facing the bars */
@@ -512,12 +512,13 @@ function hollisClick(){
   caveGo(tx, hz, 0.4, () => {
     const me = t => ({ me: t }), run = f => ({ run: f }), P = CAVE_P;
     const npc = { name: 'Hollis', x: CV_AT.bars, z: hz, look: { gender: 'male', skin: 0xe0b090, hair: 'short', hairCol: 0x6a5030, shirt: 0x6a7048, pants: 0x4a4030, ...LOOK_PLAIN } };
-    let script;
-    if (!P.met) script = [me('Hello? Are you alright?'), "Oh thank goodness, a person! I came down after glowcaps and the goblins grabbed me.", "They've had me locked up in here for days. I'm so hungry I could eat my own boots.",
+    let script = gwCellTalk();   /* Tobin's quest first: the news from home, and the cell key */
+    if (script) { /* said */ }
+    else if (!P.met) script = [me('Hello? Are you alright?'), "Oh thank goodness, a person! I came down after glowcaps and the goblins grabbed me.", "They've had me locked up in here for days. I'm so hungry I could eat my own boots.",
       "There's fish in the pool next door, if you've got the gear. Blind as moles, but they taste alright cooked.", me("I'll see what I can do."), run(() => { P.met = 1; })];
     else if (P.fed && !P.glow && !caveHas('Glowcap spores')) script = bag.length >= BAG_SIZE ? ["Lost those spores? I've a few more, but your pack's stuffed full. Make some room."]
       : ["Lost the spores already? Good thing I picked plenty.", run(() => addItem('Glowcap spores', 1, ICON_FOR['Glowcap spores'])), "Plant them in the damp under the ledge. Go on."];
-    else if (P.fed) script = P.tide ? ["Got the key? Good. Now go and give that troll a headache for me.", "I'll find my own way out once these goblins are gone. Probably."]
+    else if (P.fed) script = P.tide ? ["Got the key? Good. Now go and give that big one a headache for me.", "The big one in the den has the key to this cell. Bring it back and I'm out of here."]
       : ["The goblins hid their key on that ledge, up in the dark. Grow the glowcap so you can see what you're grabbing.", "And you'll want a rope. Those webs are good and strong, if you don't mind the spiders."];
     else if (hasItem('Cave fish')) script = [me('Here, I cooked you a fish.'), run(() => { removeItem('Cave fish'); P.fed = 1; addItem('Glowcap spores', 1, ICON_FOR['Glowcap spores']); eatSound(); }), "Oh, you beauty. That's the best thing I've ever eaten, and I've had Brenna's pies.",
       "Here, take these. Glowcap spores, the whole reason I came down. Plant them in the damp under the ledge next door.", "They grow fast and glow bright. The goblins keep their key up there in the dark.", "And bring a rope. Those webs are good and strong if you twist them together."];
@@ -581,9 +582,9 @@ function grantCaveRewards(){   /* the cave's one reward: a fly fishing rod, the 
   addItem('Fly fishing rod', 1, ICON_FOR['Fly fishing rod']);
   CAVE_P.rod = 1;   /* the chest gives it once; the cave stays beaten (CAVE_P.beat, set when the troll fell) */
   questJingle(); renderStats(); renderBag(); saveNow(false);
-  showRewardScroll({ banner: 'Dungeon complete', title: 'The Cave', sub: 'Three keys found, the great door opened, and the cave troll beaten.',
+  showRewardScroll({ banner: 'Dungeon complete', title: 'The Cave', sub: 'Three keys found, the great door opened, and the cave goblin beaten.',
     rewards: `<div class="qr"><span class="qi">${ICON_FOR['Fly fishing rod']}</span>A fly fishing rod</div>`, xp: '',
-    quote: '&ldquo;You got rid of the troll? Then that rod\'s yours. Trout won\'t look at anything else. I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
+    quote: '&ldquo;You got rid of the big one? Then that rod\'s yours. Trout won\'t look at anything else. I\'ll tell everyone in the village. Well, after a bath.&rdquo; &mdash; Hollis' });
   addSystemLine('Climb the rope out of the den when you\'re ready.');
 }
 
@@ -598,6 +599,7 @@ function caveClick(){
 function askCave(){
   if (FIGHT) { showToast("You can't go in there while you're fighting!"); return; }
   if (DELVE || CAVE) return;
+  if (!gwCaveOpen()) { showToast("It's pitch black in there, and you've no reason to go poking about."); return; }   /* shut until Tobin asks you to look for Hollis */
   startCave();   /* no warning: the owner wants people to just go in and explore */
 }
 // a beaten cave: every door open, every key used, no creatures; only the chest waits, if its rod hasn't been taken
@@ -613,8 +615,8 @@ function startCave(){
   hero.position.set(CV_AT.arrive[0], 0, CV_AT.arrive[1]); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = Math.PI;
   for (const k in CAVE_MONS) if (!CAVE_P['k_' + k]) for (const [t, x, z] of CAVE_MONS[k]) caveSpawn(t, x, z, k);
   for (const b of CV.braz) b.lit = 0;
-  caveSync(true);
-  if (CAVE_P.beat) { CAVE.won = true; CV.bossRope.visible = true; for (const k in CAVE_ROOMS) CAVE.seen[k] = true; if (!CAVE_P.rod) caveChestOut(); addSystemLine(CAVE_P.rod ? 'The Cave: you beat this place. It\'s quiet now.' : 'The Cave: you beat this place. The chest in the troll\'s den is still waiting for you.'); }
+  caveSync(true); gwCaveEnter();
+  if (CAVE_P.beat) { CAVE.won = true; CV.bossRope.visible = true; for (const k in CAVE_ROOMS) CAVE.seen[k] = true; if (!CAVE_P.rod) caveChestOut(); addSystemLine(CAVE_P.rod ? 'The Cave: you beat this place. It\'s quiet now.' : 'The Cave: you beat this place. The chest in the goblin\'s den is still waiting for you.'); }
   else addSystemLine('The Cave: find the three keys to the great door. The rope behind you leads back up.');
   saveNow(false);
   writePresence(true); updateDayNight.next = 0;
@@ -679,6 +681,7 @@ function updateCaveHud(){
 function updateCave(){
   updateCaveHud(); caveAmbience(!!CAVE);
   if (!CAVE || !hero) return;
+  gwCaveFrame(performance.now());
   const now = performance.now(), dt = Math.min(0.25, (now - CAVE.last) / 1000); CAVE.last = now;
   const rm = caveRoomAt(hero.position.x, hero.position.z); if (rm && rm !== CAVE.room) { CAVE.room = rm; caveEnterRoom(rm); }
   caveJobStep(now);
@@ -720,7 +723,7 @@ function caveEnterRoom(rm){
   if (rm === 'braz' && !P.k_braz) showToast('Four cold braziers stand round an empty altar.');
   if (rm === 'mine' && !P.wall) showToast('An old mine. Light glints through a crack in the far wall.');
   if (rm === 'cell' && !P.met) showToast('Someone is locked in a cell!');
-  if (rm === 'boss' && !P.k_boss) { setTimeout(() => { if (CAVE && CAVE.room === 'boss' && !CAVE.troll) { CAVE.troll = caveSpawn('caveTroll', 0, 609, 'boss'); combatSound('goblinAttack'); showToast('A cave troll heaves itself up from a pile of bones!'); } }, 600); }
+  if (rm === 'boss' && !P.k_boss) { setTimeout(() => { if (CAVE && CAVE.room === 'boss' && !CAVE.troll) { CAVE.troll = caveSpawn('caveTroll', 0, 609, 'boss'); combatSound('goblinAttack'); showToast('A huge cave goblin heaves itself up from a pile of bones!'); } }, 600); }
 }
 // the creatures: whoever is in the room with you comes for you, round anything in the way; everyone you aren't fighting still swings at you
 function caveMobs(now, dt){
@@ -736,7 +739,7 @@ function caveMobs(now, dt){
     if (k === 'boss') caveWon();
   }
   // the troll calls for help when it's hurt
-  const T = CAVE.troll; if (T && !CAVE.helped && T.state !== 'dying' && T.state !== 'dead' && T.hp <= T.t.hp / 2) { CAVE.helped = true; showToast('The troll bellows, and a blind rat scuttles out of a crack!'); caveSpawn('blindRat', -11, 604, 'boss'); }
+  const T = CAVE.troll; if (T && !CAVE.helped && T.state !== 'dying' && T.state !== 'dead' && T.hp <= T.t.hp / 2) { CAVE.helped = true; showToast('The cave goblin bellows, and a blind rat scuttles out of a crack!'); caveSpawn('blindRat', -11, 604, 'boss'); }
   const here = alive.filter(m => m.croom === CAVE.room);
   const lead = FIGHT && here.includes(FIGHT.m) ? FIGHT.m : null;
   const leadA = lead ? Math.atan2(lead.g.position.x - hero.position.x, lead.g.position.z - hero.position.z) : 0;
@@ -779,8 +782,8 @@ function caveStep(m, tx, tz, want, now, dt){
 function caveWon(){
   CAVE.won = true; CAVE.wonAt = performance.now(); CV.bossRope.visible = true;
   CAVE_P.beat = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1; delete CAVE_P.at; saveNow(false);   /* beaten for good: from here, what you found is yours to keep */
-  caveChestOut();
-  setTimeout(() => { showToast('The cave troll crashes to the ground. A chest lies among the bones, and a rope hangs down from a crack of daylight.'); addSystemLine('Open the chest to claim your reward.'); }, 1200);
+  caveChestOut(); gwDropKey();   /* and it drops the key to Hollis's cell */
+  setTimeout(() => { showToast('The cave goblin crashes to the ground. A chest lies among the bones, and a rope hangs down from a crack of daylight.'); addSystemLine('Open the chest to claim your reward.'); }, 1200);
 }
 function caveChestOut(){
   { const [cx, cz] = CV_AT.bossChest, C = buildRewardChest(cx, cz); C.g.userData = { action: 'Open', name: 'Reward chest', rec: { kind: 'chest', state: 'standing', x: cx, z: cz, onClick: bossChestClick } }; trees.push(C.g); CV.bossChest = { ...C, born: performance.now(), opened: false, openAt: 0 }; }
