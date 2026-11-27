@@ -1912,9 +1912,9 @@ async function buyFromStock(name){
   if (coinCount() < price || !roomForOne(name)) { changeFishStock(name, 1); renderShop(); return; }   /* spent or filled up while we waited: put it back */
   COINS -= price; addItem(name, 1, ICON_FOR[name]); showToast(`You buy a ${name.toLowerCase()} for ${price} coins.`); renderShop(); renderBag();
 }
-const SHOPS = { mara: { title: "Mara's shop", who: 'Mara', buy: SHOP, buys: n => !FARM_GOODS.has(n) && !FISH_GOODS.has(n), hint: 'Bring me logs, ores, bars or your bronze gear.' },
+const SHOPS = { mara: { title: "Mara's shop", who: 'Mara', buy: SHOP, buys: n => !FARM_GOODS.has(n) && !FISH_GOODS.has(n) && n !== 'Fly fishing rod', hint: 'Bring me logs, ores, bars or your bronze gear.' },
   market: { title: "Tilly's market stall", who: 'Tilly', buy: MARKET_BUY, buys: n => FARM_GOODS.has(n), hint: 'Bring me wheat, flour, leaves, silk, meat or feathers.' },
-  fish: { title: "Jory's fishing shack", who: 'Jory', buy: FISH_SHOP, buys: n => FISH_GOODS.has(n), stock: true, hint: 'Bring me shrimp, bream or trout.' } };
+  fish: { title: "Jory's fishing shack", who: 'Jory', buy: FISH_SHOP, buys: n => FISH_GOODS.has(n) || n === 'Fly fishing rod', stock: true, hint: 'Bring me shrimp, bream or trout.' } };
 let CUR_SHOP = SHOPS.mara;
 function openShop(npc){ CUR_SHOP = SHOPS[npc && npc.shop] || SHOPS.mara; if (CUR_SHOP.stock) loadFishStock(); document.getElementById('shopTitle').textContent = CUR_SHOP.title; document.getElementById('shopPanel').hidden = false; renderShop(); }
 function coinCount(){ return COINS; }

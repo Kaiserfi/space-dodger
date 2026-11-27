@@ -15,6 +15,7 @@ window.__t = {
   state: () => ({ toast: document.getElementById('toast').textContent, fishing: !!fishing, fish: fishing ? fishing.rec.fish : null, pose: heroAnim.mode }),
   clickBag: name => { const k = bag.findIndex(i => i.name === name); if (k < 0) return 'none'; document.querySelector('#bagGrid .slot[data-i="' + k + '"]').click(); return true; },
   slots: () => ['Bronze axe', 'Iron axe', 'Bronze pickaxe', 'Hammer', 'Small fishing net', 'Fishing rod', 'Fly fishing rod', 'Hoe', 'Watering can', 'Tinderbox'].map(n => n + ':' + beltSlotFor(n)),
+  buyers: () => Object.keys(SHOPS).filter(k => SHOPS[k].buys('Fly fishing rod')),
   count: name => countOf(name),
   belt: () => ({ ...toolbelt }),
   openBelt: () => { document.querySelectorAll('#statsPanel,#bagPanel,#gearPanel,#setPanel,#mapPanel').forEach(p => p.hidden = true); document.getElementById('beltPanel').hidden = false; renderBelt(); return true; },
@@ -70,6 +71,7 @@ window.__t = {
   // the cave's reward
   await t('reset'); const R = await t('reward'); check(R.rods === 1 && R.runs === 1 && R.coins === 0 && R.xpSame && R.boxes === 1, 'the cave chest gives only a fly fishing rod (no coins, no XP) and counts the run', R);
   await p.waitForTimeout(500); await p.locator('#questDone').screenshot({ path: `${OUT}/cave-reward.png` });
+  check(JSON.stringify(await t('buyers')) === '["fish"]', 'only Jory buys a spare fly rod, not Mara', await t('buyers'));
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
   await ctx.close(); await b.close();
 })();
