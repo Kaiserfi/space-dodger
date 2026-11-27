@@ -1,0 +1,30 @@
+// Moving a profile to another device (functions/transfer.js) against the local Firebase emulators (never the live project).
+const NS = 'space-dodger-1a558-default-rtdb', DBU = 'http://127.0.0.1:9000', AU = 'http://127.0.0.1:9099', FN = 'http://127.0.0.1:5001/space-dodger-1a558/us-central1';
+let fails = 0; const check = (ok, what, extra) => { if (!ok) fails++; console.log((ok ? 'OK   ' : 'FAIL ') + what + (extra !== undefined ? '  ' + JSON.stringify(extra).slice(0, 240) : '')); };
+const signUp = async () => (await (await fetch(`${AU}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"returnSecureToken":true}' })).json());
+const refresh = async rt => (await (await fetch(`${AU}/securetoken.googleapis.com/v1/token?key=fake`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(rt) })).json());
+const admin = (path, method, body) => fetch(`${DBU}/${path}.json?ns=${NS}`, { method, headers: { Authorization: 'Bearer owner' }, body: body === undefined ? undefined : JSON.stringify(body) }).then(r => r.json());
+const call = async (name, data, tok) => { const r = await fetch(`${FN}/${name}`, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ data }) }); return r.json(); };
+(async () => {
+  await admin('', 'PUT', {});
+  const A = await signUp(), B = await signUp(), C = await signUp();
+  let r = await call('transferCreate', { rt: B.refreshToken, name: 'Anna' }, A.idToken); check(r.error, "can't make a code from someone else's sign-in", r.error && r.error.message);
+  r = await call('transferCreate', { rt: A.refreshToken, name: 'Anna' }, A.idToken); const code = r.result && r.result.code;
+  check(code && /^[A-HJ-NP-Z2-9]{8}$/.test(code), 'a code is made', r);
+  const peek = await fetch(`${DBU}/transfer/codes/${code}.json?ns=${NS}&auth=${B.idToken}`); check(peek.status === 401, "browsers can't read the codes", peek.status);
+  r = await call('transferRedeem', { code: 'ZZZZZZZZ' }, B.idToken); check(r.error, 'a wrong code is turned down', r.error && r.error.message);
+  r = await call('transferRedeem', { code: code.slice(0, 4).toLowerCase() + '-' + code.slice(4) }, B.idToken);
+  check(r.result && r.result.uid === A.localId && r.result.name === 'Anna', 'the right code (typed with a dash, in small letters) gives the profile', r.result && { uid: r.result.uid, name: r.result.name });
+  const t = r.result ? await refresh(r.result.rt) : {}; check(t.user_id === A.localId, 'and the sign-in it gives is that account', t.user_id);
+  r = await call('transferRedeem', { code }, C.idToken); check(r.error, 'a code works only once', r.error && r.error.message);
+  const c1 = (await call('transferCreate', { rt: A.refreshToken }, A.idToken)).result.code, c2 = (await call('transferCreate', { rt: A.refreshToken }, A.idToken)).result.code;
+  r = await call('transferRedeem', { code: c1 }, C.idToken); check(r.error, 'a new code cancels the old one', r.error && r.error.message);
+  await admin(`transfer/codes/${c2}/exp`, 'PUT', Date.now() - 1000);
+  r = await call('transferRedeem', { code: c2 }, C.idToken); check(r.error, 'a code that has run out is turned down', r.error && r.error.message);
+  const c3 = (await call('transferCreate', { rt: A.refreshToken }, A.idToken)).result.code;
+  for (let i = 0; i < 9; i++) await call('transferRedeem', { code: 'AAAAAAAA' }, C.idToken);
+  r = await call('transferRedeem', { code: c3 }, C.idToken); check(r.error && /Too many/.test(r.error.message), 'too many tries are stopped, even with the right code', r.error && r.error.message);
+  await admin(`banned/${A.localId}`, 'PUT', true);
+  r = await call('transferCreate', { rt: A.refreshToken }, A.idToken); check(r.error, "a banned account can't make codes", r.error && r.error.message);
+  console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
+})();

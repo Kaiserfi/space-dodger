@@ -1,0 +1,5 @@
+# Firebase emulator and CLI logs
+*-debug.log
+functions/node_modules/
+# Python packages downloaded while working: never part of the site
+*.whl
