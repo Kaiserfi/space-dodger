@@ -169,8 +169,8 @@ function applySave(d){
     SKILL_XP.Melee = Math.min(SKILL_XP.Melee, d.dv.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, d.dv.h);
     setTimeout(() => { addSystemLine(`You left the cellar mid-challenge, which counts as fleeing: -${lost.toLocaleString()} coins${lm ? ', -' + lm.toLocaleString() + ' Melee XP' : ''}${lh ? ', -' + lh.toLocaleString() + ' Hitpoints XP' : ''}.`); renderBag(); renderStats(); saveNow(false); }, 1500);
   }
-  if (d && d.cd) caveLoadP(d.cd);   /* how far you got in the cave */
-  if (!CAVE && bag.some(i => CAVE_ITEMS.has(i.name))) caveStash();   /* the cave's things never come up top */
+  if (d && d.cd) caveLoadP(d.cd);   /* whether you beat the cave */
+  caveSettle();   /* a cave run left unfinished (the game closed down there) is undone, and the cave's things never come up top */
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }

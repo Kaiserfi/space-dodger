@@ -20,6 +20,7 @@ window.__t = { ready: () => ONLINE.ready };
   T.dieNow = () => { playerDies(); return T.grave(); };
   T.music = () => FIGHT_MUSIC.want;
   T.dropKey = () => { const it = bag.find(b => b.name === 'Ember key'); dropItem(it, false); return bag.includes(it); };
+  T.unbeat = () => { caveLoadP({ v: 2 }); return true; };   /* forget that the cave was beaten, for tests that need its creatures again */
   T.give = (n, q) => { addItem(n, q, ICON_FOR[n]); return countOf(n); };
   T.clickItem = name => { const i = bag.findIndex(b => b.name === name); const el = document.querySelector('#bagGrid .slot[data-i="' + i + '"]'); if (!el) return false; const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.x + 10, clientY: r.y + 10 })); return document.getElementById('itemMenu').hidden ? null : document.getElementById('itemMenu').textContent; };
   T.ironKeyShown = () => !!(CV.ironKey && CV.ironKey.visible);

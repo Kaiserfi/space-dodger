@@ -1,10 +1,9 @@
-// A full bag refuses (the tree, the wall, the chest, going back down with things you left) and nothing lands on the ground.
+// A full bag refuses (the tree, the wall, the chest) and nothing lands on the ground.
 // Serve the repo on 8123, then: node tools/tests/cave/full-bag.js
 const fs = require('fs'); const { chromium } = require('playwright'); const { offlineDb } = require('../../offline-db.js');
 const HOOK = fs.readFileSync(__dirname + '/hook.js', 'utf8') + `
 window.__t.fill = () => { while (bag.length < BAG_SIZE) addItem('Shrimp', 1, ICON_FOR.Shrimp); return bag.length; };
 window.__t.free = n => { for (let i = 0; i < n; i++) removeItem('Shrimp'); return bag.length; };
-window.__t.stash = () => { CAVE_P.ember = 1; CAVE_P.k_braz = 1; CAVE_P.inv = { 'Ember key': 1, 'Cave web': 2 }; return true; };
 window.__t.win = () => { clearCaveMonsters(); CAVE.mons = []; CAVE.troll = { state: 'dead' }; caveWon(); return true; };
 window.__t.misc = () => JSON.stringify({ job: !!caveJob, ground: GROUND.map(g => g.name), inv: CAVE_P.inv, bag: bag.filter(b => /key|web/i.test(b.name)).map(b => b.name + ' x' + b.qty), opened: CAVE && CAVE.opened });`;
 (async () => { const b = await chromium.launch(); const p = await (await b.newContext()).newPage(); await offlineDb(p); p.on('pageerror', e => console.log('PAGEERROR', e.message));
@@ -16,7 +15,4 @@ window.__t.misc = () => JSON.stringify({ job: !!caveJob, ground: GROUND.map(g =>
   await t('go', -20.6, 643); await t('call', 'treeClick'); await p.waitForTimeout(500); console.log('tree:', await toast(), await t('misc'));
   await t('go', 35.6, 643); await t('call', 'wallClick'); await p.waitForTimeout(500); console.log('wall:', await toast());
   await t('go', 0, 615); await p.waitForTimeout(800); await t('win'); await p.waitForTimeout(500); await t('call', 'bossChestClick'); await p.waitForTimeout(500); console.log('chest:', await toast(), await t('misc'));
-  await t('stash'); await t('call', 'leaveCave', 'out'); await t('mouth'); await t('click'); await p.waitForTimeout(800); console.log('enter full:', (await t('state')).cave, await toast());
-  await t('free', 1); await t('click'); await p.waitForTimeout(800); console.log('one slot:', (await t('state')).cave, await toast());
-  await t('free', 1); await t('click'); await p.waitForTimeout(1500); console.log('two slots:', (await t('state')).cave, await t('misc'));
   await b.close(); })();

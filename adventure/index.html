@@ -6520,8 +6520,8 @@ function applySave(d){
     SKILL_XP.Melee = Math.min(SKILL_XP.Melee, d.dv.m); SKILL_XP.Hitpoints = Math.min(SKILL_XP.Hitpoints, d.dv.h);
     setTimeout(() => { addSystemLine(`You left the cellar mid-challenge, which counts as fleeing: -${lost.toLocaleString()} coins${lm ? ', -' + lm.toLocaleString() + ' Melee XP' : ''}${lh ? ', -' + lh.toLocaleString() + ' Hitpoints XP' : ''}.`); renderBag(); renderStats(); saveNow(false); }, 1500);
   }
-  if (d && d.cd) caveLoadP(d.cd);   /* how far you got in the cave */
-  if (!CAVE && bag.some(i => CAVE_ITEMS.has(i.name))) caveStash();   /* the cave's things never come up top */
+  if (d && d.cd) caveLoadP(d.cd);   /* whether you beat the cave */
+  caveSettle();   /* a cave run left unfinished (the game closed down there) is undone, and the cave's things never come up top */
   if (d && d.kc) for (const k in KILLS) if (typeof d.kc[k] === 'number') KILLS[k] = d.kc[k];
   HP.cur = maxHp();
   if (d && d.look) { look = { ...look, ...d.look }; lookMade = true; saveLook(); creator.hidden = true; rebuildHero(); }
@@ -9154,9 +9154,10 @@ function caveLoadP(d){ CAVE_P = d && typeof d === 'object' && !Array.isArray(d) 
     if (P.webs && !P.rope && !P.tideDown) add('Cave web', [0, 1, 2].filter(k => P.webs & (1 << k)).length); if (P.rope && !P.tideDown) add('Web rope');
     if (P.tideDown) P.tide = 1; if (P.glow) P.fed = 1;
     if (!P.door) for (const k in KEY_ITEM) if (P[k]) add(KEY_ITEM[k]);
-    delete P.fish; delete P.cooked; delete P.spores; delete P.rope; delete P.tideDown; P.v = 2; } }
+    delete P.fish; delete P.cooked; delete P.spores; delete P.rope; delete P.tideDown; P.v = 2; }
+  if ((P.runs || 0) > 0 || P.done) P.beat = 1; delete P.done; }   /* beaten once is beaten for good (saves from before kept a per-trip done) */
 caveLoadP({ v: 2 });
-// the things you find down here are real items in your bag, but they stay in the cave: leaving (or dying) puts them away in CAVE_P.inv, coming back hands them over again
+// the things you find down here are real items in your bag, but they never leave the cave: leaving (or dying) takes them away (caveBin), and an unfinished run starts over
 const CAVE_ITEMS = new Set(['Raw cave fish', 'Cave fish', 'Burnt cave fish', 'Glowcap spores', 'Cave web', 'Web rope', 'Ember key', 'Iron key', 'Tide key']);
 const KEY_ITEM = { ember: 'Ember key', iron: 'Iron key', tide: 'Tide key' };
 { const svg = b => `<svg viewBox="0 0 16 16" width="26" height="26">${b}</svg>`;
@@ -9193,14 +9194,28 @@ function twistRope(){
     done: () => { if (countOf('Cave web') < 3) return; for (let i = 0; i < 3; i++) removeItem('Cave web'); addItem('Web rope', 1, ICON_FOR['Web rope']); addXp('Crafting', 60); craftSound(); showToast('You twist the webs into a sticky but sturdy rope.  +60 Crafting XP'); } };
   document.getElementById('smeltLabel').textContent = 'Crafting...'; document.getElementById('smeltFill').style.width = '0%'; document.getElementById('smeltBar').style.display = 'block';
 }
-const caveInvNow = () => { const inv = { ...(CAVE_P.inv || {}) }; if (CAVE) for (const it of bag) if (CAVE_ITEMS.has(it.name)) inv[it.name] = (inv[it.name] || 0) + it.qty; return inv; };
-function caveSaveP(){ return { ...CAVE_P, inv: caveInvNow() }; }
-// put the cave's things away (leaving, dying, or a save that somehow brought them up top)
-function caveStash(){ const inv = CAVE_P.inv || {}; for (const it of bag.slice()) if (CAVE_ITEMS.has(it.name)) { inv[it.name] = (inv[it.name] || 0) + it.qty; bag.splice(bag.indexOf(it), 1); } CAVE_P.inv = inv; renderBag(); }
-/* hand back what fits; anything that doesn't stays put away (never on the ground, where it would vanish) and comes out once there's room */
-function caveUnstash(){ const inv = CAVE_P.inv || {}; let left = 0;
-  for (const n in inv) { if (!CAVE_ITEMS.has(n) || !(inv[n] > 0)) { delete inv[n]; continue; } const before = countOf(n); addItem(n, inv[n], ICON_FOR[n]); inv[n] -= countOf(n) - before; if (inv[n] > 0) left += inv[n]; else delete inv[n]; }
-  CAVE_P.inv = inv; if (left && CAVE && !CAVE.toldFull) { CAVE.toldFull = true; showToast('Your bag is full. Make some room and the rest of what you found down here comes out of your pack.'); } else if (!left && CAVE) CAVE.toldFull = false; return left; }
+function caveSaveP(){ const o = { ...CAVE_P }; delete o.inv; return o; }   /* nothing is put away any more: an unfinished run starts over, and a beaten cave has nothing to carry */
+// ----- one run at a time. Until the troll is beaten, leaving in any way (the rope, dying, logging out, closing the game) resets the cave and takes back
+// everything found down there: the cave's own things, and any ordinary items you came out with more of than you went in with (logs from the tree,
+// ore from the wall and the seam, bars). The bag is noted on the way in (CAVE_P.at) and saved straight away, so closing the game mid-run keeps nothing:
+// the next load takes it back (caveSettle). XP earned is kept, as the owner chose. Once the troll falls the cave is beaten for good (CAVE_P.beat):
+// it stays open and empty, and its chest gives the fly rod once (CAVE_P.rod).
+const caveCounts = () => { const c = {}; for (const it of bag) if (!CAVE_ITEMS.has(it.name)) c[it.name] = (c[it.name] || 0) + (it.qty || 1);
+  for (const k in toolbelt) if (toolbelt[k]) c[toolbelt[k]] = (c[toolbelt[k]] || 0) + 1; for (const k in equipped) if (equipped[k]) c[equipped[k]] = (c[equipped[k]] || 0) + 1; c.Coins = COINS; return c; };
+function caveBin(){ for (const it of bag.slice()) if (CAVE_ITEMS.has(it.name)) bag.splice(bag.indexOf(it), 1); CAVE_P.inv = {}; }   /* the cave's own things never come up top */
+function caveTakeBack(at){   /* anything you have more of than you went in with goes back to the cave */
+  const now = caveCounts(); let n = 0;
+  if (now.Coins > (at.Coins || 0)) { n += now.Coins - (at.Coins || 0); COINS = at.Coins || 0; }
+  for (const name in now) { if (name === 'Coins') continue; let extra = now[name] - (at[name] || 0); if (extra <= 0) continue; n += extra;
+    for (const it of bag.slice().reverse()) { if (extra <= 0) break; if (it.name !== name) continue; const q = Math.min(it.qty || 1, extra); extra -= q; if ((it.qty || 1) > q) it.qty -= q; else bag.splice(bag.indexOf(it), 1); }
+    for (const k in toolbelt) if (extra > 0 && toolbelt[k] === name) { toolbelt[k] = null; extra--; }   /* something made down there and hung on the belt or worn goes too */
+    for (const k in equipped) if (extra > 0 && equipped[k] === name) { equipped[k] = null; extra--; heroFrame = ''; } }
+  return n; }
+function caveReset(){ caveLoadP({ v: 2, beat: CAVE_P.beat, rod: CAVE_P.rod, runs: CAVE_P.runs }); }
+function caveSettle(){   /* on loading a save: a run left unfinished (the game closed down there) is undone */
+  if (CAVE) return;
+  if (!CAVE_P.beat) { if (CAVE_P.at) caveTakeBack(CAVE_P.at); caveReset(); }
+  delete CAVE_P.at; caveBin(); }
 
 // ----- building it, once, the first time anyone goes in -----
 const CV = {};   // the moving and clickable parts
@@ -9669,13 +9684,13 @@ function bossDoorClick(){
   showToast('The three keys turn with a heavy clunk. The great door swings open, and something huge grunts in the dark beyond.');
 }
 function bossChestClick(){
-  if (!CAVE || !CAVE.won || CAVE.opened || CAVE_P.done) return;
+  if (!CAVE || !CAVE.won || CAVE.opened || CAVE_P.rod) return;
   if (!bagRoomFor(['Fly fishing rod'])) { showToast('Your bag is full.'); return; }
   caveGo(...CV_AT.bossChest, 2.2, () => { if (CAVE.opened || !CV.bossChest || !bagRoomFor(['Fly fishing rod'])) return; CAVE.opened = performance.now(); CV.bossChest.opened = true; CV.bossChest.openAt = performance.now(); chestSound(); setTimeout(grantCaveRewards, 1600); });
 }
 function grantCaveRewards(){   /* the cave's one reward: a fly fishing rod, the only way to get one (trout need it) */
   addItem('Fly fishing rod', 1, ICON_FOR['Fly fishing rod']);
-  CAVE_P.done = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1;   /* the next trip down starts fresh (caveFresh); runs > 0 means the cave has been beaten */
+  CAVE_P.rod = 1;   /* the chest gives it once; the cave stays beaten (CAVE_P.beat, set when the troll fell) */
   questJingle(); renderStats(); renderBag(); saveNow(false);
   showRewardScroll({ banner: 'Dungeon complete', title: 'The Cave', sub: 'Three keys found, the great door opened, and the cave troll beaten.',
     rewards: `<div class="qr"><span class="qi">${ICON_FOR['Fly fishing rod']}</span>A fly fishing rod</div>`, xp: '',
@@ -9694,20 +9709,25 @@ function caveClick(){
 function askCave(){
   if (FIGHT) { showToast("You can't go in there while you're fighting!"); return; }
   if (DELVE || CAVE) return;
-  caveFresh(); const kept = Object.keys(CAVE_P.inv || {}).filter(n => CAVE_ITEMS.has(n) && CAVE_P.inv[n] > 0);
-  if (!bagRoomFor(kept)) { showToast(`Your bag is full. You need ${slotsFor(kept)} free spaces for the things you left in the cave.`); return; }   /* the things you left down there come back with you, so there must be room */
   startCave();   /* no warning: the owner wants people to just go in and explore */
 }
-function caveFresh(){ if (CAVE_P.done) caveLoadP({ runs: CAVE_P.runs || 1, v: 2 }); }
+// a beaten cave: every door open, every key used, no creatures; only the chest waits, if its rod hasn't been taken
+function caveBeatenState(){ const P = CAVE_P;
+  for (const k of [...Object.keys(CAVE_MONS), 'braz', 'boss']) P['k_' + k] = 1;
+  Object.assign(P, { seal: 1, bridge: 1, wall: 1, door: 1, met: 1, fed: 1, glow: 1, webs: 7, ember: 1, iron: 1, tide: 1, ironMade: 1, pl: [1, 1, 1, 1, 1] }); }
 function startCave(){
-  caveFresh(); buildCave(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
+  if (CAVE_P.beat) caveBeatenState(); else caveReset();   /* an unbeaten cave always starts from the beginning */
+  CAVE_P.at = caveCounts(); caveBin();   /* what you went in with, saved before anything can be found */
+  buildCave(); if (FIGHT) endFight(); cancelChop(); if (EV.seat >= 0) standUp();
   walkTarget = null; walkQueue = []; walkThen = null;
   CAVE = { room: 'entry', mons: [], seen: {}, cleared: {}, ambush: false, won: false, opened: 0, last: performance.now() };
   hero.position.set(CV_AT.arrive[0], 0, CV_AT.arrive[1]); heroShadow.position.set(hero.position.x, 0.06, hero.position.z); heroAnim.yaw = Math.PI;
   for (const k in CAVE_MONS) if (!CAVE_P['k_' + k]) for (const [t, x, z] of CAVE_MONS[k]) caveSpawn(t, x, z, k);
   for (const b of CV.braz) b.lit = 0;
-  caveUnstash(); caveSync(true);
-  addSystemLine('The Cave: find the three keys to the great door. The rope behind you leads back up.');
+  caveSync(true);
+  if (CAVE_P.beat) { CAVE.won = true; CV.bossRope.visible = true; for (const k in CAVE_ROOMS) CAVE.seen[k] = true; if (!CAVE_P.rod) caveChestOut(); addSystemLine(CAVE_P.rod ? 'The Cave: you beat this place. It\'s quiet now.' : 'The Cave: you beat this place. The chest in the troll\'s den is still waiting for you.'); }
+  else addSystemLine('The Cave: find the three keys to the great door. The rope behind you leads back up.');
+  saveNow(false);
   writePresence(true); updateDayNight.next = 0;
 }
 /* multi-combat: everything in the room comes for you at once */
@@ -9716,7 +9736,10 @@ function clearCaveMonsters(){
   for (const m of CAVE ? CAVE.mons : []) { scene.remove(m.g); const i = trees.indexOf(m.g); if (i >= 0) trees.splice(i, 1); m.bar.remove(); const j = MONSTERS.indexOf(m); if (j >= 0) MONSTERS.splice(j, 1); }
 }
 function leaveCave(msg, dead){
-  stopCaveJob(); if (FIGHT) endFight(); caveStash(); clearCaveMonsters(); CAVE = null; caveFresh();
+  stopCaveJob(); if (FIGHT) endFight(); caveBin(); clearCaveMonsters(); CAVE = null;
+  let gone = 0; if (!CAVE_P.beat) { gone = CAVE_P.at ? caveTakeBack(CAVE_P.at) : 0; caveReset(); for (const g of GROUND.slice()) if (inCaveZone(g.x, g.z)) removeGround(g); }   /* unfinished: it all starts over, and what you found stays down there (even dropped) */
+  delete CAVE_P.at; renderBag(); renderGear();
+  if (!CAVE_P.beat && !dead && gone) msg = (msg ? msg + ' ' : '') + 'What you found down there stays there.';
   for (const b of CV.braz || []) { b.lit = 0; const i = LIGHT_SPOTS.indexOf(b.spot); if (i >= 0) LIGHT_SPOTS.splice(i, 1); }
   const sp = caveExitSpot(); walkTarget = null; walkQueue = []; walkThen = null;
   hero.position.set(sp.x, 0, sp.z); heroShadow.position.set(sp.x, 0.06, sp.z); heroAnim.yaw = -Math.PI / 2;
@@ -9770,7 +9793,6 @@ function updateCave(){
   const now = performance.now(), dt = Math.min(0.25, (now - CAVE.last) / 1000); CAVE.last = now;
   const rm = caveRoomAt(hero.position.x, hero.position.z); if (rm && rm !== CAVE.room) { CAVE.room = rm; caveEnterRoom(rm); }
   caveJobStep(now);
-  if (CAVE_P.inv && Object.keys(CAVE_P.inv).length && now > (CAVE.invAt || 0)) { CAVE.invAt = now + 1000; caveUnstash(); }   /* things still put away come out once there's room */
   // the moving parts: the portcullis and seal lift, the tree falls, the door swings, the braziers burn down, the glowcap grows
   for (const b of [CV.portcullis, CV.wall]) if (b.anim && b.mesh) { const k = Math.min(1, (now - b.anim) / 1600); if (b === CV.portcullis) b.mesh.position.y = b.y0 + (b.open ? k : 1 - k) * 4.6; else { b.mesh.position.y = b.y0 - (b.open ? k : 0) * 4.5; if (k >= 1 && b.open) b.mesh.visible = false; } if (k >= 1) b.anim = null; }
   if (CV.portcullis.open && !CV.portcullis.anim) CV.portcullis.mesh.position.y = CV.portcullis.y0 + 4.6;
@@ -9867,11 +9889,15 @@ function caveStep(m, tx, tz, want, now, dt){
 }
 function caveWon(){
   CAVE.won = true; CAVE.wonAt = performance.now(); CV.bossRope.visible = true;
+  CAVE_P.beat = 1; CAVE_P.runs = (CAVE_P.runs || 0) + 1; delete CAVE_P.at; saveNow(false);   /* beaten for good: from here, what you found is yours to keep */
+  caveChestOut();
+  setTimeout(() => { showToast('The cave troll crashes to the ground. A chest lies among the bones, and a rope hangs down from a crack of daylight.'); addSystemLine('Open the chest to claim your reward.'); }, 1200);
+}
+function caveChestOut(){
   { const [cx, cz] = CV_AT.bossChest, C = buildRewardChest(cx, cz); C.g.userData = { action: 'Open', name: 'Reward chest', rec: { kind: 'chest', state: 'standing', x: cx, z: cz, onClick: bossChestClick } }; trees.push(C.g); CV.bossChest = { ...C, born: performance.now(), opened: false, openAt: 0 }; }
   CV.chestBox = CV.chestBox || { x0: CV_AT.bossChest[0] - 0.9, x1: CV_AT.bossChest[0] + 0.9, z0: CV_AT.bossChest[1] - 0.6, z1: CV_AT.bossChest[1] + 0.6 }; if (!solidBoxes.includes(CV.chestBox)) solidBoxes.push(CV.chestBox);
   if (!LIGHT_SPOTS.some(p => p[0] === CV_AT.bossChest[0] && p[2] === CV_AT.bossChest[1])) LIGHT_SPOTS.push([CV_AT.bossChest[0], 2.5, CV_AT.bossChest[1]]);
   updateDayNight.next = 0;
-  setTimeout(() => { showToast('The cave troll crashes to the ground. A chest lies among the bones, and a rope hangs down from a crack of daylight.'); addSystemLine('Open the chest to claim your reward.'); }, 1200);
 }
 
 // ----- the cave's ambience, made in code from filtered noise and a long echo (no tones, which sounded like an arcade): room tone, a cold draught, water dripping and the odd groan from deep in the rock.
