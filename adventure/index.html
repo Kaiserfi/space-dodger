@@ -1333,6 +1333,7 @@ function walkStart(point, then, replan = false){
   if (EV.seat >= 0) standUp();   // any walk gets you up off the bench
   if (!replan && typeof stopLighting === 'function') stopLighting();
   if (!replan && typeof stopCaveJob === 'function') stopCaveJob();   /* walking off stops a job in the cave */
+  if (!replan && chop.rec) { if (chop.rec.state === 'standing') chop.rec.g.rotation.z = 0; if (ONLINE.act) setAct(null); chop.rec = null; }   /* and stops chopping or mining: an oak rarely falls, so the swing would follow you away */
   unstick();
   const path = findPath(hero.position, point);
   if (!replan) walkTries = 0;   // a new click starts with fresh re-plans
@@ -3462,7 +3463,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   const treeHit = liveHit(ray.intersectObjects(trees, true));
   if (treeHit) {
     let g = treeHit.object; while (g && !g.userData.rec) g = g.parent;
-    if (g) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }
+    if (g && g.userData.rec !== chop.rec) { clickMark(e.clientX, e.clientY, true); clickNode(g.userData.rec); return; }   /* the tree you're already chopping is walked away from: an oak's crown fills the screen round you */
   }
   clickMark(e.clientX, e.clientY, false);
   if (ray.ray.intersectPlane(groundPlane, hit)) walkToGround(hit); else { cancelChop(); if (FIGHT) endFight('You run away.'); }
