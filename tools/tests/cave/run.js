@@ -107,8 +107,7 @@ let fails = 0; const check = (ok, what, extra) => { if (!ok) fails++; log((ok ? 
   log('    web menu:', await t('clickItem', 'Cave web')); await p.click('#itemMenu button[data-o="r"]'); s = await until(s => s.bag.some(x => x.startsWith('Web rope x')), 15000); check(s.bag.some(x => x.startsWith('Web rope x')), 'twisted a rope', s.toast);
   await t('call', 'ledgeClick'); await wait(1500); await t('go', -20, 664); await game('11a climbing'); s = await until(s => s.P.tide, 20000); check(s.bag.some(x => x.startsWith('Tide key x')) && s.heroY === 0, 'climbed the ledge: the tide key', s.toast);
   await snap('11 grotto done', [-25, 14, 680, -25, 1, 662]);
-  await t('call', 'leaveCave', 'out'); s = await t('state'); check(!s.bag.some(x => / key /.test(x)) && s.P.inv['Tide key'] === 1, 'leaving puts the cave things away', s.P.inv);
-  await t('mouth'); await t('click'); await wait(1500); s = await t('state'); check(s.cave && s.bag.some(x => x.startsWith('Ember key x')) && s.bag.some(x => x.startsWith('Tide key x')) && s.bag.some(x => x.startsWith('Iron key x')), 'coming back hands them over', s.bag);
+  s = await t('state'); check(s.bag.some(x => x.startsWith('Ember key x')) && s.bag.some(x => x.startsWith('Tide key x')) && s.bag.some(x => x.startsWith('Iron key x')), 'all three keys in hand', s.bag);   /* leaving now would reset it all: see one-time.js */
   log('HUD:', s.hud);
   // the great door and the troll
   await t('go', 0, 634.5); await t('call', 'bossDoorClick'); await wait(3000); s = await t('state'); check(s.P.door && !s.bag.some(x => / key /.test(x)), 'the great door opens and takes the keys', s.toast);
@@ -121,10 +120,11 @@ let fails = 0; const check = (ok, what, extra) => { if (!ok) fails++; log((ok ? 
   await t('kill', 'boss'); s = await until(s => s.P.k_boss, 10000); check(s.P.k_boss, 'the troll is beaten');
   { let bad = 0; for (let i = 0; i < 12; i++) { if (await t('music') === 'battle_theme') bad++; await wait(500); } check(!bad, 'no battle theme after the troll', bad); }
   await wait(2500); const c0 = (await t('state')).coins;
-  await t('call', 'bossChestClick'); s = await until(s => s.P.done, 60000); log('    chest:', s.toast, s.hero); check(s.P.done && s.coins === c0 && s.bag.some(x => x.startsWith('Fly fishing rod')), 'the chest gives the fly fishing rod (and nothing else)', { coins: s.coins - c0, bag: s.bag });
+  await t('call', 'bossChestClick'); s = await until(s => s.P.rod, 60000); log('    chest:', s.toast, s.hero); check(s.P.rod && s.coins === c0 && s.bag.some(x => x.startsWith('Fly fishing rod')), 'the chest gives the fly fishing rod (and nothing else)', { coins: s.coins - c0, bag: s.bag });
   await wait(1200); await game('14 reward');
   await p.evaluate(() => { document.getElementById('questDone').hidden = true; });
-  await t('call', 'leaveCave', 'out'); s = await t('state'); check(!s.cave && Object.keys(s.P).length <= 4 && !s.P.door, 'out, and the next trip starts fresh', s.P);
+  await t('call', 'leaveCave', 'out'); s = await t('state'); check(!s.cave && s.P.beat && !s.P.at, 'out, and the cave stays beaten', s.P);
+  await t('unbeat');   /* the rest needs an unbeaten cave */
   // dying in the cave
   await t('mouth'); await t('click'); await wait(1500);
   s = await t('state'); check(s.cave && s.mons.length === 7, 'a fresh cave', s.mons.length);
